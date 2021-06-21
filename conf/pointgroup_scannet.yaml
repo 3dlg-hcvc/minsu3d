@@ -1,0 +1,122 @@
+general:
+  task: # train, test, eval
+  manual_seed: 123
+  dataset: scannet
+  model: pointgroup
+  solver: PointGroupSolver
+  config: conf/pointgroup_scannet.yaml
+
+
+data:
+  module: lib.dataset
+  dataset: ScanNet
+  loader: scannet_loader
+  
+  data_root: dataset
+  file_suffix: .pth
+
+  split:
+  mini:
+
+  classes: 20
+  ignore_label: -1 # ignored classes
+
+  scale: 50   # voxel_size = 1 / scale, scale 50(2cm)
+  batch_size: 4
+  num_workers: 16
+  full_scale: [128, 512]
+  max_num_point: 250000
+  mode: 4 # 4=mean
+
+  transform:
+    jitter: True #True
+    flip: True #True
+    rot: True #True
+
+
+model:
+  module: model
+  classname: PointGroup
+  
+  input_channel: 3
+  m: 16 # 16 or 32
+  blocks: [1, 2, 3, 4, 5, 6, 7]
+  cluster_blocks: [1, 2]
+  block_residual: True
+  block_reps: 2
+
+  use_coords: True
+
+  use_checkpoint: #2021-02-10_01-53-53
+  resume_epoch: 480
+  pretrained_path: /local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth # TODO
+  pretrained_module: []
+  fix_module: []
+
+
+train:
+  epochs: 480 #480
+
+  optim: 
+    classname: Adam # Adam or SGD
+    lr: 0.001
+    momentum: 0.9 # SGD
+    weight_decay: 0.0001 # SGD
+  
+  step_epoch: 480 #384
+  multiplier: 0.5
+  save_freq: 16  # also eval_freq
+  loss_weight: [1.0, 1.0, 1.0, 1.0] # semantic_loss, offset_norm_loss, offset_dir_loss, score_loss
+
+  fg_thresh: 0.75
+  bg_thresh: 0.25
+
+  score_scale: 50 # the minimal voxel size is 2cm
+  score_fullscale: 14
+  score_mode: 4 # mean
+
+
+cluster:
+  ### point grouping
+  cluster_radius: 0.03
+  cluster_meanActive: 50
+  cluster_shift_meanActive: 300
+  cluster_npoint_thre: 50
+
+  prepare_epochs: 128
+  freeze_backbone: False
+
+test:
+  test_epoch: 384
+  test_seed: 567
+
+  TEST_NMS_THRESH: 0.3
+  TEST_SCORE_THRESH: 0.09
+  TEST_NPOINT_THRESH: 100
+
+
+evaluation:
+  model_utils_module: data.scannet.model_util_scannet
+  gt_class_name: NYU20_CLASS_NAME
+  gt_class_idx: NYU20_CLASS_IDX
+
+  task:
+  use_model: 2021-02-10_01-53-53
+
+
+log:
+  use_console_log: True
+  verbose: 1 #30
+  meter_names:
+    - iter_time
+    - semantic_loss
+    - offset_norm_loss
+    - offset_dir_loss
+    - score_loss
+    - total_loss
+  tb_names:
+    - semantic_loss
+    - offset_norm_loss
+    - offset_dir_loss
+    - score_loss
+    - total_loss

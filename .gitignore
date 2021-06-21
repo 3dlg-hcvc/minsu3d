@@ -1,0 +1,18 @@
+# scannet data
+data/scannet/splited_data
+data/scannet/splited_gt
+
+# log
+log/
+
+# temp
+temp/
+
+# pointgroup ops
+lib/pointgroup_ops/build/
+lib/pointgroup_ops/PG_OP*
+
+# other files
+.DS_Store
+__pycache__
+.vscode
