@@ -18,3 +18,11 @@ $ pip install -r requirements.txt
 ```
 
 if `conda install google-sparsehash -c bioconda` doesn’t work for installing pointgroup operations, try out `sudo apt-get install libsparsehash-dev`. ([error: google/dense_hash_map: No such file or directory](https://github.com/facebookresearch/SparseConvNet/issues/96))
+
+## Inference on your own dataset
+1. Prepare your data like `data/scannet/prepare_scannet.py`. Only the `mesh (xyz+rgb)` is necessary.
+2. Prepare your dataset and dataloader like `lib/dataset/scannet.py`. Only the test branch is necessary, including 'locs', 'locs_scaled' and 'feats' keys. 'id' and 'scene_id' are optional.
+3. Configure your own YAML file by replacing data-related arguments in `conf/pointgroup_scannet.yaml` with yours.
+4. Inference: `python test.py --split [data_split] --config [YOUR_YAML_FILE]`.
+5. Outputs are saved under `log/[dataset]/[model]/test/[datetime]/splited_pred`.
+6. You may find `visualize` is useful to convert outputs to .ply files.
