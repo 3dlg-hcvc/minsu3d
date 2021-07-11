@@ -1,7 +1,7 @@
 raw_scans: /datasets/released/scannet/public/v2/scans
 extracted_scans: /local-scratch/qiruiw/dataset/scannet/scans
-splited_scans: /local-scratch/qiruiw/dataset/scannet/splited_scans
-splited_data: /local-scratch/qiruiw/research/dense-scanrefer/data/scannet/splited_data
+splited_scans: /local-scratch/qiruiw/dataset/scannet/splited_scans #TODO
+splited_data: /local-scratch/qiruiw/research/dense-scanrefer/data/scannet/splited_data #TODO
 splited_gt: /local-scratch/qiruiw/research/dense-scanrefer/data/scannet/splited_gt
 
 split:
