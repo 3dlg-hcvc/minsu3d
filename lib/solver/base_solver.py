@@ -95,7 +95,7 @@ class BaseSolver:
             self.logger.info(f'=> restoring checkpoint from {self.cfg.model.use_checkpoint} ...')
             self.start_epoch = self.restore_checkpoint(self.cfg.model.resume_epoch)      # resume from the latest epoch, or specify the epoch to restore
         else: 
-            self.start_epoch = 0
+            self.start_epoch = 1
         
     
     def _load_pretrained_model(self):

@@ -8,7 +8,7 @@ SCANNETV2_PATH:
 
   dir: ${DATA_PATH}/scannet
   splited_scans: /local-scratch/qiruiw/dataset/scannet/splited_scans
-  splited_data: ${SCANNETV2_PATH.dir}/splited_data
+  splited_data: /project/3dlg-hcvc/dense-scanrefer/scannet/splited_data
   splited_gt: ${SCANNETV2_PATH.dir}/splited_gt
   meta_data: ${SCANNETV2_PATH.dir}/meta_data
 

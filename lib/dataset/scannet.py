@@ -5,10 +5,11 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 sys.path.append('../')  # HACK add the lib folder
-
 from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.pc import crop
 from lib.utils.transform import jitter, flip, rotz, elastic
+
+MEAN_COLOR_feats = np.array([109.8, 97.2, 83.8])
 
 
 class ScanNet(Dataset):
@@ -113,7 +114,8 @@ class ScanNet(Dataset):
         mesh = scene["aligned_mesh"]
 
         points = mesh[:, :3]  # (N, 3)
-        rgb = mesh[:, 3:6]  # (N, 3)
+        feats = mesh[:, 3:9]  # (N, 6) feats + normals
+        feats[:, :3] = (feats[:, :3] - MEAN_COLOR_feats) / 256.0
 
         data = {}
         data['id'] = np.array(id).astype(np.int32)
@@ -144,7 +146,7 @@ class ScanNet(Dataset):
                 
                 points_augment = points_augment[valid_idxs]
                 points = points[valid_idxs]
-                rgb = rgb[valid_idxs]
+                feats = feats[valid_idxs]
                 sem_labels = sem_labels[valid_idxs]
                 instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
 
@@ -153,7 +155,7 @@ class ScanNet(Dataset):
 
             data['locs'] = points_augment.astype(np.float32)  # (N, 3)
             data['locs_scaled'] = points.astype(np.float32)  # (N, 3)
-            data['feats'] = rgb.astype(np.float32)  # (N, 3)
+            data['feats'] = feats.astype(np.float32)  # (N, 6)
             data['sem_labels'] = sem_labels.astype(np.int32)  # (N,)
             data['instance_ids'] = instance_ids.astype(
                 np.int32)  # (N,) 0~total_nInst, -1
@@ -177,7 +179,7 @@ class ScanNet(Dataset):
 
             data['locs'] = points_augment.astype(np.float32)  # (N, 3)
             data['locs_scaled'] = points.astype(np.float32)  # (N, 3)
-            data['feats'] = rgb.astype(np.float32)  # (N, 3)
+            data['feats'] = feats.astype(np.float32)  # (N, 6)
 
         return data
 
@@ -210,7 +212,11 @@ def scannet_loader(cfg):
                     torch.LongTensor(b["locs_scaled"].shape[0], 1).fill_(i),
                     torch.from_numpy(b["locs_scaled"]).long()
                 ], 1))
-            feats.append(torch.from_numpy(b["feats"]) + torch.randn(3) * 0.1 * (cfg.general.task == 'train'))
+            
+            # feats.append(torch.from_numpy(b["feats"]) + torch.randn(3) * 0.1 * (cfg.general.task == 'train'))
+            feat = torch.from_numpy(b["feats"]) # (N, 3)
+            feat[:, :3] += torch.randn(3) * 0.1 * (cfg.general.task == 'train')
+            feats.append(feat)
             
             batch_offsets.append(batch_offsets[-1] + b["locs_scaled"].shape[0])
             

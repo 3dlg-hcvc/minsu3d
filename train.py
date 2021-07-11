@@ -5,7 +5,7 @@ from importlib import import_module
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', type=str, default='conf/instancerefer_scanrefer.yaml', help='path to config file')
+    parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml.yaml', help='path to config file')
     args = parser.parse_args()
 
     base_cfg = OmegaConf.load('conf/path.yaml')
@@ -15,9 +15,7 @@ if __name__ == '__main__':
     cfg.general.task = 'train'
 
     Solver = getattr(import_module('lib.solver'), cfg.general.solver)
-    from data.scannet.model_util_scannet import ScannetDatasetConfig
-    DC = ScannetDatasetConfig(cfg)
-    solver = Solver(cfg, DC)
+    solver = Solver(cfg)
 
     ##### train and val
     for epoch in range(solver.start_epoch, cfg.train.epochs + 1):
