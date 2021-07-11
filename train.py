@@ -5,7 +5,7 @@ from importlib import import_module
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml.yaml', help='path to config file')
+    parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml', help='path to config file')
     args = parser.parse_args()
 
     base_cfg = OmegaConf.load('conf/path.yaml')

@@ -1,4 +1,4 @@
-ROOT_PATH: /local-scratch/qiruiw/research/pointgroup-minkowski
+ROOT_PATH: /home/qiruiw/pointgroup-minkowski #TODO
 DATA_PATH: ${ROOT_PATH}/data
 LOG_PATH: ${ROOT_PATH}/log
 
