@@ -44,6 +44,11 @@ class ScanNet(Dataset):
             torch.load(os.path.join(self.root, self.split, d + self.file_suffix))
             for d in tqdm(self.scene_names)
         ]
+        
+        for scene_data in self.scenes:
+            mesh = scene_data["aligned_mesh"]
+            mesh[:, 3:6] = (mesh[:, 3:6] - MEAN_COLOR_feats) / 256.0
+    
 
     def __len__(self):
         return len(self.scenes)
@@ -115,7 +120,6 @@ class ScanNet(Dataset):
 
         points = mesh[:, :3]  # (N, 3)
         feats = mesh[:, 3:9]  # (N, 6) feats + normals
-        feats[:, :3] = (feats[:, :3] - MEAN_COLOR_feats) / 256.0
 
         data = {}
         data['id'] = np.array(id).astype(np.int32)
@@ -129,8 +133,10 @@ class ScanNet(Dataset):
             # augment
             points_augment = self._augment(points)
             # points_augment = points.copy()
+            
             # scale
             points = points_augment * self.scale
+            
             # elastic
             if self.split == 'train' and self.cfg.general.task == 'train':
                 points = elastic(points, 6 * self.scale // 50,
@@ -171,8 +177,8 @@ class ScanNet(Dataset):
             points_augment = points.copy()
             
             # scale
-            # points = points_augment * self.scale
-            points *= self.scale
+            points = points_augment * self.scale
+            # points *= self.scale
             
             # offset
             points -= points.min(0)
