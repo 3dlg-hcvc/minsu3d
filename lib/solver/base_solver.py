@@ -38,7 +38,7 @@ class BaseSolver:
     def _init_log(self):
         if self.cfg.model.use_checkpoint:
             self.logger = Logger.from_checkpoint(self.cfg)
-            self.logger.info(f"=> resume training from {self.logger.log_path}")
+            self.logger.info(f"=> resume from {self.logger.log_path}")
         else:
             self.logger = Logger(self.cfg)
     
@@ -79,7 +79,7 @@ class BaseSolver:
         optim_class_name = self.cfg.train.optim.classname
         optim = getattr(torch.optim, optim_class_name)
         if optim_class_name == 'Adam':
-            self.optimizer = optim(filter(lambda p: p.requires_grad, self.model.parameters()), lr=self.cfg.train.optim.lr, weight_decay=self.cfg.train.optim.weight_decay)
+            self.optimizer = optim(filter(lambda p: p.requires_grad, self.model.parameters()), lr=self.cfg.train.optim.lr)
         elif optim_class_name == 'SGD':
             self.optimizer = optim(filter(lambda p: p.requires_grad, self.model.parameters()), lr=self.cfg.train.optim.lr, momentum=self.cfg.train.optim.momentum, weight_decay=self.cfg.train.optim.weight_decay)
         else:

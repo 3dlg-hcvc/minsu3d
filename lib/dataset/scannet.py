@@ -9,7 +9,7 @@ from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.pc import crop
 from lib.utils.transform import jitter, flip, rotz, elastic
 
-MEAN_COLOR_feats = np.array([109.8, 97.2, 83.8])
+MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 
 
 class ScanNet(Dataset):
@@ -47,8 +47,9 @@ class ScanNet(Dataset):
         
         for scene_data in self.scenes:
             mesh = scene_data["aligned_mesh"]
-            mesh[:, 3:6] = (mesh[:, 3:6] - MEAN_COLOR_feats) / 256.0
-    
+            mesh[:, :3] -= mesh[:, :3].mean(0)
+            mesh[:, 3:6] = (mesh[:, 3:6] - MEAN_COLOR_RGB) / 256.0
+            # mesh[:, 3:6] = mesh[:, 3:6] / 127.5 - 1
 
     def __len__(self):
         return len(self.scenes)
@@ -119,12 +120,12 @@ class ScanNet(Dataset):
         mesh = scene["aligned_mesh"]
 
         points = mesh[:, :3]  # (N, 3)
-        feats = mesh[:, 3:9]  # (N, 6) feats + normals
-
+        feats = mesh[:, 3:6]  # (N, 3) rgb
+        # feats = mesh[:, 3:9]  # (N, 6) rgb+normals
+        
         data = {}
         data['id'] = np.array(id).astype(np.int32)
-        data['scene_id'] = np.array(
-            int(scene_id.lstrip('scene').replace('_', ''))).astype(np.int32)
+        data['scene_id'] = np.array(int(scene_id.lstrip('scene').replace('_', ''))).astype(np.int32)
 
         if self.split != 'test' and self.cfg.general.task != 'test':
             instance_ids = scene["instance_ids"]
@@ -143,6 +144,7 @@ class ScanNet(Dataset):
                              40 * self.scale / 50)
                 points = elastic(points, 20 * self.scale // 50,
                              160 * self.scale / 50)
+            
             # offset
             points -= points.min(0)
             
@@ -154,14 +156,15 @@ class ScanNet(Dataset):
                 points = points[valid_idxs]
                 feats = feats[valid_idxs]
                 sem_labels = sem_labels[valid_idxs]
-                instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
+                instance_ids = instance_ids[valid_idxs]
+                # instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
 
             num_instance, instance_info, instance_num_point = self._getInstanceInfo(
                 points_augment, instance_ids.astype(np.int32))
 
             data['locs'] = points_augment.astype(np.float32)  # (N, 3)
             data['locs_scaled'] = points.astype(np.float32)  # (N, 3)
-            data['feats'] = feats.astype(np.float32)  # (N, 6)
+            data['feats'] = feats.astype(np.float32)  # (N, 3)
             data['sem_labels'] = sem_labels.astype(np.int32)  # (N,)
             data['instance_ids'] = instance_ids.astype(
                 np.int32)  # (N,) 0~total_nInst, -1
@@ -185,7 +188,7 @@ class ScanNet(Dataset):
 
             data['locs'] = points_augment.astype(np.float32)  # (N, 3)
             data['locs_scaled'] = points.astype(np.float32)  # (N, 3)
-            data['feats'] = feats.astype(np.float32)  # (N, 6)
+            data['feats'] = feats.astype(np.float32)  # (N, 3)
 
         return data
 
@@ -219,10 +222,10 @@ def scannet_loader(cfg):
                     torch.from_numpy(b["locs_scaled"]).long()
                 ], 1))
             
-            # feats.append(torch.from_numpy(b["feats"]) + torch.randn(3) * 0.1 * (cfg.general.task == 'train'))
-            feat = torch.from_numpy(b["feats"]) # (N, 3)
-            feat[:, :3] += torch.randn(3) * 0.1 * (cfg.general.task == 'train')
-            feats.append(feat)
+            feats.append(torch.from_numpy(b["feats"]) + torch.randn(3) * 0.1 * (cfg.general.task == 'train'))
+            # feat = torch.from_numpy(b["feats"]) # (N, 6)
+            # feat[:, :3] += torch.randn(3) * 0.1 * (cfg.general.task == 'train')
+            # feats.append(feat)
             
             batch_offsets.append(batch_offsets[-1] + b["locs_scaled"].shape[0])
             
@@ -269,7 +272,7 @@ def scannet_loader(cfg):
         DataLoader(dataset[split],
                    batch_size=cfg.data.batch_size if cfg.general.task == 'train' and split == 'train' else 1,
                    shuffle=True if cfg.general.task == 'train' and split == 'train' else False,
-                   num_workers=cfg.data.num_workers,
+                #    num_workers=cfg.data.num_workers,
                    pin_memory=True,
                    collate_fn=scannet_collate_fn) 
         for split in splits

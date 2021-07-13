@@ -38,7 +38,7 @@ model:
   module: model
   classname: PointGroup
   
-  input_channel: 6
+  input_channel: 3
   m: 16 # 16 or 32
   blocks: [1, 2, 3, 4, 5, 6, 7]
   cluster_blocks: [1, 2]
@@ -59,7 +59,7 @@ train:
 
   optim: 
     classname: Adam # Adam or SGD
-    lr: 0.001
+    lr: 0.002
     momentum: 0.9 # SGD
     weight_decay: 0.0001 # SGD
   

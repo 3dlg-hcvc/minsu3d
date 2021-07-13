@@ -187,7 +187,7 @@ class PointGroupSolver(BaseSolver):
             iter_start_time = time.time()
 
             ##### adjust learning rate
-            step_learning_rate(self.optimizer, self.cfg.train.optim.lr, epoch - 1, self.cfg.train.step_epoch, self.cfg.train.multiplier)
+            # step_learning_rate(self.optimizer, self.cfg.train.optim.lr, epoch - 2, self.cfg.train.step_epoch, self.cfg.train.multiplier)
 
             ##### prepare input and forward
             ret = self._feed(batch, epoch)
