@@ -2,6 +2,11 @@
 
 ## Setup
 
+```shell
+$ git clone https://github.com/3dlg-hcvc/pointgroup-minkowski.git
+$ cd pointgroup-minkowski
+```
+
 ### cs-3dlg-09 (Ubuntu 20.04 LTS)
 ```shell
 $ conda create -n pointgroup python=3.8
