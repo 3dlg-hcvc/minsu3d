@@ -48,7 +48,7 @@ model:
   use_coords: True
 
   use_checkpoint: 2021-07-12_17-34-59
-  resume_epoch: 480
+  resume_epoch: 
   pretrained_path: /project/3dlg-hcvc/pointgroup-minkowski/pointgroup.pth
   pretrained_module: []
   fix_module: []
