@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -J pointgroup     # Name that will show up in squeue
 #SBATCH --gres=gpu:2080_ti:1         
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=12
 #SBATCH --time=2-00:00       # Max job time is 48 hours
 #SBATCH --output=%N-%j.out   # Terminal output to file named (hostname)-(jobid).out
 #SBATCH --partition=short     # short partition (allows up to 2 days runtime)
