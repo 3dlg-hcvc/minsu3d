@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 
 sys.path.append('../')  # HACK add the lib folder
 from lib.pointgroup_ops.functions import pointgroup_ops
-from lib.utils.pc import crop
+from lib.utils.pc import crop, random_sampling
 from lib.utils.transform import jitter, flip, rotz, elastic
 
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
@@ -150,14 +150,15 @@ class ScanNet(Dataset):
             
             if self.split == 'train' and self.cfg.general.task == 'train':
                 ### crop
-                points, valid_idxs = crop(points, self.max_num_point, self.full_scale[1])
+                # points, valid_idxs = crop(points, self.max_num_point, self.full_scale[1])
+                points, valid_idxs = random_sampling(points, self.max_num_point, return_choices=True)
                 
+                # points = points[valid_idxs]
                 points_augment = points_augment[valid_idxs]
-                points = points[valid_idxs]
                 feats = feats[valid_idxs]
                 sem_labels = sem_labels[valid_idxs]
-                instance_ids = instance_ids[valid_idxs]
-                # instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
+                # instance_ids = instance_ids[valid_idxs]
+                instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
 
             num_instance, instance_info, instance_num_point = self._getInstanceInfo(
                 points_augment, instance_ids.astype(np.int32))
