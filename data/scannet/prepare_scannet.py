@@ -28,9 +28,8 @@ for label, nyu40id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 
 
 def read_mesh_file(mesh_file):
     mesh = scannet_utils.read_mesh_vertices_rgb_normal(mesh_file) #（num_verts, 9) xyz+rgb+normal
-    #mesh[:, :3] -= mesh[:, :3].mean(0) # substract xyz mean
-    #mesh[:, 3:6] = mesh[:, 3:6]/127.5 - 1 # substract rgb mean
-    mesh[:, 3:6] = (mesh[:, 3:6] - MEAN_COLOR_RGB) / 256.0
+    # mesh[:, 3:6] = mesh[:, 3:6] / 127.5 - 1 # substract rgb mean
+    # mesh[:, 3:6] = (mesh[:, 3:6] - MEAN_COLOR_RGB) / 256.0 #TODO: should move to dataset
     return mesh
 
 
@@ -72,20 +71,22 @@ def read_agg_file(agg_file):
             objectId = group['objectId'] # starts from 0
             label = group['label']
             segs = group['segments']
-            # if label in ['wall', 'floor', 'ceiling']:
-            #     # print('ignore wall, floor or ceiling')
-            #     continue
-            # else:
-            objectId2segs[objectId] = segs
-            if label in label2segs:
-                label2segs[label].extend(segs)
+            if label in ['wall', 'floor', 'ceiling']:
+                # print('ignore wall, floor or ceiling')
+                continue
             else:
-                label2segs[label] = segs
-            # objectId += 1
+                objectId2segs[objectId] = segs
+                if label in label2segs:
+                    label2segs[label].extend(segs)
+                else:
+                    label2segs[label] = segs
+                # objectId += 1
 
-    # if agg_file.split('/')[-2] == 'scene0217_00':
-    #     print('HACK scene0217_00')
-    #     objectId2segs = {objectId: objectId2segs[objectId] for objectId in range(int(len(objectId2segs) / 2))}
+    if agg_file.split('/')[-2] == 'scene0217_00':
+        objectIds = sorted(objectId2segs.keys())
+        # if objectId2segs[0] == objectId2segs[objectIds[len(objectId2segs)//2]]:
+        print('HACK scene0217_00')
+        objectId2segs = {objectId: objectId2segs[objectId] for objectId in objectIds[:len(objectId2segs)//2]}
 
     return objectId2segs, label2segs
 
@@ -117,7 +118,7 @@ def get_instance_ids(objectId2segs, seg2verts, sem_labels):
 
 
 def get_instance_bboxes(mesh, instance_ids, objectId2labelId):
-    num_instances = len(objectId2labelId)
+    num_instances = max(objectId2labelId.keys()) + 1
     instance_bboxes = np.zeros((num_instances, 8)) # (cx, cy, cz, dx, dy, dz, ins_label, objectId)
     for objectId in objectId2labelId:
         ins_label = objectId2labelId[objectId] # nyu40id
@@ -135,11 +136,11 @@ def get_instance_bboxes(mesh, instance_ids, objectId2labelId):
 
 
 def export(scene, cfg):
-    mesh_file = os.path.join(cfg.splited_scans, cfg.split, scene, scene + '_vh_clean_2.ply')
-    label_file = os.path.join(cfg.splited_scans, cfg.split, scene, scene + '_vh_clean_2.labels.ply')
-    agg_file = os.path.join(cfg.splited_scans, cfg.split, scene, scene + '_vh_clean.aggregation.json')
-    seg_file = os.path.join(cfg.splited_scans, cfg.split, scene, scene + '_vh_clean_2.0.010000.segs.json')
-    meta_file = os.path.join(cfg.splited_scans, cfg.split, scene, scene + '.txt')
+    mesh_file = os.path.join(cfg.SCANNETV2_PATH.splited_scans, cfg.split, scene, scene + '_vh_clean_2.ply')
+    label_file = os.path.join(cfg.SCANNETV2_PATH.splited_scans, cfg.split, scene, scene + '_vh_clean_2.labels.ply')
+    agg_file = os.path.join(cfg.SCANNETV2_PATH.splited_scans, cfg.split, scene, scene + '_vh_clean.aggregation.json')
+    seg_file = os.path.join(cfg.SCANNETV2_PATH.splited_scans, cfg.split, scene, scene + '_vh_clean_2.0.010000.segs.json')
+    meta_file = os.path.join(cfg.SCANNETV2_PATH.splited_scans, cfg.split, scene, scene + '.txt')
 
     # read mesh_file
     mesh = read_mesh_file(mesh_file) #（num_verts, 9) xyz+rgb+normal
@@ -148,8 +149,8 @@ def export(scene, cfg):
     axis_align_matrix = read_axis_align_matrix(meta_file)
     aligned_mesh = align_mesh_vertices(mesh, axis_align_matrix) #（num_verts, 9) aligned_xyz+rgb+normal
 
-    mesh[:, :3] -= mesh[:, :3].mean(0) # substract xyz mean
-    aligned_mesh[:, :3] -= aligned_mesh[:, :3].mean(0) # substract aligned xyz mean
+    # mesh[:, :3] -= mesh[:, :3].mean(0) # substract xyz mean #TODO: should move to dataset if necessary
+    # aligned_mesh[:, :3] -= aligned_mesh[:, :3].mean(0) # substract aligned xyz mean
 
     if os.path.isfile(agg_file):
         # read label_file
@@ -193,13 +194,12 @@ def process_one_scan(scan, cfg):
         print("No semantic/instance annotation for test scenes")
 
 
-    torch.save({'mesh': mesh, 'aligned_mesh': aligned_mesh, 'sem_labels': sem_labels, 'instance_ids': instance_ids, 'instance_bboxes': instance_bboxes, 
-                'aligned_instance_bboxes': aligned_instance_bboxes}, os.path.join(cfg.splited_data, cfg.split, scan+'.pth'))
+    torch.save({'mesh': mesh, 'aligned_mesh': aligned_mesh, 'sem_labels': sem_labels, 'instance_ids': instance_ids, 'instance_bboxes': instance_bboxes, 'aligned_instance_bboxes': aligned_instance_bboxes}, os.path.join(cfg.SCANNETV2_PATH.splited_data, cfg.split, scan+'.pth'))
     
     
 def process_all_scans(cfg):
     SCAN_NAMES = sorted([line.rstrip() for line in open(f'meta_data/scannetv2_{cfg.split}.txt')])     
-        
+    
     for scan in SCAN_NAMES:
         print(scan)
         process_one_scan(scan, cfg)
@@ -207,16 +207,16 @@ def process_all_scans(cfg):
 
 if __name__=='__main__':    
     parser = argparse.ArgumentParser()
-    parser.add_argument('--split', help='data split (train / val / test)', default='train')
-    parser.add_argument('--cfg', help='scannet configuration YAML file', default='scannet.yaml')
+    parser.add_argument('-s', '--split', help='data split (train / val / test)', default='train')
+    parser.add_argument('-c', '--cfg', help='scannet configuration YAML file', default='../../conf/path.yaml')
     opt = parser.parse_args()
 
-    scannet_cfg = OmegaConf.load(opt.cfg)
-    scannet_cfg.split = opt.split
+    cfg = OmegaConf.load(opt.cfg)
+    cfg.split = opt.split
     
-    os.makedirs(os.path.join(scannet_cfg.splited_data, scannet_cfg.split), exist_ok=True)
+    os.makedirs(os.path.join(cfg.SCANNETV2_PATH.splited_data, cfg.split), exist_ok=True)
 
-    # process_one_scan('scene0217_00', scannet_cfg)
+    # process_one_scan('scene0217_00', cfg)
 
-    print(f'data split: {scannet_cfg.split}')
-    process_all_scans(scannet_cfg)
+    print(f'data split: {cfg.split}')
+    process_all_scans(cfg)

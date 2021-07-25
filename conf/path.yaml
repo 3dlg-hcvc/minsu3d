@@ -17,3 +17,5 @@ SCANNETV2_PATH:
   val_list: ${SCANNETV2_PATH.meta_data}/scannetv2_val.txt
   test_list: ${SCANNETV2_PATH.meta_data}/scannetv2_test.txt
   combine_file: ${SCANNETV2_PATH.meta_data}/scannetv2-labels.combined.tsv
+
+split:
