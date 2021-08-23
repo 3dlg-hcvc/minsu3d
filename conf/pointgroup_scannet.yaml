@@ -15,17 +15,17 @@ data:
   data_root: dataset
   file_suffix: .pth
 
-  split:
-  mini:
+  split: 
+  mini: 
 
   classes: 20
   ignore_label: -1 # ignored classes
 
   scale: 50   # voxel_size = 1 / scale, scale 50(2cm)
-  batch_size: 16
+  batch_size: 4
   num_workers: 16
   full_scale: [128, 512]
-  max_num_point: 40000
+  max_num_point: 250000
   mode: 4 # 4=mean
 
   transform:

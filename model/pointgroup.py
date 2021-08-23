@@ -65,7 +65,18 @@ class PointGroup(nn.Module):
             sp_norm(m),
             ME.MinkowskiReLU(inplace=True)
         )
-        self.score_linear = nn.Linear(m, 1)
+        
+        self.proposal_mlp = nn.Sequential(
+            nn.Linear(m, 32),
+            nn.BatchNorm1d(32),
+            nn.ReLU(inplace=True),
+            nn.Linear(32, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(inplace=True),
+            nn.Linear(64, 128)
+        )
+        
+        self.score_linear = nn.Linear(128, 1)
         
     
     @staticmethod
@@ -199,6 +210,7 @@ class PointGroup(nn.Module):
             score_feats = self.score_net(proposals_voxel_feats)
             pt_score_feats = score_feats.features[proposals_p2v_map.long()] # (sumNPoint, C)
             proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
+            proposals_score_feats = self.proposal_mlp(proposals_score_feats) # (nProposal, 128)
             scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
 
             ret['proposal_scores'] = (scores, proposals_idx, proposals_offset)
