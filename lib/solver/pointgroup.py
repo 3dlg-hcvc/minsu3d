@@ -26,6 +26,18 @@ class PointGroupSolver(BaseSolver):
             self._load_pretrained_model()
         self.logger.store_backup_config()
         
+        
+    def _load_pretrained_module(self):
+        self.logger.info(f'=> loading pretrained {self.cfg.model.pretrained_module}...')
+        model_dict = self.model.state_dict()
+        ckp = torch.load(self.cfg.model.pretrained_module_path)
+        # import pdb; pdb.set_trace()
+        pretrained_module_dict = {k: v for k, v in ckp.items() if k.startswith(tuple(self.cfg.model.pretrained_module))}
+        model_dict.update(pretrained_module_dict)
+        self.model.load_state_dict(model_dict)
+        
+        self.start_epoch = 129
+        
 
     def _init_criterion(self):
         self.semantic_criterion = nn.CrossEntropyLoss(ignore_index=self.cfg.data.ignore_label).cuda()
