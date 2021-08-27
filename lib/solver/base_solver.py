@@ -103,7 +103,8 @@ class BaseSolver:
         self.logger.info(f'=> load pretrained model from {pretrained_path} ...')
         
         model_state = torch.load(pretrained_path)
-        self.model.load_state_dict(model_state)
+        self.model.load_state_dict(model_state["model_state_dict"])
+        # self.model.load_state_dict(model_state)
         
         self.start_epoch = self.cfg.model.resume_epoch
 
