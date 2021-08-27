@@ -22,7 +22,16 @@ $ cd ../..
 $ pip install -r requirements.txt
 ```
 
-if `conda install google-sparsehash -c bioconda` doesn’t work for installing pointgroup operations, try out `sudo apt-get install libsparsehash-dev`. ([error: google/dense_hash_map: No such file or directory](https://github.com/facebookresearch/SparseConvNet/issues/96))
+if `conda install google-sparsehash -c bioconda` doesn’t work for installing pointgroup operations, try out one of following solutions:
+
+1. `sudo apt-get install libsparsehash-dev`. ([error: google/dense_hash_map: No such file or directory](https://github.com/facebookresearch/SparseConvNet/issues/96))
+
+2. Include the library manually to help find header files (Please see details in [issue](https://github.com/3dlg-hcvc/pointgroup-minkowski/issues/1))
+   ```
+   export CPATH=~/anaconda3/envs/pointgroup/include:$CPATH
+   export LD_LIBRARY_PATH=~/anaconda3/envs/pointgroup/lib:$LD_LIBRARY_PATH
+   ```
+
 
 ### Solar Cluster (Ubuntu 18.04.3 LTS)
 ```shell
