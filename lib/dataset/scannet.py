@@ -150,10 +150,10 @@ class ScanNet(Dataset):
             
             if self.split == 'train' and self.cfg.general.task == 'train':
                 ### crop
-                # points, valid_idxs = crop(points, self.max_num_point, self.full_scale[1])
-                points, valid_idxs = random_sampling(points, self.max_num_point, return_choices=True)
+                points, valid_idxs = crop(points, self.max_num_point, self.full_scale[1])
+                # points, valid_idxs = random_sampling(points, self.max_num_point, return_choices=True)
                 
-                # points = points[valid_idxs]
+                points = points[valid_idxs]
                 points_augment = points_augment[valid_idxs]
                 feats = feats[valid_idxs]
                 sem_labels = sem_labels[valid_idxs]
