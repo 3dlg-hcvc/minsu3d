@@ -54,7 +54,7 @@ class BaseSolver:
         if self.cfg.general.task == 'train':
             self.logger.info('=> loading the train and val datasets...')
         else:
-            self.logger.info(f'=> loading the {self.cfg.general.task} dataset...')
+            self.logger.info(f'=> loading the {self.cfg.data.split} dataset...')
             
         self.dataset, self.dataloader = dataloader(self.cfg)
         self.logger.info('=> loading dataset completed')
@@ -117,7 +117,7 @@ class BaseSolver:
         self.logger.info(f'=> load pretrained model from {pretrained_path} ...')
         
         model_state = torch.load(pretrained_path)
-        self.model.load_state_dict(model_state)
+        self.model.load_state_dict(model_state["model_state_dict"])
         
         self.start_epoch = self.cfg.model.resume_epoch
 
