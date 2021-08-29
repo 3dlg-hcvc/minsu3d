@@ -30,8 +30,12 @@ if __name__ == '__main__':
         # instance_ids_new = np.zeros(instance_ids.shape, dtype=np.int32)
         instance_ids_new = (label.copy().astype(np.int32) + 1) * 1000
 
-        instance_num = int(instance_ids.max()) + 1
-        for inst_id in range(instance_num):
+        # instance_num = int(instance_ids.max()) + 1
+        # for inst_id in range(instance_num):
+        unique_instance_ids = np.unique(instance_ids)
+        for inst_id in unique_instance_ids:
+            if inst_id < 0: continue
+            
             instance_mask = np.where(instance_ids == inst_id)[0]
             sem_id = int(label[instance_mask[0]])
             if(sem_id == -1):
