@@ -49,7 +49,7 @@ model:
 
   use_checkpoint: #2021-07-12_17-34-59
   resume_epoch: 
-  pretrained_path: /project/3dlg-hcvc/pointgroup-minkowski/pointgroup.pth
+  pretrained_path: /project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar
   pretrained_module: []
   fix_module: []
 

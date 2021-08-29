@@ -104,7 +104,6 @@ class BaseSolver:
         
         model_state = torch.load(pretrained_path)
         self.model.load_state_dict(model_state["model_state_dict"])
-        # self.model.load_state_dict(model_state)
         
         self.start_epoch = self.cfg.model.resume_epoch
 
