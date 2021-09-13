@@ -273,7 +273,6 @@ def scannet_loader(cfg):
         DataLoader(dataset[split],
                    batch_size=cfg.data.batch_size if cfg.general.task == 'train' and split == 'train' else 1,
                    shuffle=True if cfg.general.task == 'train' and split == 'train' else False,
-                #    num_workers=cfg.data.num_workers,
                    pin_memory=True,
                    collate_fn=scannet_collate_fn) 
         for split in splits

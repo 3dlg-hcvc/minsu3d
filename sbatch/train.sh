@@ -2,9 +2,9 @@
 #SBATCH -J pointgroup     # Name that will show up in squeue
 #SBATCH --gres=gpu:2080_ti:1         
 #SBATCH --cpus-per-task=12
-#SBATCH --time=2-00:00       # Max job time is 48 hours
+#SBATCH --time=5-00:00       # Max job time is 7 days
 #SBATCH --output=%N-%j.out   # Terminal output to file named (hostname)-(jobid).out
-#SBATCH --partition=short     # short partition (allows up to 2 days runtime)
+#SBATCH --partition=long     # short partition (allows up to 2 days runtime)
 
 # The SBATCH directives above set options similarly to command line arguments to srun
 # Run this script with: sbatch my_experiment.sh
