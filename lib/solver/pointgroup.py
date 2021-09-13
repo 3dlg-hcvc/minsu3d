@@ -31,7 +31,6 @@ class PointGroupSolver(BaseSolver):
         self.logger.info(f'=> loading pretrained {self.cfg.model.pretrained_module}...')
         model_dict = self.model.state_dict()
         ckp = torch.load(self.cfg.model.pretrained_module_path)
-        # import pdb; pdb.set_trace()
         pretrained_module_dict = {k: v for k, v in ckp.items() if k.startswith(tuple(self.cfg.model.pretrained_module))}
         model_dict.update(pretrained_module_dict)
         self.model.load_state_dict(model_dict)
