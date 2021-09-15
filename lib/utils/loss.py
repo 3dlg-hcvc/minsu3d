@@ -56,3 +56,47 @@ def nn_distance_batch(pc1, pc2, l1smooth=False, delta=1.0, l1=False):
     dist1, idx1 = torch.min(pc_dist, dim=2) # (B,N)
     dist2, idx2 = torch.min(pc_dist, dim=1) # (B,M)
     return dist1, idx1, dist2, idx2
+
+
+def nn_distance_stack(pc1, pc2, batch_offsets_pc1, batch_offsets_pc2, l1smooth=False, delta=1.0, l1=False):
+    """
+    Input:
+        pc1: (N,C) torch tensor
+        pc2: (M,C) torch tensor
+        batch_offsets_pc1: (B+1,)
+        batch_offsets_pc2: (B+1,)
+        l1smooth: bool, whether to use l1smooth loss
+        delta: scalar, the delta used in l1smooth loss
+    Output:
+        dist1: (B,N) torch float32 tensor
+        idx1: (B,N) torch int64 tensor
+        dist2: (B,M) torch float32 tensor
+        idx2: (B,M) torch int64 tensor
+    """
+    dist1, idx1 = [], []
+    dist2, idx2 = [], []
+    batch_size = len(batch_offsets_pc1) - 1
+    for b in range(batch_size):
+        N = batch_offsets_pc1[b+1] - batch_offsets_pc1[b]
+        M = batch_offsets_pc2[b+1] - batch_offsets_pc2[b]
+        pc1_b = pc1[batch_offsets_pc1[b+1]:batch_offsets_pc1[b]]
+        pc2_b = pc2[batch_offsets_pc2[b+1]:batch_offsets_pc2[b]]
+        pc1_expand_tile = pc1_b.unsqueeze(1).repeat(1,M,1) # (N, M, C)
+        pc2_expand_tile = pc2_b.unsqueeze(0).repeat(N,1,1) # (N, M, C)
+        pc_diff_b = pc1_expand_tile - pc2_expand_tile
+        
+        if l1smooth:
+            pc_dist_b = torch.sum(huber_loss(pc_diff_b, delta), dim=-1) # (N,M)
+        elif l1:
+            pc_dist_b = torch.sum(torch.abs(pc_diff_b), dim=-1) # (N,M)
+        else:
+            pc_dist_b = torch.sum(pc_diff_b**2, dim=-1) # (N,M)
+        
+        dist1_b, idx1_b = torch.min(pc_dist_b, dim=1) # (N)
+        dist2_b, idx2_b = torch.min(pc_dist_b, dim=0) # (M)
+        dist1.append(dist1_b)
+        idx1.append(idx1_b)
+        dist2.append(dist2_b)
+        idx2.append(idx2_b)
+        
+    return dist1, idx1, dist2, idx2
