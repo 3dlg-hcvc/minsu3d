@@ -5,12 +5,13 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 sys.path.append('../')  # HACK add the lib folder
+from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.pc import crop, random_sampling
 from lib.utils.transform import jitter, flip, rotz, elastic
 
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
-
+DC = 
 
 class ScanNet(Dataset):
 
@@ -24,6 +25,7 @@ class ScanNet(Dataset):
         self.scale = cfg.data.scale
         self.max_num_point = cfg.data.max_num_point
         self.mode = cfg.data.mode
+        self.requires_bbox = cfg.data.requires_bbox
         
         self.DATA_MAP = {
             'train': cfg.SCANNETV2_PATH.train_list,
@@ -34,6 +36,9 @@ class ScanNet(Dataset):
         self._load()
 
     def _load(self):
+        if self.requires_bbox:
+            self.DC = ScannetDatasetConfig(self.cfg)
+        
         with open(self.DATA_MAP[self.split]) as f:
             self.scene_names = [l.rstrip() for l in f]
 
