@@ -35,7 +35,10 @@ class PointGroupSolver(BaseSolver):
         model_dict.update(pretrained_module_dict)
         self.model.load_state_dict(model_dict)
         
-        self.start_epoch = 129
+        if 'epoch' in ckp:
+            self.start_epoch = ckp['epoch']
+        else:
+            self.start_epoch = 129
         
 
     def _init_criterion(self):
