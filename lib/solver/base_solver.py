@@ -96,19 +96,22 @@ class BaseSolver:
             self.start_epoch = self.restore_checkpoint(self.cfg.model.resume_epoch)      # resume from the latest epoch, or specify the epoch to restore
         else: 
             self.start_epoch = 1
-            if self.cfg.model.pretrained_module:
-                self._load_pretrained_module()
+            self._load_pretrained_module()
+            self._freeze_module()
             
     
     def _load_pretrained_module(self):
-        self.logger.info(f'=> loading pretrained {self.cfg.model.pretrained_module}...')
         for i, module_name in enumerate(self.cfg.model.pretrained_module):
+            self.logger.info(f'=> loading pretrained {module_name}...')
             module = getattr(self.model, module_name)
             ckp = torch.load(self.cfg.model.pretrained_module_path[i])
             module.load_state_dict(ckp)
-            
-        if self.cfg.cluster.freeze_backbone:
-            for param in self.model.backbone.parameters():
+        
+       
+    def _freeze_module(self):
+        for module_name in self.cfg.model.freeze_module:
+            module = getattr(self.model, module_name)
+            for param in module.parameters():
                 param.requires_grad = False
         
     
