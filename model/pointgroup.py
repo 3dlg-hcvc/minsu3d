@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
 import MinkowskiEngine as ME
+import numpy as np
+
+from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.pointgroup_ops.functions import pointgroup_ops
 from model.common import ResidualBlock, VGGBlock, UBlock
 
@@ -11,6 +14,7 @@ class PointGroup(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
+        self.DC = ScannetDatasetConfig(cfg)
 
         in_channel = cfg.model.input_channel + cfg.model.use_coords * 3
         m = cfg.model.m
@@ -76,6 +80,19 @@ class PointGroup(nn.Module):
         #     nn.Linear(64, 128)
         # )
         
+        num_class = 18
+        num_heading_bin = 1
+        num_size_cluster = 18
+        self.bbox_regressor = nn.Sequential(
+            nn.Linear(m, m, bias=False),
+            nn.BatchNorm1d(m),
+            nn.ReLU(inplace=True),
+            nn.Linear(m, m, bias=False),
+            nn.BatchNorm1d(m),
+            nn.ReLU(inplace=True),
+            nn.Linear(m, 3+num_heading_bin*2+num_size_cluster*4+num_class)
+        )
+        
         self.score_linear = nn.Linear(m, 1)
         # self.score_linear = nn.Linear(128, 1)
         
@@ -92,6 +109,7 @@ class PointGroup(nn.Module):
             batch_offsets[i + 1] = batch_offsets[i] + (batch_idxs == i).sum()
         assert batch_offsets[-1] == batch_idxs.shape[0]
         return batch_offsets
+
 
     def clusters_voxelization(self, clusters_idx, clusters_offset, feats, coords, fullscale, scale, mode):
         '''
@@ -149,9 +167,46 @@ class PointGroup(nn.Module):
         return clusters_voxel_feats, clusters_p2v_map, (clusters_center, clusters_size)
 
 
+    def decode_scores(self, encoded_bbox, ret):
+        """
+        decode the predicted parameters for the bounding boxes
+        """
+        # num_class = 18
+        num_heading_bin = 1
+        num_size_cluster = 18
+        # encoded_bbox = encoded_bbox.transpose(2,1).contiguous() # (batch_size, 1024, ..)
+        num_proposal = encoded_bbox.shape[0]
+
+        # objectness_scores = encoded_bbox[:,:,0:2]
+
+        base_xyz = ret['proposal_info'][0] # (num_proposal, 3)
+        center = base_xyz + encoded_bbox[:, :3] # (num_proposal, 3)
+
+        heading_scores = encoded_bbox[:, 3:3+num_heading_bin] # (num_proposal, 1)
+        heading_residuals_normalized = encoded_bbox[:, 3+num_heading_bin:3+num_heading_bin*2] # (num_proposal, 1)
+        
+        size_scores = encoded_bbox[:, 3+num_heading_bin*2:3+num_heading_bin*2+num_size_cluster]
+        size_residuals_normalized = encoded_bbox[:, 3+num_heading_bin*2+num_size_cluster:3+num_heading_bin*2+num_size_cluster*4].view([num_proposal, num_size_cluster, 3]) # (num_proposal, num_size_cluster, 3)
+        
+        sem_cls_scores = encoded_bbox[:, 3+num_heading_bin*2+num_size_cluster*4:] # num_proposalx18
+
+        # store
+        # data_dict['objectness_scores'] = objectness_scores
+        ret['center'] = center
+        ret['heading_scores'] = heading_scores # Bxnum_proposalxnum_heading_bin
+        ret['heading_residuals_normalized'] = heading_residuals_normalized # Bxnum_proposalxnum_heading_bin (should be -1 to 1)
+        ret['heading_residuals'] = heading_residuals_normalized * (np.pi/num_heading_bin) # (num_proposal, num_heading_bin)
+        ret['size_scores'] = size_scores
+        ret['size_residuals_normalized'] = size_residuals_normalized
+        ret['size_residuals'] = size_residuals_normalized * torch.from_numpy(self.DC.mean_size_arr.astype(np.float32)).cuda().unsqueeze(0)
+        ret['sem_cls_scores'] = sem_cls_scores
+
+        return ret
+
+
     def forward(self, data):
         ret = {}
-        batch_size = self.cfg.data.batch_size #len(data["batch_offsets"]) - 1
+        batch_size = len(data["batch_offsets"]) - 1
         x = ME.SparseTensor(features=data['voxel_feats'], coordinates=data['voxel_locs'].int())
 
         #### backbone
@@ -214,6 +269,12 @@ class PointGroup(nn.Module):
             # proposals_score_feats = self.proposal_mlp(proposals_score_feats) # (nProposal, 128)
             scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
 
+            ret['proposal_info'] = (proposals_center, proposals_size)
             ret['proposal_scores'] = (scores, proposals_idx, proposals_offset)
-        
+
+            proposals_batchId = proposals_batchId_all[proposals_offset[:-1].long()] # (nProposal,)
+            ret['proposal_offsets'] = self.get_batch_offsets(proposals_batchId, batch_size) # (B+1,)
+            encoded_bbox = self.bbox_regressor(proposals_score_feats) # (nProposal, 3+num_heading_bin*2+num_size_cluster*4+num_class)
+            ret = self.decode_scores(encoded_bbox, ret)
+            
         return ret
