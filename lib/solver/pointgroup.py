@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import MinkowskiEngine as ME
 
+from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.solver.base_solver import BaseSolver
 from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.log import Meters
@@ -17,6 +18,7 @@ class PointGroupSolver(BaseSolver):
 
     def __init__(self, cfg):
         super(PointGroupSolver, self).__init__(cfg)
+        self.DC = ScannetDatasetConfig(cfg)
         self._init_model()
         self._init_optim()
         self._init_criterion()
@@ -24,6 +26,9 @@ class PointGroupSolver(BaseSolver):
             self._resume_from_checkpoint()
         else:
             self._load_pretrained_model()
+        if cfg.data.requires_bbox:
+            cfg.log.meter_names += cfg.log.bbox_names
+            cfg.log.tb_names += cfg.log.bbox_names
         self.logger.store_backup_config()
         
         
@@ -46,7 +51,7 @@ class PointGroupSolver(BaseSolver):
         self.score_criterion = nn.BCELoss(reduction='none').cuda()
 
 
-    def _loss(self, loss_input, epoch):
+    def _loss(self, loss_input, data_dict, epoch):
 
         def get_segmented_scores(scores, fg_thresh=1.0, bg_thresh=0.0):
             '''
@@ -113,11 +118,18 @@ class PointGroupSolver(BaseSolver):
             score_loss = score_loss.mean()
 
             loss_dict['score_loss'] = (score_loss, gt_ious.shape[0])
+            
+            '''bbox loss'''
+            if self.cfg.data.requires_bbox:
+                from lib.utils.loss import compute_box_and_sem_cls_loss
+                bbox_loss = compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, self.DC.mean_size_arr)
 
         '''total loss'''
         loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + self.cfg.train.loss_weight[2] * offset_dir_loss
         if(epoch > self.cfg.cluster.prepare_epochs):
             loss += (self.cfg.train.loss_weight[3] * score_loss)
+            if self.cfg.data.requires_bbox:
+                loss += (self.cfg.train.loss_weight[4] * bbox_loss)
         loss_dict['total_loss'] = (loss, semantic_labels.shape[0])
 
         return loss_dict
@@ -157,9 +169,11 @@ class PointGroupSolver(BaseSolver):
             preds['proposals'] = (proposals_idx, proposals_offset)
             if self.mode != 'test':
                 loss_input['proposal_scores'] = (scores, proposals_idx, proposals_offset, data["instance_num_point"])
-            # scores: (nProposal, 1) float, cuda
-            # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset: (nProposal + 1), int, cpu
+                # scores: (nProposal, 1) float, cuda
+                # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+                # proposals_offset: (nProposal + 1), int, cpu
+                if self.cfg.data.requires_bbox:
+                    loss_input['proposal_bboxes'] = (ret['center'], ret['heading_scores'], ret['heading_residuals_normalized'], ret['heading_residuals'], ret['size_scores'], ret['size_residuals_normalized'], ret['size_residuals'], ret['sem_cls_scores'], ret['proposal_offsets'])
         
         return preds, loss_input
     
@@ -182,7 +196,7 @@ class PointGroupSolver(BaseSolver):
                 remain_time = time.strftime("%H:%M:%S", remain_time_sec)
                 
                 self.logger.debug(
-                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time}")
+                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} bbox_loss: {meters.get_val('bbox_loss'):.4f}({meters.get_avg('bbox_loss'):.4f}) loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time}")
             if (iter == len(self.loader) - 1): print()
 
 
@@ -206,7 +220,7 @@ class PointGroupSolver(BaseSolver):
             ##### prepare input and forward
             ret = self._feed(batch, epoch)
             _, loss_input = self._parse_feed_ret(batch, ret)
-            loss_dict = self._loss(loss_input, epoch)
+            loss_dict = self._loss(loss_input, batch, epoch)
 
             ##### backward
             self.optimizer.zero_grad()
@@ -241,7 +255,7 @@ class PointGroupSolver(BaseSolver):
                 ##### prepare input and forward
                 ret = self._feed(batch, self.curr_epoch)
                 _, loss_input = self._parse_feed_ret(batch, ret)
-                loss_dict = self._loss(loss_input, self.curr_epoch)
+                loss_dict = self._loss(loss_input, batch, self.curr_epoch)
 
                 ##### meter_dict
                 self._log_report(meters, loss_dict, i, iter_start_time)
