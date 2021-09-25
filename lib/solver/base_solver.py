@@ -166,7 +166,7 @@ class BaseSolver:
                 ckp_filename = cp_lists[-1]
                 epoch = int(ckp_filename[-9:-4])
         else:
-            ckp_filename = os.path.join(self.model_path, f'ckp-{epoch:05d}.pth')
+            ckp_filename = os.path.join(self.model_path, f'ckp-{epoch:05d}.tar')
             # ckp_filename = os.path.join(self.model_path, f'pointgroup_default_scannet-000000480.pth')
         self.logger.info(f'=> relocating epoch at {epoch} ...')
         assert os.path.isfile(ckp_filename), f'Invalid checkpoint file: {ckp_filename}'
