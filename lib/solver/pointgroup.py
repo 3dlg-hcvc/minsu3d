@@ -172,8 +172,10 @@ class PointGroupSolver(BaseSolver):
                 # scores: (nProposal, 1) float, cuda
                 # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
                 # proposals_offset: (nProposal + 1), int, cpu
-                if self.cfg.data.requires_bbox:
-                    loss_input['proposal_bboxes'] = (ret['center'], ret['heading_scores'], ret['heading_residuals_normalized'], ret['heading_residuals'], ret['size_scores'], ret['size_residuals_normalized'], ret['size_residuals'], ret['sem_cls_scores'], ret['proposal_offsets'])
+                if self.cfg.model.crop_bbox:
+                    loss_input['proposal_crop_bbox'] = ret['proposal_crop_bbox']
+                if self.cfg.model.pred_bbox:
+                    loss_input['proposal_pred_bbox'] = (ret['center'], ret['heading_scores'], ret['heading_residuals_normalized'], ret['heading_residuals'], ret['size_scores'], ret['size_residuals_normalized'], ret['size_residuals'], ret['sem_cls_scores'], ret['proposal_offsets'])
         
         return preds, loss_input
     

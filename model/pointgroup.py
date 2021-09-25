@@ -80,7 +80,7 @@ class PointGroup(nn.Module):
         #     nn.Linear(64, 128)
         # )
         
-        if cfg.model.regress_bbox:
+        if cfg.model.pred_bbox:
             num_class = cfg.model.num_bbox_class
             num_heading_bin = cfg.model.num_heading_bin
             num_size_cluster = cfg.model.num_size_cluster
@@ -168,7 +168,7 @@ class PointGroup(nn.Module):
         return clusters_voxel_feats, clusters_p2v_map, (clusters_center, clusters_size)
 
 
-    def decode_bbox_regression(self, encoded_bbox, ret):
+    def decode_bbox_prediction(self, encoded_bbox, ret):
         """
         decode the predicted parameters for the bounding boxes
         """
@@ -291,9 +291,9 @@ class PointGroup(nn.Module):
                 proposals_bbox[:, 7] = semantic_preds[proposals_idx[proposals_offset[:-1].long(), 1].long()]
                 ret['proposal_crop_bbox'] = (proposals_bbox, proposals_batchId)
 
-            if self.cfg.model.regress_bbox:
+            if self.cfg.model.pred_bbox:
                 ret['proposal_info'] = (proposals_center, proposals_size)
-                encoded_regress_bbox = self.bbox_regressor(proposals_score_feats) # (nProposal, 3+num_heading_bin*2+num_size_cluster*4+num_class)
-                ret = self.decode_bbox_regression(encoded_regress_bbox, ret)
+                encoded_pred_bbox = self.bbox_regressor(proposals_score_feats) # (nProposal, 3+num_heading_bin*2+num_size_cluster*4+num_class)
+                ret = self.decode_bbox_prediction(encoded_pred_bbox, ret)
             
         return ret
