@@ -80,18 +80,19 @@ class PointGroup(nn.Module):
         #     nn.Linear(64, 128)
         # )
         
-        num_class = 18
-        num_heading_bin = 1
-        num_size_cluster = 18
-        self.bbox_regressor = nn.Sequential(
-            nn.Linear(m, m, bias=False),
-            nn.BatchNorm1d(m),
-            nn.ReLU(inplace=True),
-            nn.Linear(m, m, bias=False),
-            nn.BatchNorm1d(m),
-            nn.ReLU(inplace=True),
-            nn.Linear(m, 3+num_heading_bin*2+num_size_cluster*4+num_class)
-        )
+        if cfg.model.regress_bbox:
+            num_class = cfg.model.num_bbox_class
+            num_heading_bin = cfg.model.num_heading_bin
+            num_size_cluster = cfg.model.num_size_cluster
+            self.bbox_regressor = nn.Sequential(
+                nn.Linear(m, m, bias=False),
+                nn.BatchNorm1d(m),
+                nn.ReLU(inplace=True),
+                nn.Linear(m, m, bias=False),
+                nn.BatchNorm1d(m),
+                nn.ReLU(inplace=True),
+                nn.Linear(m, 3+num_heading_bin*2+num_size_cluster*4+num_class)
+            )
         
         self.score_linear = nn.Linear(m, 1)
         # self.score_linear = nn.Linear(128, 1)
@@ -167,7 +168,7 @@ class PointGroup(nn.Module):
         return clusters_voxel_feats, clusters_p2v_map, (clusters_center, clusters_size)
 
 
-    def decode_scores(self, encoded_bbox, ret):
+    def decode_bbox_regression(self, encoded_bbox, ret):
         """
         decode the predicted parameters for the bounding boxes
         """
@@ -225,36 +226,44 @@ class PointGroup(nn.Module):
         if data['epoch'] > self.prepare_epochs or self.freeze_backbone:
             #### get prooposal clusters
             batch_idxs = data['locs_scaled'][:, 0].int()
-            object_idxs = torch.nonzero(semantic_preds > 0, as_tuple=False).view(-1)
+            
+            if not self.requires_gt:
+                object_idxs = torch.nonzero(semantic_preds > 0, as_tuple=False).view(-1)
+                batch_idxs_ = batch_idxs[object_idxs]
+                batch_offsets_ = self.get_batch_offsets(batch_idxs_, batch_size)
+                coords_ = data['locs'][object_idxs]
+                pt_offsets_ = pt_offsets[object_idxs]
 
-            batch_idxs_ = batch_idxs[object_idxs]
-            batch_offsets_ = self.get_batch_offsets(batch_idxs_, batch_size)
-            coords_ = data['locs'][object_idxs]
-            pt_offsets_ = pt_offsets[object_idxs]
+                semantic_preds_cpu = semantic_preds[object_idxs].int().cpu()
 
-            semantic_preds_cpu = semantic_preds[object_idxs].int().cpu()
+                idx_shift, start_len_shift = pointgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, self.cluster_radius, self.cluster_shift_meanActive)
+                proposals_idx_shift, proposals_offset_shift = pointgroup_ops.bfs_cluster(semantic_preds_cpu, idx_shift.cpu(), start_len_shift.cpu(), self.cluster_npoint_thre)
+                proposals_idx_shift[:, 1] = object_idxs[proposals_idx_shift[:, 1].long()].int()
+                proposals_batchId_shift_all = batch_idxs[proposals_idx_shift[:, 1].long()].int()
+                # proposals_idx_shift: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+                # proposals_offset_shift: (nProposal + 1), int
+                # proposals_batchId_shift_all: (sumNPoint,) batch id
 
-            idx_shift, start_len_shift = pointgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, self.cluster_radius, self.cluster_shift_meanActive)
-            proposals_idx_shift, proposals_offset_shift = pointgroup_ops.bfs_cluster(semantic_preds_cpu, idx_shift.cpu(), start_len_shift.cpu(), self.cluster_npoint_thre)
-            proposals_idx_shift[:, 1] = object_idxs[proposals_idx_shift[:, 1].long()].int()
-            proposals_batchId_shift_all = batch_idxs[proposals_idx_shift[:, 1].long()].int()
-            # proposals_idx_shift: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset_shift: (nProposal + 1), int
-            # proposals_batchId_shift_all: (sumNPoint,) batch id
+                idx, start_len = pointgroup_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_, self.cluster_radius, self.cluster_meanActive)
+                proposals_idx, proposals_offset = pointgroup_ops.bfs_cluster(semantic_preds_cpu, idx.cpu(), start_len.cpu(), self.cluster_npoint_thre)
+                proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
+                proposals_batchId_all = batch_idxs[proposals_idx[:, 1].long()].int()
+                # proposals_idx: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+                # proposals_offset: (nProposal + 1), int
+                # proposals_batchId_all: (sumNPoint,) batch id
 
-            idx, start_len = pointgroup_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_, self.cluster_radius, self.cluster_meanActive)
-            proposals_idx, proposals_offset = pointgroup_ops.bfs_cluster(semantic_preds_cpu, idx.cpu(), start_len.cpu(), self.cluster_npoint_thre)
-            proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
-            proposals_batchId_all = batch_idxs[proposals_idx[:, 1].long()].int()
-            # proposals_idx: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset: (nProposal + 1), int
-            # proposals_batchId_all: (sumNPoint,) batch id
-
-            proposals_idx_shift[:, 0] += (proposals_offset.size(0) - 1)
-            proposals_offset_shift += proposals_offset[-1]
-            proposals_idx = torch.cat((proposals_idx, proposals_idx_shift), dim=0)
-            proposals_offset = torch.cat((proposals_offset, proposals_offset_shift[1:]))
-            proposals_batchId_all = torch.cat((proposals_batchId_all, proposals_batchId_shift_all[1:])) # (sumNPoint,)
+                proposals_idx_shift[:, 0] += (proposals_offset.size(0) - 1)
+                proposals_offset_shift += proposals_offset[-1]
+                proposals_idx = torch.cat((proposals_idx, proposals_idx_shift), dim=0)
+                proposals_offset = torch.cat((proposals_offset, proposals_offset_shift[1:]))
+                proposals_batchId_all = torch.cat((proposals_batchId_all, proposals_batchId_shift_all[1:])) # (sumNPoint,)
+                # proposals_idx = proposals_idx_shift
+                # proposals_offset = proposals_offset_shift
+                # proposals_batchId_all = proposals_batchId_shift_all
+            else:
+                proposals_idx = data["gt_proposals_idx"]
+                proposals_offset = data["gt_proposals_offset"]
+                proposals_batchId_all = batch_idxs[proposals_idx[:, 1].long()].int() # (sumNPoint,)
 
             #### proposals voxelization again
             proposals_voxel_feats, proposals_p2v_map, (proposals_center, proposals_size) = self.clusters_voxelization(proposals_idx, proposals_offset, pt_feats, data['locs'], self.score_fullscale, self.score_scale, self.mode)
@@ -268,13 +277,23 @@ class PointGroup(nn.Module):
             proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
             # proposals_score_feats = self.proposal_mlp(proposals_score_feats) # (nProposal, 128)
             scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
-
-            ret['proposal_info'] = (proposals_center, proposals_size)
-            ret['proposal_scores'] = (scores, proposals_idx, proposals_offset)
-
+            
+            num_proposals = proposals_offset.shape[0] - 1
             proposals_batchId = proposals_batchId_all[proposals_offset[:-1].long()] # (nProposal,)
             ret['proposal_offsets'] = self.get_batch_offsets(proposals_batchId, batch_size) # (B+1,)
-            encoded_bbox = self.bbox_regressor(proposals_score_feats) # (nProposal, 3+num_heading_bin*2+num_size_cluster*4+num_class)
-            ret = self.decode_scores(encoded_bbox, ret)
+            ret['proposal_scores'] = (scores, proposals_idx, proposals_offset)
+
+            ############ extract batch related features and bbox #############
+            if self.cfg.model.crop_bbox:
+                proposals_bbox = torch.zeros(num_proposals, 8).cuda() # (nProposals, center+size+heading+label)
+                proposals_bbox[:, :3] = proposals_center
+                proposals_bbox[:, 3:6] = proposals_size
+                proposals_bbox[:, 7] = semantic_preds[proposals_idx[proposals_offset[:-1].long(), 1].long()]
+                ret['proposal_crop_bbox'] = (proposals_bbox, proposals_batchId)
+
+            if self.cfg.model.regress_bbox:
+                ret['proposal_info'] = (proposals_center, proposals_size)
+                encoded_regress_bbox = self.bbox_regressor(proposals_score_feats) # (nProposal, 3+num_heading_bin*2+num_size_cluster*4+num_class)
+                ret = self.decode_bbox_regression(encoded_regress_bbox, ret)
             
         return ret
