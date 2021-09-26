@@ -24,6 +24,8 @@ class PointGroup(nn.Module):
         cluster_blocks = cfg.model.cluster_blocks
         block_reps = cfg.model.block_reps
         block_residual = cfg.model.block_residual
+        
+        self.requires_gt_mask = cfg.data.requires_gt_mask
 
         self.cluster_radius = cfg.cluster.cluster_radius
         self.cluster_meanActive = cfg.cluster.cluster_meanActive
@@ -227,7 +229,7 @@ class PointGroup(nn.Module):
             #### get prooposal clusters
             batch_idxs = data['locs_scaled'][:, 0].int()
             
-            if not self.requires_gt:
+            if not self.requires_gt_mask:
                 object_idxs = torch.nonzero(semantic_preds > 0, as_tuple=False).view(-1)
                 batch_idxs_ = batch_idxs[object_idxs]
                 batch_offsets_ = self.get_batch_offsets(batch_idxs_, batch_size)

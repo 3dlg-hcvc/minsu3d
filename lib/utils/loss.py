@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 
 sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
-# from lib.utils.bbox import get_3d_box_batch, get_aabb3d_iou_batch
+from lib.utils.bbox import get_3d_box_batch, get_aabb3d_iou_batch, get_3d_box
 
 
 def huber_loss(error, delta=1.0):
@@ -90,7 +90,7 @@ def nn_distance_stack(pc1, pc2, l1smooth=False, delta=1.0, l1=False):
     return dist1, idx1, dist2, idx2
 
 
-def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr):
+def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr, DC):
     """ Compute 3D bounding box and semantic classification loss.
     Args:
         data_dict: dict (read-only)
@@ -103,12 +103,78 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
         sem_cls_loss
     """
 
+    batch_size = len(data_dict["batch_offsets"]) - 1
     num_heading_bin = 1
     num_size_cluster = 18
     num_class = 18
     
-    pred_center, heading_scores, heading_residuals_normalized, heading_residuals, size_scores, size_residuals_normalized, size_residuals, sem_cls_scores, proposal_offsets = loss_input['proposal_bboxes']
+    pred_center, heading_scores, heading_residuals_normalized, heading_residuals, size_scores, size_residuals_normalized, size_residuals, sem_cls_scores, proposal_offsets = loss_input['proposal_pred_bboxes']
     instance_offsets = data_dict['instance_offsets']
+    
+    ####### eval
+    # pred_center = end_points['center'] # num_proposal,3
+    pred_heading_class = torch.argmax(heading_scores, -1) # num_proposal
+    pred_heading_residual = torch.gather(heading_scores, 1, pred_heading_class.unsqueeze(-1)).squeeze(1) # num_proposal
+    pred_size_class = torch.argmax(size_scores, -1) # num_proposal
+    pred_size_residual = torch.gather(size_residuals, 1, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,3)).squeeze(1) # num_proposal,3
+    # pred_sem_cls = torch.argmax(sem_cls_scores, -1) # num_proposal
+    # sem_cls_probs = softmax(sem_cls_scores.detach().cpu().numpy()) # num_proposal,18
+    # pred_sem_cls_prob = np.max(sem_cls_probs,-1) # B,num_proposal
+
+    num_proposal = pred_center.shape[0] 
+    # Since we operate in upright_depth coord for points, while util functions
+    # assume upright_camera coord.
+    pred_corners_3d_upright_camera = np.zeros((num_proposal, 8, 3))
+    # pred_center_upright_camera = flip_axis_to_camera(pred_center.detach().cpu().numpy())
+    pred_center_upright_camera = pred_center.detach().cpu().numpy()
+    for j in range(num_proposal):
+        heading_angle = DC.class2angle(pred_heading_class[j].detach().cpu().numpy(), pred_heading_residual[j].detach().cpu().numpy())
+        box_size = DC.class2size(int(pred_size_class[j].detach().cpu().numpy()), pred_size_residual[j].detach().cpu().numpy())
+        corners_3d_upright_camera = get_3d_box(pred_center_upright_camera[j,:], box_size, heading_angle)
+        pred_corners_3d_upright_camera[j] = corners_3d_upright_camera
+    
+    # iou between crop_bbox and pred_bbox
+    proposal_crop_bboxes, proposals_batchId = loss_input['proposal_crop_bboxes']
+    # dist1, ind1, dist2, ind2 = nn_distance_stack(proposal_crop_bboxes[:, 0:3], data_dict['center_label'])
+    proposal_crop_bboxes = proposal_crop_bboxes.detach().cpu().numpy() # (nProposals, center+size+heading+label)
+    proposal_crop_bboxes = get_3d_box_batch(proposal_crop_bboxes[:, 0:3], proposal_crop_bboxes[:, 3:6], proposal_crop_bboxes[:, 6]) # (nProposals, 8, 3)
+    assert proposal_crop_bboxes.shape == pred_corners_3d_upright_camera.shape
+    ious = get_aabb3d_iou_batch(proposal_crop_bboxes, pred_corners_3d_upright_camera)
+    loss_dict['pred_bbox_ious@25'] = ((ious > 0.25).mean(), num_proposal)
+    loss_dict['pred_bbox_ious@50'] = ((ious > 0.5).mean(), num_proposal)
+    
+    # gt bbox
+    center_label = data_dict['center_label']
+    heading_class_label = data_dict['heading_class_label']
+    heading_residual_label = data_dict['heading_residual_label']
+    size_class_label = data_dict['size_class_label']
+    size_residual_label = data_dict['size_residual_label']
+    num_instance = center_label.shape[0] 
+    
+    gt_corners_3d_upright_camera = np.zeros((num_proposal, 8, 3))
+    gt_center_upright_camera = center_label.detach().cpu().numpy()
+    for j in range(num_instance):
+        heading_angle = DC.class2angle(heading_class_label[j].detach().cpu().numpy(), heading_residual_label[j].detach().cpu().numpy())
+        box_size = DC.class2size(int(size_class_label[j].detach().cpu().numpy()), size_residual_label[j].detach().cpu().numpy())
+        corners_3d_upright_camera = get_3d_box(gt_center_upright_camera[j,:], box_size, heading_angle)
+        gt_corners_3d_upright_camera[j] = corners_3d_upright_camera
+    
+    # gt_ious = get_aabb3d_iou_batch(proposal_bbox, gt_corners_3d_upright_camera[ind1.cpu().numpy(),:,:])
+    # iou between crop_bbox and gt_bbox
+    crop_bbox_ious = np.zeros(num_proposal)
+    for b in range(batch_size):
+        pred_batch_start, pred_batch_end = proposal_offsets[b].cpu().numpy(), proposal_offsets[b+1].cpu().numpy()
+        pred_num = pred_batch_end - pred_batch_start # N
+        gt_batch_start, gt_batch_end = instance_offsets[b].cpu().numpy(), instance_offsets[b+1].cpu().numpy()
+        gt_num = gt_batch_end - gt_batch_start # M
+        
+        for i in range(pred_num):
+            crop_bbox_iou = get_aabb3d_iou_batch(np.tile(proposal_crop_bboxes[pred_batch_start+i], (gt_num, 1, 1)), gt_corners_3d_upright_camera[gt_batch_start:gt_batch_end])
+            crop_bbox_ious[pred_batch_start+i] = np.max(crop_bbox_iou)
+    # import pdb; pdb.set_trace()
+    loss_dict['crop_bbox_ious@25'] = ((crop_bbox_ious > 0.25).mean(), num_proposal)
+    loss_dict['crop_bbox_ious@50'] = ((crop_bbox_ious > 0.5).mean(), num_proposal)
+    ######## end eval
     
     center_loss = torch.tensor(0.).cuda()
     heading_class_loss = torch.tensor(0.).cuda()

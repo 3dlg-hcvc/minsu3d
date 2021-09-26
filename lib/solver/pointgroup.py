@@ -122,7 +122,7 @@ class PointGroupSolver(BaseSolver):
             '''bbox loss'''
             if self.cfg.data.requires_bbox:
                 from lib.utils.loss import compute_box_and_sem_cls_loss
-                bbox_loss = compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, self.DC.mean_size_arr)
+                bbox_loss = compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, self.DC.mean_size_arr, self.DC)
 
         '''total loss'''
         loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + self.cfg.train.loss_weight[2] * offset_dir_loss
@@ -173,9 +173,9 @@ class PointGroupSolver(BaseSolver):
                 # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
                 # proposals_offset: (nProposal + 1), int, cpu
                 if self.cfg.model.crop_bbox:
-                    loss_input['proposal_crop_bbox'] = ret['proposal_crop_bbox']
+                    loss_input['proposal_crop_bboxes'] = ret['proposal_crop_bbox']
                 if self.cfg.model.pred_bbox:
-                    loss_input['proposal_pred_bbox'] = (ret['center'], ret['heading_scores'], ret['heading_residuals_normalized'], ret['heading_residuals'], ret['size_scores'], ret['size_residuals_normalized'], ret['size_residuals'], ret['sem_cls_scores'], ret['proposal_offsets'])
+                    loss_input['proposal_pred_bboxes'] = (ret['center'], ret['heading_scores'], ret['heading_residuals_normalized'], ret['heading_residuals'], ret['size_scores'], ret['size_residuals_normalized'], ret['size_residuals'], ret['sem_cls_scores'], ret['proposal_offsets'])
         
         return preds, loss_input
     
@@ -198,7 +198,7 @@ class PointGroupSolver(BaseSolver):
                 remain_time = time.strftime("%H:%M:%S", remain_time_sec)
                 
                 self.logger.debug(
-                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} bbox_loss: {meters.get_val('bbox_loss'):.4f}({meters.get_avg('bbox_loss'):.4f}) loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time}")
+                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} bbox_loss: {meters.get_val('bbox_loss'):.4f}({meters.get_avg('bbox_loss'):.4f}) loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time} pred_bbox_ious@25: {meters.get_avg('pred_bbox_ious@25'):.4f} pred_bbox_ious@50: {meters.get_avg('pred_bbox_ious@50'):.4f} crop_bbox_ious@25: {meters.get_avg('crop_bbox_ious@25'):.4f} crop_bbox_ious@50: {meters.get_avg('crop_bbox_ious@50'):.4f}")
             if (iter == len(self.loader) - 1): print()
 
 
@@ -352,3 +352,102 @@ class PointGroupSolver(BaseSolver):
                             f.write(f'predicted_masks/{scene_name}_{c_id:03d}.txt {cluster_i_class_idx} {score:.4f}\n')
                             np.savetxt(os.path.join(inst_pred_masks_path, f'{scene_name}_{c_id:03d}.txt'), cluster_i, fmt='%d')
                     np.savetxt(os.path.join(inst_pred_path, f'{scene_name}.cluster_ids.txt'), cluster_ids, fmt='%d')
+                    
+                    
+    def eval_detection(self):
+        self.mode = 'val'
+        self.model.eval()
+        self.loader = self.dataloader[self.mode]
+        self.max_iter = len(self.loader)
+        self.logger.info('>>>>>>>>>>>>>>>> Start Evaluation >>>>>>>>>>>>>>>>')
+        self.curr_epoch = self.start_epoch
+        # meters = Meters(*self.cfg.log.meter_names)
+        # print("evaluate detection...")
+        # folder = os.path.join(root, CONF.name.upper(), CONF.tag.upper())
+        
+        # # init training dataset
+        # print("preparing data...")
+        # # get eval data
+        # scanrefer_eval, eval_scene_list = get_eval_data(args)
+
+        # # get dataloader
+        # dataset, dataloader = get_dataloader(args, scanrefer_eval, eval_scene_list, DC)
+
+        # # model
+        # print("initializing...")
+        # model = get_model(args, dataset, folder)
+        from lib.utils.eval import APCalculator, parse_predictions, parse_groundtruths
+        # config
+        POST_DICT = {
+            "remove_empty_box": False, 
+            "use_3d_nms": True, 
+            "nms_iou": 0.25,
+            "use_old_type_nms": False, 
+            "cls_nms": True, 
+            "per_class_proposal": True,
+            "conf_thresh": 0.09,
+            "dataset_config": self.DC
+        }
+        AP_IOU_THRESHOLDS = [0.25, 0.5]
+        AP_CALCULATOR_LIST = [APCalculator(iou_thresh, self.DC.class2type) for iou_thresh in AP_IOU_THRESHOLDS]
+
+        sem_acc = []
+        
+        # for data_dict in tqdm(self.loader):
+        #     for key in data_dict:
+        #         data_dict[key] = data_dict[key].cuda()
+
+        #     # feed
+        #     with torch.no_grad():
+        #         data_dict = model.forward(data_dict)
+        #         _, data_dict = get_loss(
+        #             data_dict=data_dict,
+        #             config=DC,
+        #             detection=True,
+        #             caption=False,
+        #             orientation=False,
+        #             distance=False
+        #         )
+
+        #     batch_pred_map_cls = parse_predictions(data_dict, POST_DICT) 
+        #     batch_gt_map_cls = parse_groundtruths(data_dict, POST_DICT) 
+        #     for ap_calculator in AP_CALCULATOR_LIST:
+        #         ap_calculator.step(batch_pred_map_cls, batch_gt_map_cls)
+
+        # aggregate object detection results and report
+        # for i, ap_calculator in enumerate(AP_CALCULATOR_LIST):
+        #     print()
+        #     print("-"*10, "iou_thresh: %f"%(AP_IOU_THRESHOLDS[i]), "-"*10)
+        #     metrics_dict = ap_calculator.compute_metrics()
+        #     for key in metrics_dict:
+        #         print("eval %s: %f"%(key, metrics_dict[key]))
+                
+        
+        with torch.no_grad():
+            # start_epoch_time = time.time()
+            for i, batch in tqdm(enumerate(self.loader)):
+                torch.cuda.empty_cache()
+                # iter_start_time = time.time()
+
+                ##### prepare input and forward
+                ret = self._feed(batch, self.curr_epoch)
+                # _, loss_input = self._parse_feed_ret(batch, ret)
+                # loss_dict = self._loss(loss_input, batch, self.curr_epoch)
+                
+                # import pdb; pdb.set_trace()
+                batch_pred_map_cls = parse_predictions(ret, batch, POST_DICT) 
+                batch_gt_map_cls = parse_groundtruths(batch, POST_DICT) 
+                for ap_calculator in AP_CALCULATOR_LIST:
+                    ap_calculator.step(batch_pred_map_cls, batch_gt_map_cls)
+
+                ##### meter_dict
+                # self._log_report(meters, loss_dict, i, iter_start_time)
+                ##### print
+                # self.logger.debug(f"\riter: {i+1}/{len(self.loader)} loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f})")
+                
+        for i, ap_calculator in enumerate(AP_CALCULATOR_LIST):
+            print()
+            print("-"*10, "iou_thresh: %f"%(AP_IOU_THRESHOLDS[i]), "-"*10)
+            metrics_dict = ap_calculator.compute_metrics()
+            for key in metrics_dict:
+                print("eval %s: %f"%(key, metrics_dict[key]))
