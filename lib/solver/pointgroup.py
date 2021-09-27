@@ -198,7 +198,7 @@ class PointGroupSolver(BaseSolver):
                 remain_time = time.strftime("%H:%M:%S", remain_time_sec)
                 
                 self.logger.debug(
-                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} bbox_loss: {meters.get_val('bbox_loss'):.4f}({meters.get_avg('bbox_loss'):.4f}) loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time} pred_bbox_ious@25: {meters.get_avg('pred_bbox_ious@25'):.4f} pred_bbox_ious@50: {meters.get_avg('pred_bbox_ious@50'):.4f} crop_bbox_ious@25: {meters.get_avg('crop_bbox_ious@25'):.4f} crop_bbox_ious@50: {meters.get_avg('crop_bbox_ious@50'):.4f}")
+                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} bbox_loss: {meters.get_val('bbox_loss'):.4f}({meters.get_avg('bbox_loss'):.4f}) loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time} pred_crop_bbox_ious@25: {meters.get_avg('pred_crop_bbox_ious@25'):.4f} pred_crop_bbox_ious@50: {meters.get_avg('pred_crop_bbox_ious@50'):.4f} crop_bbox_ious@25: {meters.get_avg('crop_bbox_ious@25'):.4f} crop_bbox_ious@50: {meters.get_avg('crop_bbox_ious@50'):.4f} pred_bbox_ious@25: {meters.get_avg('pred_bbox_ious@25'):.4f} pred_bbox_ious@50: {meters.get_avg('pred_bbox_ious@50'):.4f} mask_ious: {meters.get_avg('mask_ious'):.4f}")
             if (iter == len(self.loader) - 1): print()
 
 

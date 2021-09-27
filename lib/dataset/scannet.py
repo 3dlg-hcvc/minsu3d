@@ -132,7 +132,7 @@ class ScanNet(Dataset):
                 instance_bboxes_semcls[k] = sem_cls
                 size_classes[k] = sem_cls
                 size_residuals[k, :] = instance_bboxes[k, 3:] - self.DC.mean_size_arr[int(sem_cls),:]
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
                 
         if requires_bbox:
             return num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, angle_classes, angle_residuals, size_classes, size_residuals

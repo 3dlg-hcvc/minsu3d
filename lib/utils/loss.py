@@ -140,8 +140,8 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
     proposal_crop_bboxes = get_3d_box_batch(proposal_crop_bboxes[:, 0:3], proposal_crop_bboxes[:, 3:6], proposal_crop_bboxes[:, 6]) # (nProposals, 8, 3)
     assert proposal_crop_bboxes.shape == pred_corners_3d_upright_camera.shape
     ious = get_aabb3d_iou_batch(proposal_crop_bboxes, pred_corners_3d_upright_camera)
-    loss_dict['pred_bbox_ious@25'] = ((ious > 0.25).mean(), num_proposal)
-    loss_dict['pred_bbox_ious@50'] = ((ious > 0.5).mean(), num_proposal)
+    loss_dict['pred_crop_bbox_ious@25'] = ((ious > 0.25).mean(), num_proposal)
+    loss_dict['pred_crop_bbox_ious@50'] = ((ious > 0.5).mean(), num_proposal)
     
     # gt bbox
     center_label = data_dict['center_label']
@@ -171,9 +171,21 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
         for i in range(pred_num):
             crop_bbox_iou = get_aabb3d_iou_batch(np.tile(proposal_crop_bboxes[pred_batch_start+i], (gt_num, 1, 1)), gt_corners_3d_upright_camera[gt_batch_start:gt_batch_end])
             crop_bbox_ious[pred_batch_start+i] = np.max(crop_bbox_iou)
-    # import pdb; pdb.set_trace()
     loss_dict['crop_bbox_ious@25'] = ((crop_bbox_ious > 0.25).mean(), num_proposal)
     loss_dict['crop_bbox_ious@50'] = ((crop_bbox_ious > 0.5).mean(), num_proposal)
+    
+    pred_bbox_ious = np.zeros(num_proposal)
+    for b in range(batch_size):
+        pred_batch_start, pred_batch_end = proposal_offsets[b].cpu().numpy(), proposal_offsets[b+1].cpu().numpy()
+        pred_num = pred_batch_end - pred_batch_start # N
+        gt_batch_start, gt_batch_end = instance_offsets[b].cpu().numpy(), instance_offsets[b+1].cpu().numpy()
+        gt_num = gt_batch_end - gt_batch_start # M
+        
+        for i in range(pred_num):
+            pred_bbox_iou = get_aabb3d_iou_batch(np.tile(pred_corners_3d_upright_camera[pred_batch_start+i], (gt_num, 1, 1)), gt_corners_3d_upright_camera[gt_batch_start:gt_batch_end])
+            pred_bbox_ious[pred_batch_start+i] = np.max(pred_bbox_iou)
+    loss_dict['pred_bbox_ious@25'] = ((pred_bbox_ious > 0.25).mean(), num_proposal)
+    loss_dict['pred_bbox_ious@50'] = ((pred_bbox_ious > 0.5).mean(), num_proposal)
     ######## end eval
     
     center_loss = torch.tensor(0.).cuda()
