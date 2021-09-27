@@ -279,23 +279,34 @@ class PointGroup(nn.Module):
             proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
             # proposals_score_feats = self.proposal_mlp(proposals_score_feats) # (nProposal, 128)
             scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
-            
-            num_proposals = proposals_offset.shape[0] - 1
-            proposals_batchId = proposals_batchId_all[proposals_offset[:-1].long()] # (nProposal,)
-            ret['proposal_offsets'] = self.get_batch_offsets(proposals_batchId, batch_size) # (B+1,)
             ret['proposal_scores'] = (scores, proposals_idx, proposals_offset)
 
             ############ extract batch related features and bbox #############
+            num_proposals = proposals_offset.shape[0] - 1
+            
+            proposals_npoint = torch.zeros(num_proposals).cuda()
+            for i in range(num_proposals):
+                proposals_npoint[i] = (proposals_idx[:, 0] == i).sum()
+            thres_mask = torch.logical_and(torch.sigmoid(scores.view(-1)) > self.cfg.test.TEST_SCORE_THRESH, proposals_npoint > self.cfg.test.TEST_NPOINT_THRESH) # (nProposal,)
+            ret['proposals_npoint'] = proposals_npoint
+            ret['proposal_thres_mask'] = thres_mask
+            
+            proposals_batchId = proposals_batchId_all[proposals_offset[:-1].long()] # (nProposal,)
+            proposals_batchId = proposals_batchId[thres_mask]
+            ret['proposal_bbox_offsets'] = self.get_batch_offsets(proposals_batchId, batch_size) # (B+1,)
+            
             if self.cfg.model.crop_bbox:
-                proposals_bbox = torch.zeros(num_proposals, 8).cuda() # (nProposals, center+size+heading+label)
-                proposals_bbox[:, :3] = proposals_center
-                proposals_bbox[:, 3:6] = proposals_size
-                proposals_bbox[:, 7] = semantic_preds[proposals_idx[proposals_offset[:-1].long(), 1].long()]
-                ret['proposal_crop_bbox'] = (proposals_bbox, proposals_batchId)
+                proposal_crop_bbox = torch.zeros(num_proposals, 8).cuda() # (nProposals, center+size+heading+label)
+                proposal_crop_bbox[:, :3] = proposals_center
+                proposal_crop_bbox[:, 3:6] = proposals_size
+                proposal_crop_bbox[:, 7] = semantic_preds[proposals_idx[proposals_offset[:-1].long(), 1].long()]
+                proposal_crop_bbox = proposal_crop_bbox[thres_mask]
+                ret['proposal_crop_bbox'] = (proposal_crop_bbox, proposals_batchId)
 
             if self.cfg.model.pred_bbox:
-                ret['proposal_info'] = (proposals_center, proposals_size)
                 encoded_pred_bbox = self.bbox_regressor(proposals_score_feats) # (nProposal, 3+num_heading_bin*2+num_size_cluster*4+num_class)
+                encoded_pred_bbox = encoded_pred_bbox[thres_mask]
+                ret['proposal_info'] = (proposals_center[thres_mask], proposals_size[thres_mask])
                 ret = self.decode_bbox_prediction(encoded_pred_bbox, ret)
             
         return ret

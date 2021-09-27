@@ -112,8 +112,9 @@ class PointGroupSolver(BaseSolver):
 
             ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_ids, instance_pointnum) # (nProposal, nInstance), float
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
+            thres_mask = loss_input['proposal_thres_mask']
+            loss_dict['mask_ious'] = (gt_ious[thres_mask].mean(), thres_mask.sum())
             gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
-
             score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             score_loss = score_loss.mean()
 
@@ -172,10 +173,11 @@ class PointGroupSolver(BaseSolver):
                 # scores: (nProposal, 1) float, cuda
                 # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
                 # proposals_offset: (nProposal + 1), int, cpu
+                loss_input['proposal_thres_mask'] = ret['proposal_thres_mask']
                 if self.cfg.model.crop_bbox:
                     loss_input['proposal_crop_bboxes'] = ret['proposal_crop_bbox']
                 if self.cfg.model.pred_bbox:
-                    loss_input['proposal_pred_bboxes'] = (ret['center'], ret['heading_scores'], ret['heading_residuals_normalized'], ret['heading_residuals'], ret['size_scores'], ret['size_residuals_normalized'], ret['size_residuals'], ret['sem_cls_scores'], ret['proposal_offsets'])
+                    loss_input['proposal_pred_bboxes'] = (ret['center'], ret['heading_scores'], ret['heading_residuals_normalized'], ret['heading_residuals'], ret['size_scores'], ret['size_residuals_normalized'], ret['size_residuals'], ret['sem_cls_scores'], ret['proposal_bbox_offsets'])
         
         return preds, loss_input
     
@@ -198,7 +200,7 @@ class PointGroupSolver(BaseSolver):
                 remain_time = time.strftime("%H:%M:%S", remain_time_sec)
                 
                 self.logger.debug(
-                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} bbox_loss: {meters.get_val('bbox_loss'):.4f}({meters.get_avg('bbox_loss'):.4f}) loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time} pred_crop_bbox_ious@25: {meters.get_avg('pred_crop_bbox_ious@25'):.4f} pred_crop_bbox_ious@50: {meters.get_avg('pred_crop_bbox_ious@50'):.4f} crop_bbox_ious@25: {meters.get_avg('crop_bbox_ious@25'):.4f} crop_bbox_ious@50: {meters.get_avg('crop_bbox_ious@50'):.4f} pred_bbox_ious@25: {meters.get_avg('pred_bbox_ious@25'):.4f} pred_bbox_ious@50: {meters.get_avg('pred_bbox_ious@50'):.4f} mask_ious: {meters.get_avg('mask_ious'):.4f}")
+                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} bbox_loss: {meters.get_val('bbox_loss'):.4f}({meters.get_avg('bbox_loss'):.4f}) loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time} pred_crop_bbox_iou: {meters.get_avg('pred_crop_bbox_iou'):.4f} crop_bbox_iou: {meters.get_avg('crop_bbox_iou'):.4f} pred_bbox_iou: {meters.get_avg('pred_bbox_iou'):.4f} mask_ious: {meters.get_avg('mask_ious'):.4f}")
             if (iter == len(self.loader) - 1): print()
 
 

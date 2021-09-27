@@ -109,6 +109,7 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
     num_class = 18
     
     pred_center, heading_scores, heading_residuals_normalized, heading_residuals, size_scores, size_residuals_normalized, size_residuals, sem_cls_scores, proposal_offsets = loss_input['proposal_pred_bboxes']
+    proposal_thres_mask = loss_input['proposal_thres_mask']
     instance_offsets = data_dict['instance_offsets']
     
     ####### eval
@@ -134,14 +135,13 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
         pred_corners_3d_upright_camera[j] = corners_3d_upright_camera
     
     # iou between crop_bbox and pred_bbox
-    proposal_crop_bboxes, proposals_batchId = loss_input['proposal_crop_bboxes']
+    proposal_crop_bboxes, _ = loss_input['proposal_crop_bboxes']
     # dist1, ind1, dist2, ind2 = nn_distance_stack(proposal_crop_bboxes[:, 0:3], data_dict['center_label'])
     proposal_crop_bboxes = proposal_crop_bboxes.detach().cpu().numpy() # (nProposals, center+size+heading+label)
     proposal_crop_bboxes = get_3d_box_batch(proposal_crop_bboxes[:, 0:3], proposal_crop_bboxes[:, 3:6], proposal_crop_bboxes[:, 6]) # (nProposals, 8, 3)
     assert proposal_crop_bboxes.shape == pred_corners_3d_upright_camera.shape
     ious = get_aabb3d_iou_batch(proposal_crop_bboxes, pred_corners_3d_upright_camera)
-    loss_dict['pred_crop_bbox_ious@25'] = ((ious > 0.25).mean(), num_proposal)
-    loss_dict['pred_crop_bbox_ious@50'] = ((ious > 0.5).mean(), num_proposal)
+    loss_dict['pred_crop_bbox_iou'] = (ious.mean(), num_proposal)
     
     # gt bbox
     center_label = data_dict['center_label']
@@ -151,7 +151,7 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
     size_residual_label = data_dict['size_residual_label']
     num_instance = center_label.shape[0] 
     
-    gt_corners_3d_upright_camera = np.zeros((num_proposal, 8, 3))
+    gt_corners_3d_upright_camera = np.zeros((num_instance, 8, 3))
     gt_center_upright_camera = center_label.detach().cpu().numpy()
     for j in range(num_instance):
         heading_angle = DC.class2angle(heading_class_label[j].detach().cpu().numpy(), heading_residual_label[j].detach().cpu().numpy())
@@ -171,8 +171,7 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
         for i in range(pred_num):
             crop_bbox_iou = get_aabb3d_iou_batch(np.tile(proposal_crop_bboxes[pred_batch_start+i], (gt_num, 1, 1)), gt_corners_3d_upright_camera[gt_batch_start:gt_batch_end])
             crop_bbox_ious[pred_batch_start+i] = np.max(crop_bbox_iou)
-    loss_dict['crop_bbox_ious@25'] = ((crop_bbox_ious > 0.25).mean(), num_proposal)
-    loss_dict['crop_bbox_ious@50'] = ((crop_bbox_ious > 0.5).mean(), num_proposal)
+    loss_dict['crop_bbox_iou'] = (crop_bbox_ious.mean(), num_proposal)
     
     pred_bbox_ious = np.zeros(num_proposal)
     for b in range(batch_size):
@@ -184,8 +183,7 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
         for i in range(pred_num):
             pred_bbox_iou = get_aabb3d_iou_batch(np.tile(pred_corners_3d_upright_camera[pred_batch_start+i], (gt_num, 1, 1)), gt_corners_3d_upright_camera[gt_batch_start:gt_batch_end])
             pred_bbox_ious[pred_batch_start+i] = np.max(pred_bbox_iou)
-    loss_dict['pred_bbox_ious@25'] = ((pred_bbox_ious > 0.25).mean(), num_proposal)
-    loss_dict['pred_bbox_ious@50'] = ((pred_bbox_ious > 0.5).mean(), num_proposal)
+    loss_dict['pred_bbox_iou'] = (pred_bbox_ious.mean(), num_proposal)
     ######## end eval
     
     center_loss = torch.tensor(0.).cuda()

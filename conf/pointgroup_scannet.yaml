@@ -139,9 +139,6 @@ log:
     - size_reg_loss
     - sem_cls_loss
     - bbox_loss
-    - pred_crop_bbox_ious@25
-    - pred_crop_bbox_ious@50
-    - crop_bbox_ious@25
-    - crop_bbox_ious@50
-    - pred_bbox_ious@25
-    - pred_bbox_ious@50
+    - pred_crop_bbox_iou
+    - crop_bbox_iou
+    - pred_bbox_iou
