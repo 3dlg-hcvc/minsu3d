@@ -14,12 +14,13 @@ from lib.utils.bbox import write_cylinder_bbox
 
 
 cfg = OmegaConf.load('conf/path.yaml')
+MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 
 
 def generate_rgb_ply(args):
     split = args.split
     data_dir = cfg.SCANNETV2_PATH.splited_data
-    output_dir = #f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb/{split}' # TODO
+    output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb/{split}' # TODO
     os.makedirs(output_dir, exist_ok=True)
     scene_ids_file = os.path.join(cfg.SCANNETV2_PATH.meta_data, f'scannetv2_{split}.txt')
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
@@ -38,7 +39,7 @@ def generate_gt_sem_ply(args):
     from data.scannet.model_util_scannet import NYU20_CLASS_IDX
     split = args.split
     scan_dir = cfg.SCANNETV2_PATH.splited_scans
-    output_dir = #f'/local-scratch/qiruiw/dataset/scannet/splited_nyu20_labels/{split}' # TODO
+    output_dir = f'/local-scratch/qiruiw/dataset/scannet/splited_nyu20_labels/{split}' # TODO
     os.makedirs(output_dir, exist_ok=True)
     scene_ids_file = os.path.join(cfg.SCANNETV2_PATH.meta_data, f'scannetv2_{split}.txt')
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
@@ -67,7 +68,7 @@ def generate_gt_sem_ply(args):
 def generate_pred_sem_ply(args):
     split = args.split
     scan_dir = cfg.SCANNETV2_PATH.splited_scans
-    pred_dir = #f'/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/test/2021-02-10_01-53-53/splited_pred/{split}/semantic' # TODO
+    pred_dir = f'/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/test/2021-02-10_01-53-53/splited_pred/{split}/semantic' # TODO
     scene_ids_file = os.path.join(cfg.SCANNETV2_PATH.meta_data, f'scannetv2_{split}.txt')
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
     
@@ -93,7 +94,7 @@ def generate_gt_inst_ply(args):
     split = args.split
     scan_dir = cfg.SCANNETV2_PATH.splited_scans
     inst_data_dir = cfg.SCANNETV2_PATH.splited_data
-    output_dir = #f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_instance/gt/{split}' # TODO
+    output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_instance/gt/{split}' # TODO
     os.makedirs(output_dir, exist_ok=True)
     scene_ids_file = os.path.join(cfg.SCANNETV2_PATH.meta_data, f'scannetv2_{split}.txt')
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
@@ -139,13 +140,35 @@ def generate_gt_inst_ply(args):
         write_ply_rgb(points, colors, rgb_inst_ply)
         
         
+def visualize_pred_instance(filename, mesh, instance_ids, sem_labels):
+    points = mesh[:, :3].astype(np.float)
+    colors = (mesh[:, 3:6]*256.0 + MEAN_COLOR_RGB).astype(np.uint8)
+    sem_labels = sem_labels.astype(np.int)
+    instance_ids = instance_ids.astype(np.int)
+    num_verts = len(points)
+    assert num_verts == len(sem_labels) and num_verts == len(instance_ids)
+    
+    unique_inst_ids = np.unique(instance_ids)
+    colormap = [plt.cm.rainbow(i/(len(unique_inst_ids)+1)) for i in range(len(unique_inst_ids))]
+    
+    for i, inst_id in enumerate(unique_inst_ids):
+        if inst_id == -1: continue
+        inst_vert_idx = instance_ids == inst_id
+        assert len(np.unique(sem_labels[inst_vert_idx])) == 1
+        inst_pred_class = sem_labels[inst_vert_idx][0]
+        if inst_pred_class not in [1, 2, 22]:
+            colors[inst_vert_idx, :] = (np.array(colormap[i][:3]) * 255).astype(np.uint8)
+    
+    write_ply_rgb(points, colors, filename)
+        
+        
 def generate_pred_inst_ply(args):
     split = args.split
     use_checkpoint = args.use_checkpoint
     # scan_dir = cfg.SCANNETV2_PATH.splited_scans
     data_dir = cfg.SCANNETV2_PATH.splited_data
-    pred_dir = #f'/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/test/{use_checkpoint}/splited_pred' # TODO
-    output_dir = #f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_instance/pred_{use_checkpoint}/{split}' # TODO
+    pred_dir = f'/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/test/{use_checkpoint}/splited_pred' # TODO
+    output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_instance/pred_{use_checkpoint}/{split}' # TODO
     os.makedirs(output_dir, exist_ok=True)
     scene_ids_file = os.path.join(cfg.SCANNETV2_PATH.meta_data, f'scannetv2_{split}.txt')
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
@@ -195,8 +218,8 @@ def generate_pred_inst_ply(args):
 def generate_gt_bbox_ply(args):
     split = args.split
     data_dir = cfg.SCANNETV2_PATH.splited_data
-    bbox_dir = #'/local-scratch/qiruiw/research/ScanRefer/data/scannet/scannet_data' # TODO
-    output_dir = #f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_bbox/gt/{split}' # TODO
+    bbox_dir = '/local-scratch/qiruiw/research/ScanRefer/data/scannet/scannet_data' # TODO
+    output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_bbox/gt/{split}' # TODO
     os.makedirs(output_dir, exist_ok=True)
     scene_ids_file = f'/local-scratch/qiruiw/research/dense-scanrefer/data/scanrefer/splited_data/ScanRefer_filtered_{split}.txt'
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
