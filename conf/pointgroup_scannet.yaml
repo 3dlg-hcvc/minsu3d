@@ -104,7 +104,7 @@ test:
   TEST_SCORE_THRESH: 0.09
   TEST_NPOINT_THRESH: 100
 
-  requires_ply: True
+  requires_visualize: True
 
 
 evaluation:

@@ -215,6 +215,25 @@ def generate_pred_inst_ply(args):
         write_ply_rgb(points, colors, rgb_inst_ply)
         
         
+def visualize_crop_bboxes(filename, mesh, crop_bboxes):
+    num_instances = len(crop_bboxes)
+    bbox_verts_all = []
+    bbox_colors_all = []
+    bbox_indices_all = []
+    for i in range(num_instances):
+        crop_bbox = crop_bboxes[i][:6]
+        crop_bbox_verts, crop_bbox_colors, crop_bbox_indices = write_cylinder_bbox(crop_bbox, mode=1)
+        crop_bbox_indices = [ind + len(bbox_verts_all) for ind in crop_bbox_indices]
+        bbox_verts_all.extend(crop_bbox_verts)
+        bbox_colors_all.extend(crop_bbox_colors)
+        bbox_indices_all.extend(crop_bbox_indices)
+        
+    write_ply_rgb_face(np.concatenate([np.array(bbox_verts_all), mesh[:, :3]]),
+                        np.concatenate([np.array(bbox_colors_all), mesh[:, 3:6]]),
+                        np.array(bbox_indices_all),
+                        filename)
+        
+        
 def generate_gt_bbox_ply(args):
     split = args.split
     data_dir = cfg.SCANNETV2_PATH.splited_data

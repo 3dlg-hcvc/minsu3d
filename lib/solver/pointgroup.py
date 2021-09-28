@@ -168,6 +168,8 @@ class PointGroupSolver(BaseSolver):
             scores, proposals_idx, proposals_offset = ret['proposal_scores']
             preds['score'] = scores
             preds['proposals'] = (proposals_idx, proposals_offset)
+            preds['proposal_crop_bbox'] = ret['proposal_crop_bbox'][0]
+            
             if self.mode != 'test':
                 loss_input['proposal_scores'] = (scores, proposals_idx, proposals_offset, data["instance_num_point"])
                 # scores: (nProposal, 1) float, cuda
@@ -355,11 +357,16 @@ class PointGroupSolver(BaseSolver):
                             f.write(f'predicted_masks/{scene_name}_{c_id:03d}.txt {cluster_i_class_idx} {score:.4f}\n')
                             np.savetxt(os.path.join(inst_pred_masks_path, f'{scene_name}_{c_id:03d}.txt'), cluster_i, fmt='%d')
                     np.savetxt(os.path.join(inst_pred_path, f'{scene_name}.cluster_ids.txt'), cluster_ids, fmt='%d')
-                    if self.cfg.test.requires_ply:
+                    
+                    if self.cfg.test.requires_visualize:
                         from visualize.scannet.generate_ply import visualize_pred_instance
                         os.makedirs(os.path.join(inst_pred_path, 'visualize'), exist_ok=True)
                         inst_ply_path = os.path.join(inst_pred_path, 'visualize', f'{scene_name}.ply')
                         visualize_pred_instance(inst_ply_path, mesh, cluster_ids, semantic_pred_class_idx)
+                        if self.cfg.model.crop_bbox:
+                            from visualize.scannet.generate_ply import visualize_crop_bboxes
+                            crop_bbox_ply_path = os.path.join(inst_pred_path, 'visualize', f'{scene_name}.crop_bbox.ply')
+                            visualize_crop_bboxes(crop_bbox_ply_path, mesh, preds['proposal_crop_bbox'].detach().cpu().numpy())
                         import pdb; pdb.set_trace()
                     
                     
