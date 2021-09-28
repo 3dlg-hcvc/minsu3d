@@ -286,6 +286,7 @@ class PointGroupSolver(BaseSolver):
                 # if batch['scene_id'] < 20800: continue
                 N = batch['feats'].shape[0]
                 scene_name = self.dataset[split].scene_names[i]
+                mesh = self.dataset[split].scenes[i]['aligned_mesh']
                 
                 ret = self._feed(batch, self.curr_epoch)
                 preds, _ = self._parse_feed_ret(batch, ret)
@@ -354,6 +355,12 @@ class PointGroupSolver(BaseSolver):
                             f.write(f'predicted_masks/{scene_name}_{c_id:03d}.txt {cluster_i_class_idx} {score:.4f}\n')
                             np.savetxt(os.path.join(inst_pred_masks_path, f'{scene_name}_{c_id:03d}.txt'), cluster_i, fmt='%d')
                     np.savetxt(os.path.join(inst_pred_path, f'{scene_name}.cluster_ids.txt'), cluster_ids, fmt='%d')
+                    if self.cfg.test.requires_ply:
+                        from visualize.scannet.generate_ply import visualize_pred_instance
+                        os.makedirs(os.path.join(inst_pred_path, 'visualize'), exist_ok=True)
+                        inst_ply_path = os.path.join(inst_pred_path, 'visualize', f'{scene_name}.ply')
+                        visualize_pred_instance(inst_ply_path, mesh, cluster_ids, semantic_pred_class_idx)
+                        import pdb; pdb.set_trace()
                     
                     
     def eval_detection(self):
