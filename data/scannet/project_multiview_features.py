@@ -12,6 +12,7 @@ import torchvision.transforms as transforms
 from omegaconf import OmegaConf
 from imageio import imread
 from PIL import Image
+from tqdm.std import tqdm
 
 sys.path.append(os.path.join(os.getcwd(), "../..")) # HACK add the root folder
 
@@ -22,6 +23,7 @@ INTRINSICS = [[37.01983, 0, 20, 0],[0, 38.52470, 15.5, 0],[0, 0, 1, 0],[0, 0, 0,
 PROJECTOR = ProjectionHelper(INTRINSICS, 0.1, 4.0, [41, 32], 0.05)
 
 def get_scene_list(cfg, split):
+    print("reading scan list...")
     with open(cfg.SCANNETV2_PATH["{}_list".format(split)], 'r') as f:
         return sorted(list(set(f.read().splitlines())))
 
@@ -70,8 +72,9 @@ def load_depth(file, image_dims):
     return depth_image
 
 def get_scene_data(cfg, scene_list, split):
+    print("loading mesh data...")
     scene_data = {}
-    for scene_id in scene_list:
+    for scene_id in tqdm(scene_list):
         # load the original vertices, not the axis-aligned ones
         path = os.path.join(cfg.SCANNETV2_PATH.splited_data, split, scene_id+".pth")
         data = torch.load(path)
@@ -120,14 +123,17 @@ if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-    for split in ["train", "val", "test"]:
-        print("processing {}...".format(split))
-        scene_list = get_scene_list(cfg, split)
-        scene_data = get_scene_data(cfg, scene_list, split)
-        with h5py.File(cfg.SCANNETV2_PATH.multiview_features, "w", libver="latest") as database:
-            print("projecting multiview features to point cloud...")
+    with h5py.File(cfg.SCANNETV2_PATH.multiview_features, "w", libver="latest") as database:
+        print("projecting multiview features to point cloud...")
+
+        for split in ["train", "val", "test"]:
+            print("processing {}...".format(split))
+            scene_list = get_scene_list(cfg, split)
+            scene_data = get_scene_data(cfg, scene_list, split)
+        
             for scene_id in scene_list:
                 print("processing {}...".format(scene_id))
+
                 scene = scene_data[scene_id]
                 # load frames
                 frame_list = list(map(lambda x: x.split(".")[0], sorted(os.listdir(os.path.join(cfg.SCANNETV2_PATH.frames, scene_id, "color")))))

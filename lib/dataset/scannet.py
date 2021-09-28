@@ -255,7 +255,8 @@ def scannet_loader(cfg):
                     torch.from_numpy(b["locs_scaled"]).long()
                 ], 1))
             
-            feats.append(torch.from_numpy(b["feats"]) + torch.randn(3) * 0.1 * (cfg.general.task == 'train'))
+            # feats.append(torch.from_numpy(b["feats"]) + torch.randn(3) * 0.1 * (cfg.general.task == 'train'))
+            feats.append(torch.from_numpy(b["feats"]))
             # feat = torch.from_numpy(b["feats"]) # (N, 6)
             # feat[:, :3] += torch.randn(3) * 0.1 * (cfg.general.task == 'train')
             # feats.append(feat)

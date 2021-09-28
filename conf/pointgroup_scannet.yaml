@@ -6,7 +6,7 @@ general:
   solver: PointGroupSolver
   config: conf/pointgroup_scannet.yaml
   output_root: outputs/
-  experiment: debug # TODO
+  experiment: xyz_multiview_normal # TODO
   monitor: total_loss
 
 

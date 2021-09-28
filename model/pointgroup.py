@@ -14,7 +14,6 @@ from importlib import import_module
 
 from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.eval import get_nms_instances
-from lib.utils.solver import is_power2, is_multiple
 
 from model.common import ResidualBlock, VGGBlock, UBlock
 
@@ -99,10 +98,7 @@ class PointGroup(pl.LightningModule):
         # self.score_linear = nn.Linear(128, 1)
 
         self._init_random_seed()
-        # self._init_log()
-        # self._init_monitor()
         self._init_data()
-        self._init_criterion()
 
         if cfg.general.task != 'test':
             self._resume_from_checkpoint()
@@ -255,20 +251,6 @@ class PointGroup(pl.LightningModule):
             np.random.seed(self.cfg.general.manual_seed)
             torch.manual_seed(self.cfg.general.manual_seed)
             torch.cuda.manual_seed_all(self.cfg.general.manual_seed)
-
-
-    # def _init_log(self):
-    #     self.logger = pl.loggers.TensorBoardLogger(self.root, name="logs")
-
-    # def _init_monitor(self):
-    #     self.monitor = pl.callbacks.ModelCheckpoint(
-    #         monitor="val/{}".format(self.cfg.general.monitor),
-    #         mode="min",
-    #         # save_weights_only=True,
-    #         dirpath=self.root,
-    #         filename="model",
-    #         save_last=True
-    #     )
     
 
     def _init_data(self):
@@ -307,12 +289,6 @@ class PointGroup(pl.LightningModule):
             raise NotImplemented
 
         return [self.optimizer]
-
-
-    def _init_criterion(self):
-        print("=> setting training criterion...")
-        self.semantic_criterion = nn.CrossEntropyLoss(ignore_index=self.cfg.data.ignore_label)
-        self.score_criterion = nn.BCELoss(reduction='none')
     
     
     def _resume_from_checkpoint(self):
@@ -391,7 +367,8 @@ class PointGroup(pl.LightningModule):
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
 
-        semantic_loss = self.semantic_criterion(semantic_scores, semantic_labels)
+        semantic_criterion = nn.CrossEntropyLoss(ignore_index=self.cfg.data.ignore_label)
+        semantic_loss = semantic_criterion(semantic_scores, semantic_labels)
         loss_dict['semantic_loss'] = (semantic_loss, semantic_scores.shape[0])
 
         '''offset loss'''
@@ -429,7 +406,8 @@ class PointGroup(pl.LightningModule):
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
             gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
 
-            score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
+            score_criterion = nn.BCELoss(reduction='none')
+            score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             score_loss = score_loss.mean()
 
             loss_dict['score_loss'] = (score_loss, gt_ious.shape[0])
@@ -492,7 +470,9 @@ class PointGroup(pl.LightningModule):
         loss_dict = self._loss(loss_input, self.current_epoch)
         loss = loss_dict['total_loss'][0]
 
-        self.log("train/total_loss", loss, prog_bar=True, on_step=True, sync_dist=True)
+        in_prog_bar = ["total_loss"]
+        for key, value in loss_dict.items():
+            self.log("train/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=True, sync_dist=True)
 
         return loss
 
@@ -505,7 +485,9 @@ class PointGroup(pl.LightningModule):
         loss_dict = self._loss(loss_input, self.current_epoch)
         loss = loss_dict['total_loss'][0]
 
-        self.log("val/total_loss", loss, prog_bar=True, on_step=True, sync_dist=True)
+        in_prog_bar = ["total_loss"]
+        for key, value in loss_dict.items():
+            self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=True, sync_dist=True)
     
     ######### NOTE DANGER ZONE!!!
     def test(self, split):
