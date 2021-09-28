@@ -81,7 +81,7 @@ class ScanNet(Dataset):
             j += 1
         return instance_ids
 
-    def _getInstanceInfo(self, xyz, instance_ids, sem_labels=None, requires_bbox=False):
+    def _getInstanceInfo(self, xyz, instance_ids, sem_labels=None):
         '''
         :param xyz: (n, 3)
         :param instance_ids: (n), int, (0~nInst-1, -1)
@@ -94,7 +94,7 @@ class ScanNet(Dataset):
             (xyz.shape[0], 12), dtype=np.float32
         )  # (n, 12), float, (meanx, meany, meanz, cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
         
-        if requires_bbox:
+        if self.requires_bbox:
             assert sem_labels is not None, 'sem_labels are not provided'
             instance_bboxes = np.zeros((num_instance, 6))
             instance_bboxes_semcls = np.zeros((num_instance))
@@ -124,7 +124,7 @@ class ScanNet(Dataset):
             ### instance_num_point
             instance_num_point.append(inst_i_idx[0].size)
             
-            if requires_bbox:
+            if self.requires_bbox:
                 instance_bboxes[k, :3] = c_xyz_i
                 instance_bboxes[k, 3:] = max_xyz_i - min_xyz_i
                 sem_cls = sem_labels[inst_i_idx][0]
@@ -134,7 +134,7 @@ class ScanNet(Dataset):
                 size_residuals[k, :] = instance_bboxes[k, 3:] - self.DC.mean_size_arr[int(sem_cls),:]
             # import pdb; pdb.set_trace()
                 
-        if requires_bbox:
+        if self.requires_bbox:
             return num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, angle_classes, angle_residuals, size_classes, size_residuals
         else:
             return num_instance, instance_info, instance_num_point
@@ -186,8 +186,8 @@ class ScanNet(Dataset):
                 # instance_ids = instance_ids[valid_idxs]
                 instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
 
-            if self.requires_bbox:
-                num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, angle_classes, angle_residuals, size_classes, size_residuals = self._getInstanceInfo(points_augment, instance_ids, sem_labels, True)
+            if self.self.requires_bbox:
+                num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, angle_classes, angle_residuals, size_classes, size_residuals = self._getInstanceInfo(points_augment, instance_ids, sem_labels)
             else:
                 num_instance, instance_info, instance_num_point = self._getInstanceInfo(points_augment, instance_ids.astype(np.int32))
 
