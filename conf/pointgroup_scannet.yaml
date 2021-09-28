@@ -5,6 +5,9 @@ general:
   model: pointgroup
   solver: PointGroupSolver
   config: conf/pointgroup_scannet.yaml
+  output_root: outputs/
+  experiment: debug # TODO
+  monitor: total_loss
 
 
 data:
@@ -38,7 +41,7 @@ model:
   module: model
   classname: PointGroup
   
-  input_channel: 3
+  # input_channel: 131 # multiview + normals
   m: 16 # 16 or 32
   blocks: [1, 2, 3, 4, 5, 6, 7]
   cluster_blocks: [1, 2]
@@ -46,6 +49,9 @@ model:
   block_reps: 2
 
   use_coords: True
+  use_color: False
+  use_multiview: True
+  use_normal: True
 
   use_checkpoint: #2021-08-24_11-42-20 #2021-07-12_17-34-59
   resume_epoch: #480

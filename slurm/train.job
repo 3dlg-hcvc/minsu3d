@@ -1,0 +1,27 @@
+#!/bin/bash
+
+#SBATCH -p debug
+#SBATCH -q normal
+#SBATCH --job-name=train_pointgroup
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=zhenyu.chen@tum.de
+#SBATCH --mem=80gb
+#SBATCH --cpus-per-gpu=8
+# #SBATCH --gpus=gtx_1080:1
+# #SBATCH --gpus=rtx_2080:2
+# #SBATCH --gpus=rtx_3090:2
+# #SBATCH --gpus=rtx_a6000:1
+#SBATCH -w gondor
+#SBATCH -G 2
+#SBATCH -x char,tarsonis
+
+# #SBATCH --time=48:00:00
+#SBATCH --output=/rhome/dchen/SSL/faster-captioning/logs/%j.log
+
+# Default output information
+date;hostname;pwd
+
+# Your code
+conda activate pointgroup
+python train.py
+
