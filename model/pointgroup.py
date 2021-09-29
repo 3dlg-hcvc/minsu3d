@@ -98,7 +98,6 @@ class PointGroup(pl.LightningModule):
         # self.score_linear = nn.Linear(128, 1)
 
         self._init_random_seed()
-        self._init_data()
 
         if cfg.general.task != 'test':
             self._resume_from_checkpoint()
@@ -251,29 +250,6 @@ class PointGroup(pl.LightningModule):
             np.random.seed(self.cfg.general.manual_seed)
             torch.manual_seed(self.cfg.general.manual_seed)
             torch.cuda.manual_seed_all(self.cfg.general.manual_seed)
-    
-
-    def _init_data(self):
-        print("=> initialize data...")
-
-        DATA_MODULE = import_module(self.cfg.data.module)
-        dataloader = getattr(DATA_MODULE, self.cfg.data.loader)
-
-        if self.cfg.general.task == "train":
-            print("=> loading the train and val datasets...")
-        else:
-            print("=> loading the {} dataset...".format(self.cfg.data.split))
-            
-        self.dataset, self.dataloader = dataloader(self.cfg)
-        print("=> loading dataset completed")
-
-    
-    def train_dataloader(self):
-        return self.dataloader["train"]
-    
-
-    def val_dataloader(self):
-        return self.dataloader["val"]
 
     
     def configure_optimizers(self):
@@ -324,10 +300,7 @@ class PointGroup(pl.LightningModule):
     
     
     def restore_checkpoint(self):
-        cp_lists = sorted(glob.glob(os.path.join(self.root, ".ckpt")))
-        if len(cp_lists) > 0:
-            ckp_filename = cp_lists[-1]
-        
+        ckp_filename = os.path.join(self.root, "last.ckpt")
         checkpoint = torch.load(ckp_filename)
         epoch = checkpoint["epoch"]
         
@@ -496,11 +469,12 @@ class PointGroup(pl.LightningModule):
         self.mode = 'test'
         self.curr_epoch = self.start_epoch
         self.eval()
-        self.loader = self.dataloader[split]
-        self.logger.info('>>>>>>>>>>>>>>>> Start Inference >>>>>>>>>>>>>>>>')
+        
+        dataloader = self.dataloader[split]
+        print('>>>>>>>>>>>>>>>> Start Inference >>>>>>>>>>>>>>>>')
 
         with torch.no_grad():
-            for i, batch in enumerate(tqdm(self.loader)):
+            for i, batch in enumerate(tqdm(dataloader)):
                 # if batch['scene_id'] < 20800: continue
                 N = batch['feats'].shape[0]
                 scene_name = self.dataset[split].scene_names[i]
@@ -549,7 +523,7 @@ class PointGroup(pl.LightningModule):
                     clusters_score = proposals_score[pick_idxs].cpu().numpy() # float, (nCluster,)
                     nclusters = clusters_mask.shape[0]
                 
-                pred_path = os.path.join(self.logger.log_path, 'splited_pred', split)
+                pred_path = os.path.join(self.root, 'splited_pred', split)
                 
                 sem_pred_path = os.path.join(pred_path, 'semantic')
                 os.makedirs(sem_pred_path, exist_ok=True)

@@ -6,7 +6,7 @@ general:
   solver: PointGroupSolver
   config: conf/pointgroup_scannet.yaml
   output_root: outputs/
-  experiment: xyz_multiview_normal # TODO
+  experiment: debug # TODO
   monitor: total_loss
 
 
@@ -62,7 +62,7 @@ model:
 
 
 train:
-  epochs: 480
+  epochs: 1
   num_sanity_val_steps: 10
   log_every_n_steps: 10
   check_val_every_n_epoch: 1

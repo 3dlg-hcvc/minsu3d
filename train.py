@@ -9,6 +9,21 @@ from omegaconf import OmegaConf
 from importlib import import_module
 
 
+def init_data(cfg):
+    print("=> initialize data...")
+    DATA_MODULE = import_module(cfg.data.module)
+    dataloader = getattr(DATA_MODULE, cfg.data.loader)
+
+    if cfg.general.task == "train":
+        print("=> loading the train and val datasets...")
+    else:
+        print("=> loading the {} dataset...".format(cfg.data.split))
+        
+    dataset, dataloader = dataloader(cfg)
+    print("=> loading dataset completed")
+
+    return dataset, dataloader
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml', help='path to config file')
@@ -20,38 +35,30 @@ if __name__ == '__main__':
     
     cfg.general.task = 'train'
 
-    # Solver = getattr(import_module('lib.solver'), cfg.general.solver)
-    # solver = Solver(cfg)
-
-    # ##### train and val
-    # for epoch in range(solver.start_epoch, cfg.train.epochs + 1):
-    #     solver.train(epoch)
-
-    #     if solver.check_save_condition(epoch):
-    #         solver.eval(epoch)
-
     PointGroup = getattr(import_module("model.pointgroup"), "PointGroup")
     pointgroup = PointGroup(cfg)
 
     logger = pl.loggers.TensorBoardLogger(pointgroup.root, name="logs")
     monitor = pl.callbacks.ModelCheckpoint(
-            monitor="val/{}".format(cfg.general.monitor),
-            mode="min",
-            # save_weights_only=True,
-            dirpath=pointgroup.root,
-            filename="model",
-            save_last=True
-        )
+        monitor="val/{}".format(cfg.general.monitor),
+        mode="min",
+        # save_weights_only=True,
+        dirpath=pointgroup.root,
+        filename="model",
+        save_last=True
+    )
 
     trainer = pl.Trainer(
         gpus=-1, # use all available GPUs 
         accelerator='ddp', # use multiple GPUs on the same machine
         max_epochs=cfg.train.epochs, 
-        num_sanity_val_steps=-1, # validate on all val data before training 
-        log_every_n_steps=10,
-        check_val_every_n_epoch=1,
+        num_sanity_val_steps=cfg.train.num_sanity_val_steps, # validate on all val data before training 
+        log_every_n_steps=cfg.train.log_every_n_steps,
+        check_val_every_n_epoch=cfg.train.check_val_every_n_epoch,
         callbacks=[monitor], # comment when debug
-        logger=logger
+        logger=logger,
+        profiler="simple"
     )
 
-    trainer.fit(model=pointgroup)
+    dataset, dataloader = init_data(cfg)
+    trainer.fit(model=pointgroup, train_dataloader=dataloader["train"], val_dataloaders=dataloader["val"])
