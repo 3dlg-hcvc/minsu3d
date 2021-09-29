@@ -62,7 +62,7 @@ model:
 
 
 train:
-  epochs: 1
+  epochs: 10
   num_sanity_val_steps: 10
   log_every_n_steps: 10
   check_val_every_n_epoch: 1
@@ -93,7 +93,7 @@ cluster:
   cluster_shift_meanActive: 300
   cluster_npoint_thre: 50
 
-  prepare_epochs: 128
+  prepare_epochs: 1
   freeze_backbone: False
 
 test:

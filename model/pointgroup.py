@@ -99,7 +99,7 @@ class PointGroup(pl.LightningModule):
 
         self._init_random_seed()
 
-        if cfg.general.task != 'test':
+        if cfg.general.task != "test":
             self._resume_from_checkpoint()
         else:
             self._load_pretrained_model()
@@ -318,10 +318,10 @@ class PointGroup(pl.LightningModule):
     def _loss(self, loss_input, epoch):
 
         def get_segmented_scores(scores, fg_thresh=1.0, bg_thresh=0.0):
-            '''
+            """
             :param scores: (N), float, 0~1
             :return: segmented_scores: (N), float 0~1, >fg_thresh: 1, <bg_thresh: 0, mid: linear
-            '''
+            """
             fg_mask = scores > fg_thresh
             bg_mask = scores < bg_thresh
             interval_mask = (fg_mask == 0) & (bg_mask == 0)
@@ -335,17 +335,17 @@ class PointGroup(pl.LightningModule):
 
         loss_dict = {}
 
-        '''semantic loss'''
-        semantic_scores, semantic_labels = loss_input['semantic_scores']
+        """semantic loss"""
+        semantic_scores, semantic_labels = loss_input["semantic_scores"]
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
 
         semantic_criterion = nn.CrossEntropyLoss(ignore_index=self.cfg.data.ignore_label)
         semantic_loss = semantic_criterion(semantic_scores, semantic_labels)
-        loss_dict['semantic_loss'] = (semantic_loss, semantic_scores.shape[0])
+        loss_dict["semantic_loss"] = (semantic_loss, semantic_scores.shape[0])
 
-        '''offset loss'''
-        pt_offsets, coords, instance_info, instance_ids = loss_input['pt_offsets']
+        """offset loss"""
+        pt_offsets, coords, instance_info, instance_ids = loss_input["pt_offsets"]
         # pt_offsets: (N, 3), float, cuda
         # coords: (N, 3), float32
         # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
@@ -364,12 +364,12 @@ class PointGroup(pl.LightningModule):
         direction_diff = - (gt_offsets_ * pt_offsets_).sum(-1)   # (N)
         offset_dir_loss = torch.sum(direction_diff * valid) / (torch.sum(valid) + 1e-6)
 
-        loss_dict['offset_norm_loss'] = (offset_norm_loss, valid.sum())
-        loss_dict['offset_dir_loss'] = (offset_dir_loss, valid.sum())
+        loss_dict["offset_norm_loss"] = (offset_norm_loss, valid.sum())
+        loss_dict["offset_dir_loss"] = (offset_dir_loss, valid.sum())
 
         if (epoch > self.cfg.cluster.prepare_epochs):
-            '''score loss'''
-            scores, proposals_idx, proposals_offset, instance_pointnum = loss_input['proposal_scores']
+            """score loss"""
+            scores, proposals_idx, proposals_offset, instance_pointnum = loss_input["proposal_scores"]
             # scores: (nProposal, 1), float32
             # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
             # proposals_offset: (nProposal + 1), int, cpu
@@ -379,17 +379,17 @@ class PointGroup(pl.LightningModule):
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
             gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
 
-            score_criterion = nn.BCELoss(reduction='none')
+            score_criterion = nn.BCELoss(reduction="none")
             score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             score_loss = score_loss.mean()
 
-            loss_dict['score_loss'] = (score_loss, gt_ious.shape[0])
+            loss_dict["score_loss"] = (score_loss, gt_ious.shape[0])
 
-        '''total loss'''
+        """total loss"""
         loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + self.cfg.train.loss_weight[2] * offset_dir_loss
         if(epoch > self.cfg.cluster.prepare_epochs):
             loss += (self.cfg.train.loss_weight[3] * score_loss)
-        loss_dict['total_loss'] = (loss, semantic_labels.shape[0])
+        loss_dict["total_loss"] = (loss, semantic_labels.shape[0])
 
         return loss_dict
         
@@ -441,7 +441,7 @@ class PointGroup(pl.LightningModule):
         ret = self._feed(data_dict, self.current_epoch)
         _, loss_input = self._parse_feed_ret(data_dict, ret)
         loss_dict = self._loss(loss_input, self.current_epoch)
-        loss = loss_dict['total_loss'][0]
+        loss = loss_dict["total_loss"][0]
 
         in_prog_bar = ["total_loss"]
         for key, value in loss_dict.items():
@@ -456,41 +456,41 @@ class PointGroup(pl.LightningModule):
         ret = self._feed(data_dict, self.current_epoch)
         _, loss_input = self._parse_feed_ret(data_dict, ret)
         loss_dict = self._loss(loss_input, self.current_epoch)
-        loss = loss_dict['total_loss'][0]
+        loss = loss_dict["total_loss"][0]
 
         in_prog_bar = ["total_loss"]
         for key, value in loss_dict.items():
             self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True, sync_dist=True)
     
     ######### NOTE DANGER ZONE!!!
-    def test(self, split):
+    def test(self, split="val"):
         from data.scannet.model_util_scannet import NYU20_CLASS_IDX
         NYU20_CLASS_IDX = NYU20_CLASS_IDX[1:] # for scannet temporarily
-        self.mode = 'test'
+        self.mode = "test"
         self.curr_epoch = self.start_epoch
         self.eval()
         
         dataloader = self.dataloader[split]
-        print('>>>>>>>>>>>>>>>> Start Inference >>>>>>>>>>>>>>>>')
+        print(">>>>>>>>>>>>>>>> Start Inference >>>>>>>>>>>>>>>>")
 
         with torch.no_grad():
             for i, batch in enumerate(tqdm(dataloader)):
-                # if batch['scene_id'] < 20800: continue
-                N = batch['feats'].shape[0]
+                # if batch["scene_id"] < 20800: continue
+                N = batch["feats"].shape[0]
                 scene_name = self.dataset[split].scene_names[i]
                 
                 ret = self._feed(batch, self.curr_epoch)
                 preds, _ = self._parse_feed_ret(batch, ret)
                 
                 ##### get predictions (#1 semantic_pred, pt_offsets; #2 scores, proposals_pred)
-                semantic_scores = preds['semantic']  # (N, nClass) float32, cuda, 0: unannotated
+                semantic_scores = preds["semantic"]  # (N, nClass) float32, cuda, 0: unannotated
                 semantic_pred_labels = semantic_scores.max(1)[1]  # (N) long, cuda
                 semantic_class_idx = torch.tensor(NYU20_CLASS_IDX, dtype=torch.int).cuda() # (nClass)
                 semantic_pred_class_idx = semantic_class_idx[semantic_pred_labels].cpu().numpy()
                 
                 if self.curr_epoch > self.cfg.cluster.prepare_epochs:
-                    proposals_score = torch.sigmoid(preds['score'].view(-1)) # (nProposal,) float, cuda
-                    proposals_idx, proposals_offset = preds['proposals']
+                    proposals_score = torch.sigmoid(preds["score"].view(-1)) # (nProposal,) float, cuda
+                    proposals_idx, proposals_offset = preds["proposals"]
                     # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
                     # proposals_offset: (nProposal + 1), int, cpu
 
@@ -523,26 +523,26 @@ class PointGroup(pl.LightningModule):
                     clusters_score = proposals_score[pick_idxs].cpu().numpy() # float, (nCluster,)
                     nclusters = clusters_mask.shape[0]
                 
-                pred_path = os.path.join(self.root, 'splited_pred', split)
+                pred_path = os.path.join(self.root, "splited_pred", split)
                 
-                sem_pred_path = os.path.join(pred_path, 'semantic')
+                sem_pred_path = os.path.join(pred_path, "semantic")
                 os.makedirs(sem_pred_path, exist_ok=True)
-                sem_pred_file_path = os.path.join(sem_pred_path, f'{scene_name}.txt')
-                np.savetxt(sem_pred_file_path, semantic_pred_class_idx, fmt='%d')
+                sem_pred_file_path = os.path.join(sem_pred_path, f"{scene_name}.txt")
+                np.savetxt(sem_pred_file_path, semantic_pred_class_idx, fmt="%d")
                 
                 if self.curr_epoch > self.cfg.cluster.prepare_epochs:
-                    inst_pred_path = os.path.join(pred_path, 'instance')
-                    inst_pred_masks_path = os.path.join(inst_pred_path, 'predicted_masks')
+                    inst_pred_path = os.path.join(pred_path, "instance")
+                    inst_pred_masks_path = os.path.join(inst_pred_path, "predicted_masks")
                     os.makedirs(inst_pred_path, exist_ok=True)
                     os.makedirs(inst_pred_masks_path, exist_ok=True)
                     cluster_ids = np.ones(shape=(N)) * -1 # id starts from 0
-                    with open(os.path.join(inst_pred_path, f'{scene_name}.txt'), 'w') as f:
+                    with open(os.path.join(inst_pred_path, f"{scene_name}.txt"), "w") as f:
                         for c_id in range(nclusters):
                             cluster_i = clusters_mask[c_id]  # (N)
                             cluster_ids[cluster_i == 1] = c_id
                             assert np.unique(semantic_pred_class_idx[cluster_i == 1]).size == 1
                             cluster_i_class_idx = semantic_pred_class_idx[cluster_i == 1][0]
                             score = clusters_score[c_id]
-                            f.write(f'predicted_masks/{scene_name}_{c_id:03d}.txt {cluster_i_class_idx} {score:.4f}\n')
-                            np.savetxt(os.path.join(inst_pred_masks_path, f'{scene_name}_{c_id:03d}.txt'), cluster_i, fmt='%d')
-                    np.savetxt(os.path.join(inst_pred_path, f'{scene_name}.cluster_ids.txt'), cluster_ids, fmt='%d')
+                            f.write(f"predicted_masks/{scene_name}_{c_id:03d}.txt {cluster_i_class_idx} {score:.4f}\n")
+                            np.savetxt(os.path.join(inst_pred_masks_path, f"{scene_name}_{c_id:03d}.txt"), cluster_i, fmt="%d")
+                    np.savetxt(os.path.join(inst_pred_path, f"{scene_name}.cluster_ids.txt"), cluster_ids, fmt="%d")
