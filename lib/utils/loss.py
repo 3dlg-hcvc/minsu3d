@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 
 sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
-from lib.utils.bbox import get_3d_box_batch, get_aabb3d_iou_batch, get_3d_box
+# from lib.utils.bbox import get_3d_box_batch, get_aabb3d_iou_batch, get_3d_box
 
 
 def huber_loss(error, delta=1.0):
@@ -90,7 +90,7 @@ def nn_distance_stack(pc1, pc2, l1smooth=False, delta=1.0, l1=False):
     return dist1, idx1, dist2, idx2
 
 
-def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr, DC):
+def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr):
     """ Compute 3D bounding box and semantic classification loss.
     Args:
         data_dict: dict (read-only)

@@ -12,6 +12,7 @@ from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.log import Meters
 from lib.utils.solver import step_learning_rate
 from lib.utils.eval import get_nms_instances
+from lib.utils.bbox import get_3d_box_batch, get_aabb3d_iou_batch, get_3d_box
 
 
 class PointGroupSolver(BaseSolver):
@@ -114,6 +115,8 @@ class PointGroupSolver(BaseSolver):
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
             thres_mask = loss_input['proposal_thres_mask']
             loss_dict['mask_ious'] = (gt_ious[thres_mask].mean(), thres_mask.sum())
+            # assert gt_ious[thres_mask] < 1
+            # import pdb; pdb.set_trace()
             gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
             score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             score_loss = score_loss.mean()
@@ -121,19 +124,89 @@ class PointGroupSolver(BaseSolver):
             loss_dict['score_loss'] = (score_loss, gt_ious.shape[0])
             
             '''bbox loss'''
-            if self.cfg.data.requires_bbox:
+            if self.cfg.model.pred_bbox:
                 from lib.utils.loss import compute_box_and_sem_cls_loss
-                bbox_loss = compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, self.DC.mean_size_arr, self.DC)
+                bbox_loss = compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, self.DC.mean_size_arr)
 
         '''total loss'''
         loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + self.cfg.train.loss_weight[2] * offset_dir_loss
         if(epoch > self.cfg.cluster.prepare_epochs):
             loss += (self.cfg.train.loss_weight[3] * score_loss)
-            if self.cfg.data.requires_bbox:
+            if self.cfg.model.pred_bbox:
                 loss += (self.cfg.train.loss_weight[4] * bbox_loss)
         loss_dict['total_loss'] = (loss, semantic_labels.shape[0])
 
         return loss_dict
+    
+    
+    def get_bbox_iou(self, loss_input, data_dict, eval_dict):
+        batch_size = len(data_dict["batch_offsets"]) - 1
+        proposal_thres_mask = loss_input['proposal_thres_mask']
+        proposal_offsets = loss_input['proposal_bbox_offsets'].detach().cpu().numpy()
+        instance_offsets = data_dict['instance_offsets'].detach().cpu().numpy()
+        
+        # parse gt_bbox
+        center_label = data_dict['center_label'].detach().cpu().numpy()
+        heading_class_label = data_dict['heading_class_label'].detach().cpu().numpy()
+        heading_residual_label = data_dict['heading_residual_label'].detach().cpu().numpy()
+        size_class_label = data_dict['size_class_label'].detach().cpu().numpy()
+        size_residual_label = data_dict['size_residual_label'].detach().cpu().numpy()
+        num_instance = center_label.shape[0]
+        gt_bboxes = np.zeros((num_instance, 8, 3))
+        for j in range(num_instance):
+            heading_angle = DC.class2angle(heading_class_label[j], heading_residual_label[j])
+            box_size = DC.class2size(int(size_class_label[j]), size_residual_label[j])
+            gt_bboxes[j] = get_3d_box(center_label[j,:], box_size, heading_angle)
+        
+        if self.cfg.model.crop_bbox:
+            # parse crop_bbox
+            proposal_crop_bboxes, _ = loss_input['proposal_crop_bboxes']
+            proposal_crop_bboxes = proposal_crop_bboxes.detach().cpu().numpy() # (nProposals, center+size+heading+label)
+            proposal_crop_bboxes = get_3d_box_batch(proposal_crop_bboxes[:, 0:3], proposal_crop_bboxes[:, 3:6], proposal_crop_bboxes[:, 6]) # (nProposals, 8, 3)
+            num_proposal = proposal_crop_bboxes.shape[0] 
+            
+            crop_bbox_ious = np.zeros(num_proposal)
+            for b in range(batch_size):
+                pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
+                pred_num = pred_batch_end - pred_batch_start # N
+                gt_batch_start, gt_batch_end = instance_offsets[b], instance_offsets[b+1]
+                gt_num = gt_batch_end - gt_batch_start # M
+                for i in range(pred_num):
+                    crop_bbox_iou = get_aabb3d_iou_batch(np.tile(proposal_crop_bboxes[pred_batch_start+i], (gt_num, 1, 1)), gt_bboxes[gt_batch_start:gt_batch_end])
+                    crop_bbox_ious[pred_batch_start+i] = np.max(crop_bbox_iou)
+            eval_dict['crop_bbox_iou'] = (crop_bbox_ious.mean(), num_proposal)
+            
+        if self.cfg.model.pred_bbox:
+            # parse pred_bbox
+            pred_center, heading_scores, heading_residuals_normalized, heading_residuals, size_scores, size_residuals_normalized, size_residuals, sem_cls_scores = loss_input['proposal_pred_bboxes']
+            pred_center = pred_center.detach().cpu().numpy()
+            pred_heading_class = torch.argmax(heading_scores, -1).detach().cpu().numpy() # num_proposal
+            pred_heading_residual = torch.gather(heading_scores, 1, pred_heading_class.unsqueeze(-1)).squeeze(1).detach().cpu().numpy() # num_proposal
+            pred_size_class = torch.argmax(size_scores, -1).detach().cpu().numpy() # num_proposal
+            pred_size_residual = torch.gather(size_residuals, 1, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,3)).squeeze(1).detach().cpu().numpy() # num_proposal,3
+
+            num_proposal = pred_center.shape[0] 
+            proposal_pred_bboxes = np.zeros((num_proposal, 8, 3))
+            for j in range(num_proposal):
+                heading_angle = DC.class2angle(pred_heading_class[j], pred_heading_residual[j])
+                box_size = DC.class2size(int(pred_size_class[j]), pred_size_residual[j])
+                proposal_pred_bboxes[j] = get_3d_box(pred_center[j,:], box_size, heading_angle)
+            
+            pred_bbox_ious = np.zeros(num_proposal)
+            for b in range(batch_size):
+                pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
+                pred_num = pred_batch_end - pred_batch_start # N
+                gt_batch_start, gt_batch_end = instance_offsets[b], instance_offsets[b+1]
+                gt_num = gt_batch_end - gt_batch_start # M
+                for i in range(pred_num):
+                    pred_bbox_iou = get_aabb3d_iou_batch(np.tile(proposal_pred_bboxes[pred_batch_start+i], (gt_num, 1, 1)), gt_bboxes[gt_batch_start:gt_batch_end])
+                    pred_bbox_ious[pred_batch_start+i] = np.max(pred_bbox_iou)
+            eval_dict['pred_bbox_iou'] = (pred_bbox_ious.mean(), num_proposal)
+            
+        if self.cfg.model.crop_bbox and self.cfg.model.pred_bbox:
+            assert proposal_crop_bboxes.shape == proposal_pred_bboxes.shape
+            ious = get_aabb3d_iou_batch(proposal_crop_bboxes, proposal_pred_bboxes)
+            eval_dict['pred_crop_bbox_iou'] = (ious.mean(), num_proposal)
 
 
     def _feed(self, data, epoch=0):
@@ -176,10 +249,11 @@ class PointGroupSolver(BaseSolver):
                 # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
                 # proposals_offset: (nProposal + 1), int, cpu
                 loss_input['proposal_thres_mask'] = ret['proposal_thres_mask']
+                loss_input['proposal_bbox_offsets'] = ret['proposal_bbox_offsets']
                 if self.cfg.model.crop_bbox:
                     loss_input['proposal_crop_bboxes'] = ret['proposal_crop_bbox']
                 if self.cfg.model.pred_bbox:
-                    loss_input['proposal_pred_bboxes'] = (ret['center'], ret['heading_scores'], ret['heading_residuals_normalized'], ret['heading_residuals'], ret['size_scores'], ret['size_residuals_normalized'], ret['size_residuals'], ret['sem_cls_scores'], ret['proposal_bbox_offsets'])
+                    loss_input['proposal_pred_bboxes'] = (ret['center'], ret['heading_scores'], ret['heading_residuals_normalized'], ret['heading_residuals'], ret['size_scores'], ret['size_residuals_normalized'], ret['size_residuals'], ret['sem_cls_scores'])
         
         return preds, loss_input
     
@@ -202,7 +276,7 @@ class PointGroupSolver(BaseSolver):
                 remain_time = time.strftime("%H:%M:%S", remain_time_sec)
                 
                 self.logger.debug(
-                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} bbox_loss: {meters.get_val('bbox_loss'):.4f}({meters.get_avg('bbox_loss'):.4f}) loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time} pred_crop_bbox_iou: {meters.get_avg('pred_crop_bbox_iou'):.4f} crop_bbox_iou: {meters.get_avg('crop_bbox_iou'):.4f} pred_bbox_iou: {meters.get_avg('pred_bbox_iou'):.4f} mask_ious: {meters.get_avg('mask_ious'):.4f}")
+                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} bbox_loss: {meters.get_val('bbox_loss'):.4f}({meters.get_avg('bbox_loss'):.4f}) loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time} crop_bbox_iou: {meters.get_avg('crop_bbox_iou'):.4f} mask_ious: {meters.get_avg('mask_ious'):.4f}")
             if (iter == len(self.loader) - 1): print()
 
 
@@ -266,7 +340,7 @@ class PointGroupSolver(BaseSolver):
                 ##### meter_dict
                 self._log_report(meters, loss_dict, i, iter_start_time)
                 ##### print
-                self.logger.debug(f"\riter: {i+1}/{len(self.loader)} loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f})")
+                self.logger.debug(f"\riter: {i+1}/{len(self.loader)} loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) crop_bbox_iou: {meters.get_avg('crop_bbox_iou'):.4f} mask_ious: {meters.get_avg('mask_ious'):.4f}")
 
             self.logger.info(f"epoch: {self.curr_epoch}/{self.total_epoch}, val loss: {meters.get_avg('total_loss'):.4f}, time: {time.time() - start_epoch_time:.2f}s\n")
 
@@ -365,8 +439,19 @@ class PointGroupSolver(BaseSolver):
                         visualize_pred_instance(inst_ply_path, mesh, cluster_ids, semantic_pred_class_idx)
                         if self.cfg.model.crop_bbox:
                             from visualize.scannet.generate_ply import visualize_crop_bboxes
-                            crop_bbox_ply_path = os.path.join(inst_pred_path, 'visualize', f'{scene_name}.crop_bbox.ply')
-                            visualize_crop_bboxes(crop_bbox_ply_path, mesh, preds['proposal_crop_bbox'].detach().cpu().numpy())
+                            from lib.utils.bbox import get_aabb3d_iou_batch, get_3d_box_batch
+                            # crop_bbox_ply_path = os.path.join(inst_pred_path, 'visualize', f'{scene_name}.crop_bbox.ply')
+                            # visualize_crop_bboxes(crop_bbox_ply_path, mesh, preds['proposal_crop_bbox'].detach().cpu().numpy())
+                            # gt_bbox_ply_path = os.path.join(inst_pred_path, 'visualize', f'{scene_name}.gt_bbox.ply')
+                            # visualize_crop_bboxes(gt_bbox_ply_path, mesh, batch['gt_bbox'].detach().cpu().numpy())
+                            proposal_crop_bboxes = preds['proposal_crop_bbox'].detach().cpu().numpy()
+                            proposal_crop_bboxes = get_3d_box_batch(proposal_crop_bboxes[:, 0:3], proposal_crop_bboxes[:, 3:6], proposal_crop_bboxes[:, 6])
+                            gt_bboxes = batch['gt_bbox'].detach().cpu().numpy()
+                            gt_bboxes = get_3d_box_batch(gt_bboxes[:, 0:3], gt_bboxes[:, 3:6], gt_bboxes[:, 6])
+                            crop_bbox_ious = np.zeros(proposal_crop_bboxes.shape[0])
+                            for i in range(proposal_crop_bboxes.shape[0]):
+                                crop_bbox_iou = get_aabb3d_iou_batch(np.tile(proposal_crop_bboxes[i], (gt_bboxes.shape[0], 1, 1)), gt_bboxes)
+                                crop_bbox_ious[i] = np.max(crop_bbox_iou)
                         import pdb; pdb.set_trace()
                     
                     

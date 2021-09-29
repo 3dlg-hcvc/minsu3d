@@ -98,6 +98,7 @@ class BaseSolver:
             self.start_epoch = 1
             self._load_pretrained_module()
             self._freeze_module()
+            self.curr_epoch = self.start_epoch
             
     
     def _load_pretrained_module(self):
