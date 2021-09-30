@@ -65,7 +65,7 @@ model:
 
 
 train:
-  epochs: 520
+  epochs: 480
 
   optim: 
     classname: Adam # Adam or SGD
