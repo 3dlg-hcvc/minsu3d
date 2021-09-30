@@ -293,6 +293,7 @@ class PointGroup(nn.Module):
             
             proposals_batchId = proposals_batchId_all[proposals_offset[:-1].long()] # (nProposal,)
             proposals_batchId = proposals_batchId[thres_mask]
+            ret['proposals_batchId'] = proposals_batchId # (nProposal,)
             ret['proposal_bbox_offsets'] = self.get_batch_offsets(proposals_batchId, batch_size) # (B+1,)
             
             if self.cfg.model.crop_bbox:
@@ -301,7 +302,7 @@ class PointGroup(nn.Module):
                 proposal_crop_bbox[:, 3:6] = proposals_size
                 proposal_crop_bbox[:, 7] = semantic_preds[proposals_idx[proposals_offset[:-1].long(), 1].long()]
                 proposal_crop_bbox = proposal_crop_bbox[thres_mask]
-                ret['proposal_crop_bbox'] = (proposal_crop_bbox, proposals_batchId)
+                ret['proposal_crop_bbox'] = proposal_crop_bbox
 
             if self.cfg.model.pred_bbox:
                 encoded_pred_bbox = self.bbox_regressor(proposals_score_feats) # (nProposal, 3+num_heading_bin*2+num_size_cluster*4+num_class)

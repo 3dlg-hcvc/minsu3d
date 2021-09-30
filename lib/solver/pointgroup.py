@@ -113,10 +113,9 @@ class PointGroupSolver(BaseSolver):
 
             ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_ids, instance_pointnum) # (nProposal, nInstance), float
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
-            thres_mask = loss_input['proposal_thres_mask']
-            loss_dict['mask_ious'] = (gt_ious[thres_mask].mean(), thres_mask.sum())
-            # assert gt_ious[thres_mask] < 1
-            # import pdb; pdb.set_trace()
+            # thres_mask = loss_input['proposal_thres_mask']
+            # loss_dict['mask_ious'] = (gt_ious[thres_mask].mean(), thres_mask.sum())
+            ######## gt_ious HAS PROBLEMS !!!!!!
             gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
             score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             score_loss = score_loss.mean()
@@ -144,6 +143,7 @@ class PointGroupSolver(BaseSolver):
         proposal_thres_mask = loss_input['proposal_thres_mask']
         proposal_offsets = loss_input['proposal_bbox_offsets'].detach().cpu().numpy()
         instance_offsets = data_dict['instance_offsets'].detach().cpu().numpy()
+        proposals_batchId = loss_input['proposals_batchId']
         
         # parse gt_bbox
         center_label = data_dict['center_label'].detach().cpu().numpy()
@@ -154,27 +154,30 @@ class PointGroupSolver(BaseSolver):
         num_instance = center_label.shape[0]
         gt_bboxes = np.zeros((num_instance, 8, 3))
         for j in range(num_instance):
-            heading_angle = DC.class2angle(heading_class_label[j], heading_residual_label[j])
-            box_size = DC.class2size(int(size_class_label[j]), size_residual_label[j])
+            heading_angle = self.DC.class2angle(heading_class_label[j], heading_residual_label[j])
+            box_size = self.DC.class2size(int(size_class_label[j]), size_residual_label[j])
             gt_bboxes[j] = get_3d_box(center_label[j,:], box_size, heading_angle)
+        data_dict['gt_bboxes'] = gt_bboxes
         
         if self.cfg.model.crop_bbox:
             # parse crop_bbox
-            proposal_crop_bboxes, _ = loss_input['proposal_crop_bboxes']
+            proposal_crop_bboxes = loss_input['proposal_crop_bboxes']
             proposal_crop_bboxes = proposal_crop_bboxes.detach().cpu().numpy() # (nProposals, center+size+heading+label)
             proposal_crop_bboxes = get_3d_box_batch(proposal_crop_bboxes[:, 0:3], proposal_crop_bboxes[:, 3:6], proposal_crop_bboxes[:, 6]) # (nProposals, 8, 3)
             num_proposal = proposal_crop_bboxes.shape[0] 
             
             crop_bbox_ious = np.zeros(num_proposal)
             for b in range(batch_size):
-                pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
-                pred_num = pred_batch_end - pred_batch_start # N
+                proposal_batch_idx = torch.nonzero(proposals_batchId == b)
+                # pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
+                pred_num = len(proposal_batch_idx) #pred_batch_end - pred_batch_start # N
                 gt_batch_start, gt_batch_end = instance_offsets[b], instance_offsets[b+1]
                 gt_num = gt_batch_end - gt_batch_start # M
                 for i in range(pred_num):
-                    crop_bbox_iou = get_aabb3d_iou_batch(np.tile(proposal_crop_bboxes[pred_batch_start+i], (gt_num, 1, 1)), gt_bboxes[gt_batch_start:gt_batch_end])
-                    crop_bbox_ious[pred_batch_start+i] = np.max(crop_bbox_iou)
+                    crop_bbox_iou = get_aabb3d_iou_batch(np.tile(proposal_crop_bboxes[proposal_batch_idx[i]], (gt_num, 1, 1)), gt_bboxes[gt_batch_start:gt_batch_end])
+                    crop_bbox_ious[proposal_batch_idx[i]] = np.max(crop_bbox_iou)
             eval_dict['crop_bbox_iou'] = (crop_bbox_ious.mean(), num_proposal)
+            data_dict['proposal_crop_bboxes'] = proposal_crop_bboxes
             
         if self.cfg.model.pred_bbox:
             # parse pred_bbox
@@ -188,20 +191,22 @@ class PointGroupSolver(BaseSolver):
             num_proposal = pred_center.shape[0] 
             proposal_pred_bboxes = np.zeros((num_proposal, 8, 3))
             for j in range(num_proposal):
-                heading_angle = DC.class2angle(pred_heading_class[j], pred_heading_residual[j])
-                box_size = DC.class2size(int(pred_size_class[j]), pred_size_residual[j])
+                heading_angle = self.DC.class2angle(pred_heading_class[j], pred_heading_residual[j])
+                box_size = self.DC.class2size(int(pred_size_class[j]), pred_size_residual[j])
                 proposal_pred_bboxes[j] = get_3d_box(pred_center[j,:], box_size, heading_angle)
             
             pred_bbox_ious = np.zeros(num_proposal)
             for b in range(batch_size):
-                pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
-                pred_num = pred_batch_end - pred_batch_start # N
+                proposal_batch_idx = torch.nonzero(proposals_batchId == b)
+                # pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
+                pred_num = len(proposal_batch_idx) #pred_batch_end - pred_batch_start # N
                 gt_batch_start, gt_batch_end = instance_offsets[b], instance_offsets[b+1]
                 gt_num = gt_batch_end - gt_batch_start # M
                 for i in range(pred_num):
-                    pred_bbox_iou = get_aabb3d_iou_batch(np.tile(proposal_pred_bboxes[pred_batch_start+i], (gt_num, 1, 1)), gt_bboxes[gt_batch_start:gt_batch_end])
-                    pred_bbox_ious[pred_batch_start+i] = np.max(pred_bbox_iou)
+                    pred_bbox_iou = get_aabb3d_iou_batch(np.tile(proposal_pred_bboxes[proposal_batch_idx[i]], (gt_num, 1, 1)), gt_bboxes[gt_batch_start:gt_batch_end])
+                    pred_bbox_ious[proposal_batch_idx[i]] = np.max(pred_bbox_iou)
             eval_dict['pred_bbox_iou'] = (pred_bbox_ious.mean(), num_proposal)
+            data_dict['proposal_pred_bboxes'] = proposal_pred_bboxes
             
         if self.cfg.model.crop_bbox and self.cfg.model.pred_bbox:
             assert proposal_crop_bboxes.shape == proposal_pred_bboxes.shape
@@ -241,7 +246,7 @@ class PointGroupSolver(BaseSolver):
             scores, proposals_idx, proposals_offset = ret['proposal_scores']
             preds['score'] = scores
             preds['proposals'] = (proposals_idx, proposals_offset)
-            preds['proposal_crop_bbox'] = ret['proposal_crop_bbox'][0]
+            preds['proposal_crop_bboxes'] = ret['proposal_crop_bbox']
             
             if self.mode != 'test':
                 loss_input['proposal_scores'] = (scores, proposals_idx, proposals_offset, data["instance_num_point"])
@@ -250,6 +255,7 @@ class PointGroupSolver(BaseSolver):
                 # proposals_offset: (nProposal + 1), int, cpu
                 loss_input['proposal_thres_mask'] = ret['proposal_thres_mask']
                 loss_input['proposal_bbox_offsets'] = ret['proposal_bbox_offsets']
+                loss_input['proposals_batchId'] = ret['proposals_batchId']
                 if self.cfg.model.crop_bbox:
                     loss_input['proposal_crop_bboxes'] = ret['proposal_crop_bbox']
                 if self.cfg.model.pred_bbox:
@@ -258,9 +264,8 @@ class PointGroupSolver(BaseSolver):
         return preds, loss_input
     
     
-    def _log_report(self, meters, loss_dict, iter, iter_start_time=0):
+    def _log_report(self, meters, meter_dict, iter, iter_start_time=0):
         with torch.no_grad():
-            meter_dict = loss_dict
             meter_dict['iter_time'] = time.time() - iter_start_time
             
             for k, v in meter_dict.items():
@@ -276,7 +281,7 @@ class PointGroupSolver(BaseSolver):
                 remain_time = time.strftime("%H:%M:%S", remain_time_sec)
                 
                 self.logger.debug(
-                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} bbox_loss: {meters.get_val('bbox_loss'):.4f}({meters.get_avg('bbox_loss'):.4f}) loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time} crop_bbox_iou: {meters.get_avg('crop_bbox_iou'):.4f} mask_ious: {meters.get_avg('mask_ious'):.4f}")
+                    f"epoch: {self.curr_epoch}/{self.total_epoch} iter: {iter+1}/{len(self.loader)} bbox_loss: {meters.get_val('bbox_loss'):.4f}({meters.get_avg('bbox_loss'):.4f}) loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) avg_iter_time: {meters.get_avg('iter_time'):.4f} remain_time: {remain_time} crop_bbox_iou: {meters.get_avg('crop_bbox_iou'):.4f}")
             if (iter == len(self.loader) - 1): print()
 
 
@@ -300,14 +305,15 @@ class PointGroupSolver(BaseSolver):
             ##### prepare input and forward
             ret = self._feed(batch, epoch)
             _, loss_input = self._parse_feed_ret(batch, ret)
-            loss_dict = self._loss(loss_input, batch, epoch)
+            meter_dict = self._loss(loss_input, batch, epoch)
+            self.get_bbox_iou(loss_input, batch, meter_dict)
 
             ##### backward
             self.optimizer.zero_grad()
-            loss_dict['total_loss'][0].backward()
+            meter_dict['total_loss'][0].backward()
             self.optimizer.step()
 
-            self._log_report(meters, loss_dict, i, iter_start_time)
+            self._log_report(meters, meter_dict, i, iter_start_time)
 
         self.logger.info(f"===> summary of epoch: {self.curr_epoch}/{self.total_epoch}\ntrain loss: {meters.get_avg('total_loss'):.4f}, time: {time.time() - start_epoch_time:.2f}s\n")
 
@@ -335,12 +341,12 @@ class PointGroupSolver(BaseSolver):
                 ##### prepare input and forward
                 ret = self._feed(batch, self.curr_epoch)
                 _, loss_input = self._parse_feed_ret(batch, ret)
-                loss_dict = self._loss(loss_input, batch, self.curr_epoch)
+                meter_dict = self._loss(loss_input, batch, self.curr_epoch)
 
                 ##### meter_dict
-                self._log_report(meters, loss_dict, i, iter_start_time)
+                self._log_report(meters, meter_dict, i, iter_start_time)
                 ##### print
-                self.logger.debug(f"\riter: {i+1}/{len(self.loader)} loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) crop_bbox_iou: {meters.get_avg('crop_bbox_iou'):.4f} mask_ious: {meters.get_avg('mask_ious'):.4f}")
+                self.logger.debug(f"\riter: {i+1}/{len(self.loader)} loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f}) crop_bbox_iou: {meters.get_avg('crop_bbox_iou'):.4f}")
 
             self.logger.info(f"epoch: {self.curr_epoch}/{self.total_epoch}, val loss: {meters.get_avg('total_loss'):.4f}, time: {time.time() - start_epoch_time:.2f}s\n")
 
@@ -441,10 +447,10 @@ class PointGroupSolver(BaseSolver):
                             from visualize.scannet.generate_ply import visualize_crop_bboxes
                             from lib.utils.bbox import get_aabb3d_iou_batch, get_3d_box_batch
                             # crop_bbox_ply_path = os.path.join(inst_pred_path, 'visualize', f'{scene_name}.crop_bbox.ply')
-                            # visualize_crop_bboxes(crop_bbox_ply_path, mesh, preds['proposal_crop_bbox'].detach().cpu().numpy())
+                            # visualize_crop_bboxes(crop_bbox_ply_path, mesh, preds['proposal_crop_bboxes'].detach().cpu().numpy())
                             # gt_bbox_ply_path = os.path.join(inst_pred_path, 'visualize', f'{scene_name}.gt_bbox.ply')
                             # visualize_crop_bboxes(gt_bbox_ply_path, mesh, batch['gt_bbox'].detach().cpu().numpy())
-                            proposal_crop_bboxes = preds['proposal_crop_bbox'].detach().cpu().numpy()
+                            proposal_crop_bboxes = preds['proposal_crop_bboxes'].detach().cpu().numpy()
                             proposal_crop_bboxes = get_3d_box_batch(proposal_crop_bboxes[:, 0:3], proposal_crop_bboxes[:, 3:6], proposal_crop_bboxes[:, 6])
                             gt_bboxes = batch['gt_bbox'].detach().cpu().numpy()
                             gt_bboxes = get_3d_box_batch(gt_bboxes[:, 0:3], gt_bboxes[:, 3:6], gt_bboxes[:, 6])
@@ -533,7 +539,7 @@ class PointGroupSolver(BaseSolver):
                 ##### prepare input and forward
                 ret = self._feed(batch, self.curr_epoch)
                 # _, loss_input = self._parse_feed_ret(batch, ret)
-                # loss_dict = self._loss(loss_input, batch, self.curr_epoch)
+                # meter_dict = self._loss(loss_input, batch, self.curr_epoch)
                 
                 # import pdb; pdb.set_trace()
                 batch_pred_map_cls = parse_predictions(ret, batch, POST_DICT) 
@@ -542,7 +548,7 @@ class PointGroupSolver(BaseSolver):
                     ap_calculator.step(batch_pred_map_cls, batch_gt_map_cls)
 
                 ##### meter_dict
-                # self._log_report(meters, loss_dict, i, iter_start_time)
+                # self._log_report(meters, meter_dict, i, iter_start_time)
                 ##### print
                 # self.logger.debug(f"\riter: {i+1}/{len(self.loader)} loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f})")
                 
