@@ -72,14 +72,6 @@ if __name__ == '__main__':
         resume_from_checkpoint=checkpoint
     )
 
-    # # HACK fix the multi-gpu memory imbalance issue
-    # local_rank = os.environ.get("LOCAL_RANK", 0)
-    # print("=> local rank: {}".format(local_rank))
-    # os.environ['CUDA_VISIBLE_DEVICES'] = str(local_rank)
-    # torch.cuda.set_device(0)
-    # torch.cuda.empty_cache()
-
-    # NOTE must be called after local rank check!!!
     PointGroup = getattr(import_module("model.pointgroup"), "PointGroup")
     pointgroup = PointGroup(cfg)
 

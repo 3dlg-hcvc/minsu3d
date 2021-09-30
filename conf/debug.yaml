@@ -26,7 +26,7 @@ data:
   requires_gt_mask: False
 
   scale: 50   # voxel_size = 1 / scale, scale 50(2cm)
-  batch_size: 6
+  batch_size: 4
   num_workers: 16
   full_scale: [128, 512]
   max_num_point: 250000
