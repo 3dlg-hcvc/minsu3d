@@ -11,7 +11,7 @@
 # #SBATCH --gpus=rtx_2080:2
 # #SBATCH --gpus=rtx_3090:2
 # #SBATCH --gpus=rtx_a6000:1
-#SBATCH -w lothlann
+#SBATCH -w seti
 #SBATCH -G 6
 #SBATCH -x char,tarsonis
 
@@ -23,4 +23,5 @@ date;hostname;pwd
 
 # Your code
 python -u train.py
+# python -u train.py --conf conf/debug.yaml
 

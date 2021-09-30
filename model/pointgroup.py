@@ -29,9 +29,6 @@ class PointGroup(pl.LightningModule):
         self.total_epoch = cfg.train.epochs
         self.curr_epoch = 0
 
-        self.root = os.path.join(self.cfg.general.output_root, self.cfg.general.experiment.upper())
-        os.makedirs(self.root, exist_ok=True)
-
         in_channel = cfg.model.use_color * 3 + cfg.model.use_normal * 3 + cfg.model.use_coords * 3 + cfg.model.use_coords * 128
         m = cfg.model.m
         D = 3
@@ -117,9 +114,8 @@ class PointGroup(pl.LightningModule):
 
         self._init_random_seed()
 
-        if cfg.general.task != "test":
-            self._resume_from_checkpoint()
-        else:
+        # NOTE do NOT manually load the pretrained weights during training!!!
+        if cfg.general.task == "test":
             self._load_pretrained_model()
         
     
@@ -350,25 +346,28 @@ class PointGroup(pl.LightningModule):
         optim_class_name = self.cfg.train.optim.classname
         optim = getattr(torch.optim, optim_class_name)
         if optim_class_name == "Adam":
-            self.optimizer = optim(filter(lambda p: p.requires_grad, self.parameters()), lr=self.cfg.train.optim.lr)
+            optimizer = optim(filter(lambda p: p.requires_grad, self.parameters()), lr=self.cfg.train.optim.lr)
         elif optim_class_name == "SGD":
-            self.optimizer = optim(filter(lambda p: p.requires_grad, self.parameters()), lr=self.cfg.train.optim.lr, momentum=self.cfg.train.optim.momentum, weight_decay=self.cfg.train.optim.weight_decay)
+            optimizer = optim(filter(lambda p: p.requires_grad, self.parameters()), lr=self.cfg.train.optim.lr, momentum=self.cfg.train.optim.momentum, weight_decay=self.cfg.train.optim.weight_decay)
         else:
             raise NotImplemented
 
-        return [self.optimizer]
+        return [optimizer]
     
     
+    # NOTE deprecated - will be removed soon
     def _resume_from_checkpoint(self):
         if self.cfg.model.use_checkpoint:
-            print.info("=> restoring checkpoint from {} ...".format(self.cfg.model.use_checkpoint))
-            self.start_epoch = self.restore_checkpoint(self.cfg.model.resume_epoch)      # resume from the latest epoch, or specify the epoch to restore
+            print("=> restoring checkpoint from {} ...".format(self.cfg.model.use_checkpoint))
+            self.start_epoch = self.restore_checkpoint()      # resume from the latest epoch, or specify the epoch to restore
+
         else: 
             self.start_epoch = 1
+
             if self.cfg.model.pretrained_module:
                 self._load_pretrained_module()
             
-    
+    # NOTE deprecated - will be removed soon
     def _load_pretrained_module(self):
         self.logger.info("=> loading pretrained {}...".format(self.cfg.model.pretrained_module))
         for i, module_name in enumerate(self.cfg.model.pretrained_module):
@@ -380,7 +379,7 @@ class PointGroup(pl.LightningModule):
             for param in self.backbone.parameters():
                 param.requires_grad = False
         
-    
+    # NOTE deprecated - will be removed soon
     def _load_pretrained_model(self):
         pretrained_path = self.cfg.model.pretrained_path
         self.logger.info("=> load pretrained model from {} ...".format(pretrained_path))
@@ -390,21 +389,19 @@ class PointGroup(pl.LightningModule):
         
         self.start_epoch = self.cfg.model.resume_epoch
     
-    
+    # NOTE deprecated - will be removed soon
     def restore_checkpoint(self):
-        ckp_filename = os.path.join(self.root, "last.ckpt")
+        ckp_filename = os.path.join(self.cfg.general.output_root, self.cfg.model.use_checkpoint, "last.ckpt")
+        assert os.path.isfile(ckp_filename), "Invalid checkpoint file: {}".format(ckp_filename)
+
         checkpoint = torch.load(ckp_filename)
         epoch = checkpoint["epoch"]
         
-        print.info("=> relocating epoch at {} ...".format(epoch))
-        assert os.path.isfile(ckp_filename), "Invalid checkpoint file: {}".format(ckp_filename)
+        print("=> relocating epoch at {} ...".format(epoch))
 
-        # self.model.load_state_dict(checkpoint)
         self.load_state_dict(checkpoint["state_dict"])
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         
-        return checkpoint["epoch"] + 1
-        # return self.cfg.model.resume_epoch
+        return checkpoint["epoch"]
         
         
     def _loss(self, loss_input, epoch):
@@ -513,7 +510,7 @@ class PointGroup(pl.LightningModule):
             loss_input["semantic_scores"] = (semantic_scores, data["sem_labels"])
             loss_input["pt_offsets"] = (pt_offsets, data["locs"], data["instance_info"], data["instance_ids"])
         
-        if self.curr_epoch > self.cfg.cluster.prepare_epochs:
+        if self.current_epoch > self.cfg.cluster.prepare_epochs:
             scores, proposals_idx, proposals_offset = ret["proposal_scores"]
             preds["score"] = scores
             preds["proposals"] = (proposals_idx, proposals_offset)
@@ -615,7 +612,7 @@ class PointGroup(pl.LightningModule):
                     clusters_score = proposals_score[pick_idxs].cpu().numpy() # float, (nCluster,)
                     nclusters = clusters_mask.shape[0]
                 
-                pred_path = os.path.join(self.root, "splited_pred", split)
+                pred_path = os.path.join(self.cfg.general.root, "splited_pred", split)
                 
                 sem_pred_path = os.path.join(pred_path, "semantic")
                 os.makedirs(sem_pred_path, exist_ok=True)

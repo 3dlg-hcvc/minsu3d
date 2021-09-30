@@ -1,6 +1,8 @@
 import warnings
 warnings.filterwarnings('ignore')
 
+import os
+import torch
 import argparse
 
 import pytorch_lightning as pl
@@ -33,20 +35,29 @@ if __name__ == '__main__':
     cfg = OmegaConf.load(args.config)
     cfg = OmegaConf.merge(base_cfg, cfg)
     
+    root = os.path.join(cfg.general.output_root, cfg.general.experiment.upper())
+    os.makedirs(root, exist_ok=True)
+
     cfg.general.task = 'train'
+    cfg.general.root = root
 
-    PointGroup = getattr(import_module("model.pointgroup"), "PointGroup")
-    pointgroup = PointGroup(cfg)
+    dataset, dataloader = init_data(cfg)
 
-    logger = pl.loggers.TensorBoardLogger(pointgroup.root, name="logs")
+    logger = pl.loggers.TensorBoardLogger(root, name="logs")
     monitor = pl.callbacks.ModelCheckpoint(
         monitor="val/{}".format(cfg.general.monitor),
         mode="min",
         # save_weights_only=True,
-        dirpath=pointgroup.root,
+        dirpath=root,
         filename="model",
         save_last=True
     )
+
+    if cfg.model.use_checkpoint:
+        print("=> configuring trainer with checkpoint from {} ...".format(cfg.model.use_checkpoint))
+        checkpoint = os.path.join(cfg.general.output_root, cfg.model.use_checkpoint, "last.ckpt")
+    else:
+        checkpoint = None
 
     trainer = pl.Trainer(
         gpus=-1, # use all available GPUs 
@@ -57,8 +68,19 @@ if __name__ == '__main__':
         check_val_every_n_epoch=cfg.train.check_val_every_n_epoch,
         callbacks=[monitor], # comment when debug
         logger=logger,
-        profiler="simple"
+        profiler="simple",
+        resume_from_checkpoint=checkpoint
     )
 
-    dataset, dataloader = init_data(cfg)
+    # # HACK fix the multi-gpu memory imbalance issue
+    # local_rank = os.environ.get("LOCAL_RANK", 0)
+    # print("=> local rank: {}".format(local_rank))
+    # os.environ['CUDA_VISIBLE_DEVICES'] = str(local_rank)
+    # torch.cuda.set_device(0)
+    # torch.cuda.empty_cache()
+
+    # NOTE must be called after local rank check!!!
+    PointGroup = getattr(import_module("model.pointgroup"), "PointGroup")
+    pointgroup = PointGroup(cfg)
+
     trainer.fit(model=pointgroup, train_dataloader=dataloader["train"], val_dataloaders=dataloader["val"])

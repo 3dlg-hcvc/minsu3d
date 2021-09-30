@@ -6,7 +6,7 @@ general:
   solver: PointGroupSolver
   config: conf/pointgroup_scannet.yaml
   output_root: outputs/
-  experiment: xyz_multiview_normal # TODO
+  experiment: xyz_multiview_normal_resume # TODO
   monitor: total_loss
 
 
@@ -26,7 +26,7 @@ data:
   requires_gt_mask: False
 
   scale: 50   # voxel_size = 1 / scale, scale 50(2cm)
-  batch_size: 8
+  batch_size: 6
   num_workers: 16
   full_scale: [128, 512]
   max_num_point: 250000
@@ -62,9 +62,9 @@ model:
   num_heading_bin: 1
   num_size_cluster: 18
 
-  use_checkpoint: #2021-02-10_01-53-53 #2021-09-18_01-04-52 #2021-08-24_11-42-20 #2021-07-12_17-34-59
+  use_checkpoint: XYZ_MULTIVIEW_NORMAL
   resume_epoch: #480
-  pretrained_path: /project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
+  pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
   pretrained_module: [] #[backbone, sem_seg, offset_net, score_net, score_linear]
   pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
   freeze_module: []
