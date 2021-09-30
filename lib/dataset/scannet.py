@@ -186,7 +186,7 @@ class ScanNet(Dataset):
                 # instance_ids = instance_ids[valid_idxs]
                 instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
 
-            if self.self.requires_bbox:
+            if self.requires_bbox:
                 num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, angle_classes, angle_residuals, size_classes, size_residuals = self._getInstanceInfo(points_augment, instance_ids, sem_labels)
             else:
                 num_instance, instance_info, instance_num_point = self._getInstanceInfo(points_augment, instance_ids.astype(np.int32))
@@ -206,6 +206,13 @@ class ScanNet(Dataset):
                 data["heading_residual_label"] = angle_residuals.astype(np.float32) # (num_instance,)
                 data["size_class_label"] = size_classes.astype(np.int64) # (num_instance,) with int values in 0,...,NUM_SIZE_CLUSTER
                 data["size_residual_label"] = size_residuals.astype(np.float32) # (num_instance, 3)
+                # gt_bbox = np.zeros((num_instance, 7))
+                # gt_bbox[:, :3] = data["center_label"]
+                # for j in range(num_instance):
+                #     box_size = self.DC.class2size(int(size_classes[j]), size_residuals[j])
+                #     gt_bbox[j, 3:6] = box_size
+                # # from lib.utils.bbox import get_aabb3d_iou_batch, get_3d_box_batch
+                # data['gt_bbox'] = gt_bbox.astype(np.float32)
         else:
             # augment
             # points_augment = self._augment(points)
@@ -250,6 +257,7 @@ def scannet_loader(cfg):
             heading_residual_label = []
             size_class_label = []
             size_residual_label = []
+            # gt_bbox = []
 
         for i, b in enumerate(batch):
             id.append(torch.from_numpy(b["id"]))
@@ -288,6 +296,7 @@ def scannet_loader(cfg):
                     heading_residual_label.append(torch.from_numpy(b["heading_residual_label"]))
                     size_class_label.append(torch.from_numpy(b["size_class_label"]))
                     size_residual_label.append(torch.from_numpy(b["size_residual_label"]))
+                    # gt_bbox.append(torch.from_numpy(b["gt_bbox"]))
 
         data["id"] = torch.stack(id).to(torch.int32)
         data["scene_id"] = torch.stack(scene_id).to(torch.int32)
@@ -310,6 +319,7 @@ def scannet_loader(cfg):
                 data["heading_residual_label"] = torch.cat(heading_residual_label, 0).to(torch.float32)
                 data["size_class_label"] = torch.cat(size_class_label, 0).long()
                 data["size_residual_label"] = torch.cat(size_residual_label, 0).to(torch.float32)
+                # data["gt_bbox"] = torch.cat(gt_bbox, 0).to(torch.float32)
 
         ### voxelize
         data["voxel_locs"], data["p2v_map"], data["v2p_map"] = pointgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), cfg.data.mode)
@@ -327,7 +337,7 @@ def scannet_loader(cfg):
         split:
         DataLoader(dataset[split],
                    batch_size=cfg.data.batch_size if cfg.general.task == 'train' and split == 'train' else 1,
-                   shuffle=True if cfg.general.task == 'train' and split == 'train' else False,
+                   shuffle=False,#True if cfg.general.task == 'train' and split == 'train' else False,
                    pin_memory=True,
                    collate_fn=scannet_collate_fn) 
         for split in splits
