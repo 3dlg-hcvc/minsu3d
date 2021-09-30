@@ -23,6 +23,7 @@ data:
 
   classes: 20
   ignore_label: -1 # ignored classes
+  requires_gt_mask: False
 
   scale: 50   # voxel_size = 1 / scale, scale 50(2cm)
   batch_size: 8
@@ -35,6 +36,8 @@ data:
     jitter: True #True
     flip: True #True
     rot: True #True
+    
+  requires_bbox: True
 
 
 model:
@@ -52,13 +55,19 @@ model:
   use_color: False
   use_multiview: True
   use_normal: True
+  crop_bbox: True
+  pred_bbox: False
 
-  use_checkpoint: #2021-08-24_11-42-20 #2021-07-12_17-34-59
+  num_bbox_class: 18
+  num_heading_bin: 1
+  num_size_cluster: 18
+
+  use_checkpoint: #2021-02-10_01-53-53 #2021-09-18_01-04-52 #2021-08-24_11-42-20 #2021-07-12_17-34-59
   resume_epoch: #480
-  pretrained_path: /project/3dlg-hcvc/pointgroup-minkowski/pointgroup.pth #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
-  pretrained_module: [] #[backbone, sem_seg, offset_net]
-  pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000128.pth
-  fix_module: []
+  pretrained_path: /project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
+  pretrained_module: [] #[backbone, sem_seg, offset_net, score_net, score_linear]
+  pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
+  freeze_module: []
 
 
 train:
@@ -76,7 +85,7 @@ train:
   step_epoch: 480 #384
   multiplier: 0.5
   save_freq: 16  # also eval_freq
-  loss_weight: [1.0, 1.0, 1.0, 1.0] # semantic_loss, offset_norm_loss, offset_dir_loss, score_loss
+  loss_weight: [1.0, 1.0, 1.0, 1.0, 1.0] # semantic_loss, offset_norm_loss, offset_dir_loss, score_loss, bbox_loss (if applies)
 
   fg_thresh: 0.75
   bg_thresh: 0.25
@@ -104,6 +113,8 @@ test:
   TEST_SCORE_THRESH: 0.09
   TEST_NPOINT_THRESH: 100
 
+  requires_visualize: True
+
 
 evaluation:
   model_utils_module: data.scannet.model_util_scannet
@@ -123,6 +134,7 @@ log:
     - offset_norm_loss
     - offset_dir_loss
     - score_loss
+    - mask_ious
     - total_loss
   tb_names:
     - semantic_loss
@@ -130,3 +142,14 @@ log:
     - offset_dir_loss
     - score_loss
     - total_loss
+  bbox_names:
+    - center_loss
+    - heading_cls_loss
+    - heading_reg_loss
+    - size_cls_loss
+    - size_reg_loss
+    - sem_cls_loss
+    - bbox_loss
+    - pred_crop_bbox_iou
+    - crop_bbox_iou
+    - pred_bbox_iou

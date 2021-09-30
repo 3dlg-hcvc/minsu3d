@@ -12,13 +12,12 @@ from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
 sys.path.append('../')  # HACK add the lib folder
-
+from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.pc import crop, random_sampling
 from lib.utils.transform import jitter, flip, rotz, elastic
 
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
-
 
 class ScanNet(Dataset):
 
@@ -36,6 +35,7 @@ class ScanNet(Dataset):
         self.use_color = cfg.model.use_color
         self.use_multiview = cfg.model.use_multiview
         self.use_normal = cfg.model.use_normal
+        self.requires_bbox = cfg.data.requires_bbox
         
         self.DATA_MAP = {
             'train': cfg.SCANNETV2_PATH.train_list,
@@ -48,6 +48,9 @@ class ScanNet(Dataset):
         self._load()
 
     def _load(self):
+        if self.requires_bbox:
+            self.DC = ScannetDatasetConfig(self.cfg)
+        
         with open(self.DATA_MAP[self.split]) as f:
             self.scene_names = [l.rstrip() for l in f]
 
@@ -91,7 +94,7 @@ class ScanNet(Dataset):
             j += 1
         return instance_ids
 
-    def _getInstanceInfo(self, xyz, instance_ids):
+    def _getInstanceInfo(self, xyz, instance_ids, sem_labels=None):
         '''
         :param xyz: (n, 3)
         :param instance_ids: (n), int, (0~nInst-1, -1)
@@ -103,8 +106,17 @@ class ScanNet(Dataset):
         instance_info = np.zeros(
             (xyz.shape[0], 12), dtype=np.float32
         )  # (n, 12), float, (meanx, meany, meanz, cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
+        
+        if self.requires_bbox:
+            assert sem_labels is not None, 'sem_labels are not provided'
+            instance_bboxes = np.zeros((num_instance, 6))
+            instance_bboxes_semcls = np.zeros((num_instance))
+            angle_classes = np.zeros((num_instance,))
+            angle_residuals = np.zeros((num_instance,))
+            size_classes = np.zeros((num_instance,))
+            size_residuals = np.zeros((num_instance, 3))
 
-        for i_ in unique_instance_ids:
+        for k, i_ in enumerate(unique_instance_ids, -1):
             if i_ < 0: continue
             
             inst_i_idx = np.where(instance_ids == i_)
@@ -124,8 +136,21 @@ class ScanNet(Dataset):
 
             ### instance_num_point
             instance_num_point.append(inst_i_idx[0].size)
-
-        return num_instance, instance_info, instance_num_point
+            
+            if self.requires_bbox:
+                instance_bboxes[k, :3] = c_xyz_i
+                instance_bboxes[k, 3:] = max_xyz_i - min_xyz_i
+                sem_cls = sem_labels[inst_i_idx][0]
+                sem_cls = sem_cls - 2 if sem_cls >=  2 else 17
+                instance_bboxes_semcls[k] = sem_cls
+                size_classes[k] = sem_cls
+                size_residuals[k, :] = instance_bboxes[k, 3:] - self.DC.mean_size_arr[int(sem_cls),:]
+            # import pdb; pdb.set_trace()
+                
+        if self.requires_bbox:
+            return num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, angle_classes, angle_residuals, size_classes, size_residuals
+        else:
+            return num_instance, instance_info, instance_num_point
 
     def __getitem__(self, id):
         scene_id = self.scene_names[id]
@@ -192,21 +217,33 @@ class ScanNet(Dataset):
                 # instance_ids = instance_ids[valid_idxs]
                 instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
 
-            num_instance, instance_info, instance_num_point = self._getInstanceInfo(
-                points_augment, instance_ids.astype(np.int32))
+            if self.requires_bbox:
+                num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, angle_classes, angle_residuals, size_classes, size_residuals = self._getInstanceInfo(points_augment, instance_ids, sem_labels)
+            else:
+                num_instance, instance_info, instance_num_point = self._getInstanceInfo(points_augment, instance_ids.astype(np.int32))
 
             data['locs'] = points_augment.astype(np.float32)  # (N, 3)
             data['locs_scaled'] = points.astype(np.float32)  # (N, 3)
             data['feats'] = feats.astype(np.float32)  # (N, 3)
             data['sem_labels'] = sem_labels.astype(np.int32)  # (N,)
-            data['instance_ids'] = instance_ids.astype(
-                np.int32)  # (N,) 0~total_nInst, -1
-            data['num_instance'] = np.array(num_instance).astype(
-                np.int32)  # int
-            data['instance_info'] = instance_info.astype(
-                np.float32)  # (N, 12)
-            data['instance_num_point'] = np.array(instance_num_point).astype(
-                np.int32)  # (num_instance,)
+            data['instance_ids'] = instance_ids.astype(np.int32)  # (N,) 0~total_nInst, -1
+            data['num_instance'] = np.array(num_instance).astype(np.int32)  # int
+            data['instance_info'] = instance_info.astype(np.float32)  # (N, 12)
+            data['instance_num_point'] = np.array(instance_num_point).astype(np.int32)  # (num_instance,)
+            if self.requires_bbox:
+                data["center_label"] = instance_bboxes.astype(np.float32)[:,0:3] # (num_instance, 3) for GT box center XYZ
+                data["sem_cls_label"] = instance_bboxes_semcls.astype(np.int64) # (num_instance,) semantic class index
+                data["heading_class_label"] = angle_classes.astype(np.int64) # (num_instance,) with int values in 0,...,NUM_HEADING_BIN-1
+                data["heading_residual_label"] = angle_residuals.astype(np.float32) # (num_instance,)
+                data["size_class_label"] = size_classes.astype(np.int64) # (num_instance,) with int values in 0,...,NUM_SIZE_CLUSTER
+                data["size_residual_label"] = size_residuals.astype(np.float32) # (num_instance, 3)
+                # gt_bbox = np.zeros((num_instance, 7))
+                # gt_bbox[:, :3] = data["center_label"]
+                # for j in range(num_instance):
+                #     box_size = self.DC.class2size(int(size_classes[j]), size_residuals[j])
+                #     gt_bbox[j, 3:6] = box_size
+                # # from lib.utils.bbox import get_aabb3d_iou_batch, get_3d_box_batch
+                # data['gt_bbox'] = gt_bbox.astype(np.float32)
         else:
             # augment
             # points_augment = self._augment(points)
@@ -243,6 +280,15 @@ def scannet_loader(cfg):
         batch_offsets = [0]
         instance_offsets = [0]
         total_num_inst = 0
+        
+        if cfg.data.requires_bbox:
+            center_label = []
+            sem_cls_label = []
+            heading_class_label = []
+            heading_residual_label = []
+            size_class_label = []
+            size_residual_label = []
+            # gt_bbox = []
 
         for i, b in enumerate(batch):
             id.append(torch.from_numpy(b["id"]))
@@ -274,6 +320,15 @@ def scannet_loader(cfg):
                 instance_info.append(torch.from_numpy(b["instance_info"]))
                 instance_num_point.append(torch.from_numpy(b["instance_num_point"]))
                 instance_offsets.append(instance_offsets[-1] + b["num_instance"].item())
+                
+                if cfg.data.requires_bbox:
+                    center_label.append(torch.from_numpy(b["center_label"]))
+                    sem_cls_label.append(torch.from_numpy(b["sem_cls_label"]))
+                    heading_class_label.append(torch.from_numpy(b["heading_class_label"]))
+                    heading_residual_label.append(torch.from_numpy(b["heading_residual_label"]))
+                    size_class_label.append(torch.from_numpy(b["size_class_label"]))
+                    size_residual_label.append(torch.from_numpy(b["size_residual_label"]))
+                    # gt_bbox.append(torch.from_numpy(b["gt_bbox"]))
 
         data["id"] = torch.stack(id).to(torch.int32)
         data["scene_id"] = torch.stack(scene_id).to(torch.int32)
@@ -287,7 +342,16 @@ def scannet_loader(cfg):
             data["instance_ids"] = torch.cat(instance_ids, 0).long()  # long, (N,)
             data["instance_info"] = torch.cat(instance_info, 0).to(torch.float32)  # float (total_nInst, 12)
             data["instance_num_point"] = torch.cat(instance_num_point, 0).int()  # (total_nInst)
-            data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (total_nInst+1)
+            data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (B+1)
+            
+            if cfg.data.requires_bbox:
+                data["center_label"] = torch.cat(center_label, 0).to(torch.float32)
+                data["sem_cls_label"] = torch.cat(sem_cls_label, 0).long()
+                data["heading_class_label"] = torch.cat(heading_class_label, 0).long()
+                data["heading_residual_label"] = torch.cat(heading_residual_label, 0).to(torch.float32)
+                data["size_class_label"] = torch.cat(size_class_label, 0).long()
+                data["size_residual_label"] = torch.cat(size_residual_label, 0).to(torch.float32)
+                # data["gt_bbox"] = torch.cat(gt_bbox, 0).to(torch.float32)
 
         ### voxelize
         data["voxel_locs"], data["p2v_map"], data["v2p_map"] = pointgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), cfg.data.mode)

@@ -27,8 +27,8 @@ def get_3d_box(center, box_size, heading_angle=None):
         R = roty(heading_angle)
     l,w,h = box_size
     x_corners = [l/2,l/2,-l/2,-l/2,l/2,l/2,-l/2,-l/2];
-    z_corners = [h/2,h/2,h/2,h/2,-h/2,-h/2,-h/2,-h/2];
     y_corners = [w/2,-w/2,-w/2,w/2,w/2,-w/2,-w/2,w/2];
+    z_corners = [h/2,h/2,h/2,h/2,-h/2,-h/2,-h/2,-h/2];
     corners_3d = np.dot(R, np.vstack([x_corners,y_corners,z_corners]))
     corners_3d[0,:] = corners_3d[0,:] + center[0];
     corners_3d[1,:] = corners_3d[1,:] + center[1];
@@ -51,8 +51,8 @@ def get_3d_box_batch(center, box_size, heading_angle):
     h = np.expand_dims(box_size[...,2], -1)
     corners_3d = np.zeros(tuple(list(input_shape)+[8,3]))
     corners_3d[...,:,0] = np.concatenate((l/2,l/2,-l/2,-l/2,l/2,l/2,-l/2,-l/2), -1)
-    corners_3d[...,:,1] = np.concatenate((h/2,h/2,h/2,h/2,-h/2,-h/2,-h/2,-h/2), -1)
-    corners_3d[...,:,2] = np.concatenate((w/2,-w/2,-w/2,w/2,w/2,-w/2,-w/2,w/2), -1)
+    corners_3d[...,:,1] = np.concatenate((w/2,-w/2,-w/2,w/2,w/2,-w/2,-w/2,w/2), -1)
+    corners_3d[...,:,2] = np.concatenate((h/2,h/2,h/2,h/2,-h/2,-h/2,-h/2,-h/2), -1)
     tlist = [i for i in range(len(input_shape))]
     tlist += [len(input_shape)+1, len(input_shape)]
     corners_3d = np.matmul(corners_3d, np.transpose(R, tuple(tlist)))
@@ -105,7 +105,137 @@ def box_minmax2len(box):
 #  bounding box IoU  #
 ######################
 
+def get_box3d_min_max(corner):
+    ''' Compute min and max coordinates for 3D bounding box
+        Note: only for axis-aligned bounding boxes
+    Input:
+        corners: numpy array (8,3), assume up direction is Z (batch of N samples)
+    Output:
+        box_min_max: an array for min and max coordinates of 3D bounding box IoU
+    '''
 
+    min_coord = corner.min(axis=0)
+    max_coord = corner.max(axis=0)
+    x_min, x_max = min_coord[0], max_coord[0]
+    y_min, y_max = min_coord[1], max_coord[1]
+    z_min, z_max = min_coord[2], max_coord[2]
+    
+    return x_min, x_max, y_min, y_max, z_min, z_max
+
+def box3d_iou(corners1, corners2):
+    ''' Compute 3D bounding box IoU.
+    Input:
+        corners1: numpy array (8,3), assume up direction is Z
+        corners2: numpy array (8,3), assume up direction is Z
+    Output:
+        iou: 3D bounding box IoU
+    '''
+
+    x_min_1, x_max_1, y_min_1, y_max_1, z_min_1, z_max_1 = get_box3d_min_max(corners1)
+    x_min_2, x_max_2, y_min_2, y_max_2, z_min_2, z_max_2 = get_box3d_min_max(corners2)
+    xA = np.maximum(x_min_1, x_min_2)
+    yA = np.maximum(y_min_1, y_min_2)
+    zA = np.maximum(z_min_1, z_min_2)
+    xB = np.minimum(x_max_1, x_max_2)
+    yB = np.minimum(y_max_1, y_max_2)
+    zB = np.minimum(z_max_1, z_max_2)
+    inter_vol = np.maximum((xB - xA), 0) * np.maximum((yB - yA), 0) * np.maximum((zB - zA), 0)
+    box_vol_1 = (x_max_1 - x_min_1) * (y_max_1 - y_min_1) * (z_max_1 - z_min_1)
+    box_vol_2 = (x_max_2 - x_min_2) * (y_max_2 - y_min_2) * (z_max_2 - z_min_2)
+    iou = inter_vol / (box_vol_1 + box_vol_2 - inter_vol + 1e-8)
+
+    return iou
+
+
+def get_aabb3d_min_max(corner):
+    ''' Compute min and max coordinates for 3D bounding box
+        Note: only for axis-aligned bounding boxes
+
+    Input:
+        corners: numpy array (8,3), assume up direction is Z (batch of N samples)
+    Output:
+        box_min_max: an array for min and max coordinates of 3D bounding box IoU
+
+    '''
+    min_coord = corner.min(axis=0)
+    max_coord = corner.max(axis=0)
+    x_min, x_max = min_coord[0], max_coord[0]
+    y_min, y_max = min_coord[1], max_coord[1]
+    z_min, z_max = min_coord[2], max_coord[2]
+
+    return x_min, x_max, y_min, y_max, z_min, z_max
+
+
+def get_aabb3d_min_max_batch(corner):
+    ''' Compute min and max coordinates for 3D bounding box
+        Note: only for axis-aligned bounding boxes
+
+    Input:
+        corners: numpy array (N,8,3), assume up direction is Z (batch of N samples)
+    Output:
+        box_min_max: an array for min and max coordinates of 3D bounding box IoU
+
+    '''
+    min_coord = corner.min(axis=1)
+    max_coord = corner.max(axis=1)
+    x_min, x_max = min_coord[:, 0], max_coord[:, 0]
+    y_min, y_max = min_coord[:, 1], max_coord[:, 1]
+    z_min, z_max = min_coord[:, 2], max_coord[:, 2]
+
+    return x_min, x_max, y_min, y_max, z_min, z_max
+
+
+def get_aabb3d_iou(corners1, corners2):
+    ''' Compute 3D bounding box IoU.
+
+    Input:
+        corners1: numpy array (8,3), assume up direction is Z
+        corners2: numpy array (8,3), assume up direction is Z
+    Output:
+        iou: 3D bounding box IoU
+
+    '''
+    x_min_1, x_max_1, y_min_1, y_max_1, z_min_1, z_max_1 = get_aabb3d_min_max(corners1)
+    x_min_2, x_max_2, y_min_2, y_max_2, z_min_2, z_max_2 = get_aabb3d_min_max(corners2)
+    xA = np.maximum(x_min_1, x_min_2)
+    yA = np.maximum(y_min_1, y_min_2)
+    zA = np.maximum(z_min_1, z_min_2)
+    xB = np.minimum(x_max_1, x_max_2)
+    yB = np.minimum(y_max_1, y_max_2)
+    zB = np.minimum(z_max_1, z_max_2)
+    inter_vol = np.maximum((xB - xA), 0) * np.maximum((yB - yA), 0) * np.maximum((zB - zA), 0)
+    box_vol_1 = (x_max_1 - x_min_1) * (y_max_1 - y_min_1) * (z_max_1 - z_min_1)
+    box_vol_2 = (x_max_2 - x_min_2) * (y_max_2 - y_min_2) * (z_max_2 - z_min_2)
+    iou = inter_vol / (box_vol_1 + box_vol_2 - inter_vol + 1e-8)
+
+    return iou
+
+
+def get_aabb3d_iou_batch(corners1, corners2):
+    ''' Compute 3D bounding box IoU.
+        Note: only for axis-aligned bounding boxes
+
+    Input:
+        corners1: numpy array (N,8,3), assume up direction is Z (batch of N samples)
+        corners2: numpy array (N,8,3), assume up direction is Z (batch of N samples)
+    Output:
+        iou: an array of 3D bounding box IoU
+
+    '''
+    x_min_1, x_max_1, y_min_1, y_max_1, z_min_1, z_max_1 = get_aabb3d_min_max_batch(corners1)
+    x_min_2, x_max_2, y_min_2, y_max_2, z_min_2, z_max_2 = get_aabb3d_min_max_batch(corners2)
+    xA = np.maximum(x_min_1, x_min_2)
+    yA = np.maximum(y_min_1, y_min_2)
+    zA = np.maximum(z_min_1, z_min_2)
+    xB = np.minimum(x_max_1, x_max_2)
+    yB = np.minimum(y_max_1, y_max_2)
+    zB = np.minimum(z_max_1, z_max_2)
+    inter_vol = np.maximum((xB - xA), 0) * np.maximum((yB - yA), 0) * np.maximum((zB - zA), 0)
+    box_vol_1 = (x_max_1 - x_min_1) * (y_max_1 - y_min_1) * (z_max_1 - z_min_1)
+    box_vol_2 = (x_max_2 - x_min_2) * (y_max_2 - y_min_2) * (z_max_2 - z_min_2)
+    iou = inter_vol / (box_vol_1 + box_vol_2 - inter_vol + 1e-8)
+
+    return iou
 
 
 ######################
