@@ -57,10 +57,10 @@ model:
   num_size_cluster: 18
 
   use_checkpoint: #2021-02-10_01-53-53 #2021-09-18_01-04-52 #2021-08-24_11-42-20 #2021-07-12_17-34-59
-  resume_epoch: 480
+  resume_epoch: #480
   pretrained_path: /project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
-  pretrained_module: [backbone, sem_seg, offset_net, score_net, score_linear]
-  pretrained_module_path: /local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
+  pretrained_module: [] #[backbone, sem_seg, offset_net, score_net, score_linear]
+  pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
   freeze_module: []
 
 

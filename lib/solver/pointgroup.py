@@ -446,18 +446,10 @@ class PointGroupSolver(BaseSolver):
                         if self.cfg.model.crop_bbox:
                             from visualize.scannet.generate_ply import visualize_crop_bboxes
                             from lib.utils.bbox import get_aabb3d_iou_batch, get_3d_box_batch
-                            # crop_bbox_ply_path = os.path.join(inst_pred_path, 'visualize', f'{scene_name}.crop_bbox.ply')
-                            # visualize_crop_bboxes(crop_bbox_ply_path, mesh, preds['proposal_crop_bboxes'].detach().cpu().numpy())
+                            crop_bbox_ply_path = os.path.join(inst_pred_path, 'visualize', f'{scene_name}.crop_bbox.ply')
+                            visualize_crop_bboxes(crop_bbox_ply_path, mesh, preds['proposal_crop_bboxes'].detach().cpu().numpy())
                             # gt_bbox_ply_path = os.path.join(inst_pred_path, 'visualize', f'{scene_name}.gt_bbox.ply')
                             # visualize_crop_bboxes(gt_bbox_ply_path, mesh, batch['gt_bbox'].detach().cpu().numpy())
-                            proposal_crop_bboxes = preds['proposal_crop_bboxes'].detach().cpu().numpy()
-                            proposal_crop_bboxes = get_3d_box_batch(proposal_crop_bboxes[:, 0:3], proposal_crop_bboxes[:, 3:6], proposal_crop_bboxes[:, 6])
-                            gt_bboxes = batch['gt_bbox'].detach().cpu().numpy()
-                            gt_bboxes = get_3d_box_batch(gt_bboxes[:, 0:3], gt_bboxes[:, 3:6], gt_bboxes[:, 6])
-                            crop_bbox_ious = np.zeros(proposal_crop_bboxes.shape[0])
-                            for i in range(proposal_crop_bboxes.shape[0]):
-                                crop_bbox_iou = get_aabb3d_iou_batch(np.tile(proposal_crop_bboxes[i], (gt_bboxes.shape[0], 1, 1)), gt_bboxes)
-                                crop_bbox_ious[i] = np.max(crop_bbox_iou)
                         import pdb; pdb.set_trace()
                     
                     
