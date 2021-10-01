@@ -183,59 +183,39 @@ def parse_predictions(end_points, data_dict, config_dict):
             where j = 0, ..., num of valid detections - 1 from sample input i
     """
     DC = config_dict['dataset_config']
-    pred_center = end_points['center'] # num_proposal,3
-    pred_heading_class = torch.argmax(end_points['heading_scores'], -1) # num_proposal
-    pred_heading_residual = torch.gather(end_points['heading_residuals'], 1, pred_heading_class.unsqueeze(-1)).squeeze(1) # num_proposal
-    pred_size_class = torch.argmax(end_points['size_scores'], -1) # num_proposal
-    # import pdb; pdb.set_trace()
-    pred_size_residual = torch.gather(end_points['size_residuals'], 1, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,3)).squeeze(1) # num_proposal,3
-    pred_sem_cls = torch.argmax(end_points['sem_cls_scores'], -1) # num_proposal
-    sem_cls_probs = softmax(end_points['sem_cls_scores'].detach().cpu().numpy()) # num_proposal,18
-    pred_sem_cls_prob = np.max(sem_cls_probs,-1) # B,num_proposal
-
-    num_proposal = pred_center.shape[0] 
-    # Since we operate in upright_depth coord for points, while util functions
-    # assume upright_camera coord.
     bsize = len(data_dict["batch_offsets"]) - 1
-    pred_corners_3d_upright_camera = np.zeros((num_proposal, 8, 3))
-    # pred_center_upright_camera = flip_axis_to_camera(pred_center.detach().cpu().numpy())
-    pred_center_upright_camera = pred_center.detach().cpu().numpy()
-    # for i in range(bsize):
-    for j in range(num_proposal):
-        heading_angle = DC.class2angle(pred_heading_class[j].detach().cpu().numpy(), pred_heading_residual[j].detach().cpu().numpy())
-        box_size = DC.class2size(int(pred_size_class[j].detach().cpu().numpy()), pred_size_residual[j].detach().cpu().numpy())
-        corners_3d_upright_camera = get_3d_box(pred_center_upright_camera[j,:], box_size, heading_angle)
-        pred_corners_3d_upright_camera[j] = corners_3d_upright_camera
         
-    
+    pred_corners_3d_upright_camera = data_dict["proposal_crop_bboxes"]
+    num_proposal = data_dict["proposal_crop_bboxes"].shape[0]
+    pred_sem_cls = end_points['proposal_crop_bbox'].cpu().numpy()[:, 7] - 2
+    pred_sem_cls[pred_sem_cls < 0] = 17
 
     K = num_proposal
     nonempty_box_mask = np.ones((K,))
 
-    # if config_dict['remove_empty_box']:
-    #     # -------------------------------------
-    #     # Remove predicted boxes without any point within them..
-    #     batch_pc = end_points['point_clouds'].cpu().numpy()[:,:,0:3] # B,N,3
-    #     for i in range(bsize):
-    #         pc = batch_pc[i,:,:] # (N,3)
-    #         for j in range(K):
-    #             box3d = pred_corners_3d_upright_camera[i,j,:,:] # (8,3)
-    #             # box3d = flip_axis_to_depth(box3d)
-    #             pc_in_box,inds = extract_pc_in_box3d(pc, box3d)
-    #             if len(pc_in_box) < 5:
-    #                 nonempty_box_mask[i,j] = 0
-    #     # -------------------------------------
+    if config_dict['remove_empty_box']:
+        # -------------------------------------
+        # Remove predicted boxes without any point within them..
+        batch_pc = end_points['point_clouds'].cpu().numpy()[:,:,0:3] # B,N,3
+        for i in range(bsize):
+            pc = batch_pc[i,:,:] # (N,3)
+            for j in range(K):
+                box3d = pred_corners_3d_upright_camera[i,j,:,:] # (8,3)
+                # box3d = flip_axis_to_depth(box3d)
+                pc_in_box,inds = extract_pc_in_box3d(pc, box3d)
+                if len(pc_in_box) < 5:
+                    nonempty_box_mask[i,j] = 0
+        # -------------------------------------
 
-    proposal_offsets = end_points['proposal_offsets'].detach().cpu().numpy()
+    proposal_offsets = end_points['proposal_bbox_offsets'].detach().cpu().numpy()
+    thres_mask = end_points['proposal_thres_mask']
     batch_pred_map_cls = [] # a list (len: batch_size) of list (len: num of predictions per sample) of tuples of pred_cls, pred_box and conf (0-1)
     pred_mask = np.zeros((num_proposal,))
     
-    obj_prob = torch.sigmoid(end_points['proposal_scores'][0].view(-1)).detach().cpu().numpy()
-    # obj_prob = softmax(obj_logits)[:,:,1] # (B,K)
+    obj_prob = torch.sigmoid(end_points['proposal_scores'][0].view(-1))[thres_mask].detach().cpu().numpy()
     
     for b in range(bsize):
         start, end = proposal_offsets[b], proposal_offsets[b+1]
-        # import pdb; pdb.set_trace()
         num_proposal_batch = end - start
         pred_corners_3d_upright_camera_batch = pred_corners_3d_upright_camera[start:end,:,:]
         if not config_dict['use_3d_nms']:
@@ -247,7 +227,7 @@ def parse_predictions(end_points, data_dict, config_dict):
                 boxes_2d_with_prob[j,2] = np.max(pred_corners_3d_upright_camera_batch[j,:,0])
                 boxes_2d_with_prob[j,1] = np.min(pred_corners_3d_upright_camera_batch[j,:,2])
                 boxes_2d_with_prob[j,3] = np.max(pred_corners_3d_upright_camera_batch[j,:,2])
-                boxes_2d_with_prob[j,4] = 1 # obj_prob[i,j]
+                boxes_2d_with_prob[j,4] = obj_prob[start+j]
             nonempty_box_inds = np.where(nonempty_box_mask[start:end]==1)[0]
             pick = nms_2d_faster(boxes_2d_with_prob[nonempty_box_inds,:], config_dict['nms_iou'], config_dict['use_old_type_nms'])
             assert(len(pick)>0)
@@ -287,28 +267,26 @@ def parse_predictions(end_points, data_dict, config_dict):
                 boxes_3d_with_prob[j,3] = np.max(pred_corners_3d_upright_camera_batch[j,:,0])
                 boxes_3d_with_prob[j,4] = np.max(pred_corners_3d_upright_camera_batch[j,:,1])
                 boxes_3d_with_prob[j,5] = np.max(pred_corners_3d_upright_camera_batch[j,:,2])
-                boxes_3d_with_prob[j,6] = 1 # obj_prob[i,j]
-                boxes_3d_with_prob[j,7] = pred_sem_cls[j] # only suppress if the two boxes are of the same class!!
+                boxes_3d_with_prob[j,6] = obj_prob[start+j]
+                boxes_3d_with_prob[j,7] = pred_sem_cls[start+j] # only suppress if the two boxes are of the same class!!
             nonempty_box_inds = np.where(nonempty_box_mask[start:end]==1)[0]
             pick = nms_3d_faster_samecls(boxes_3d_with_prob[nonempty_box_inds,:], config_dict['nms_iou'], config_dict['use_old_type_nms'])
             assert(len(pick)>0)
             nonempty_box_inds += start
             pred_mask[nonempty_box_inds[pick]] = 1
-            # import pdb; pdb.set_trace()
             # end_points['pred_mask'] = pred_mask
             # ---------- NMS output: pred_mask in (B,K) -----------
 
         # for i in range(bsize):
-        sem_cls_probs_batch = sem_cls_probs[start:end]
         if config_dict['per_class_proposal']:
             cur_list = []
             for ii in range(DC.num_class):
-                cur_list += [(ii, pred_corners_3d_upright_camera_batch[j], sem_cls_probs_batch[j,ii]) \
-                    for j in range(num_proposal_batch) if pred_mask[start:end][j]==1 and obj_prob[j]>config_dict['conf_thresh']]
+                cur_list += [(ii, pred_corners_3d_upright_camera_batch[j], obj_prob[start+j]) \
+                    for j in range(num_proposal_batch) if pred_mask[start:end][j]==1 and pred_sem_cls[start+j]==ii and obj_prob[start+j]>config_dict['conf_thresh']]
             batch_pred_map_cls.append(cur_list)
         else:
-            batch_pred_map_cls.append([(pred_sem_cls[start+j].item(), pred_corners_3d_upright_camera_batch[j], 1) \
-                for j in range(num_proposal_batch) if pred_mask[start:end][j]==1 and obj_prob[j]>config_dict['conf_thresh']])
+            batch_pred_map_cls.append([(pred_sem_cls[start+j].item(), pred_corners_3d_upright_camera_batch[j], obj_prob[start+j]) \
+                for j in range(num_proposal_batch) if pred_mask[start:end][j]==1 and obj_prob[start+j]>config_dict['conf_thresh']])
     
     end_points['pred_mask'] = pred_mask
     end_points['batch_pred_map_cls'] = batch_pred_map_cls
@@ -338,7 +316,6 @@ def parse_groundtruths(end_points, config_dict):
     heading_residual_label = end_points['heading_residual_label']
     size_class_label = end_points['size_class_label']
     size_residual_label = end_points['size_residual_label']
-    # box_label_mask = end_points['box_label_mask']
     sem_cls_label = end_points['sem_cls_label']
     
     num_proposal = center_label.shape[0] 

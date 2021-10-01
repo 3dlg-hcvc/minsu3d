@@ -23,3 +23,4 @@ if __name__ == '__main__':
 
         if solver.check_save_condition(epoch):
             solver.eval(epoch)
+    # solver.eval_detection()
