@@ -2,7 +2,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 import os
-import torch
 import argparse
 
 import pytorch_lightning as pl
@@ -11,8 +10,23 @@ from omegaconf import OmegaConf
 from importlib import import_module
 
 
+def load_conf(args):
+    base_cfg = OmegaConf.load('conf/path.yaml')
+    cfg = OmegaConf.load(args.config)
+    cfg = OmegaConf.merge(base_cfg, cfg)
+    
+    root = os.path.join(cfg.general.output_root, cfg.general.experiment.upper())
+    os.makedirs(root, exist_ok=True)
+
+    cfg.general.task = 'train'
+    cfg.general.root = root
+
+    cfg_backup_path = os.path.join(cfg.general.root, "config.yaml")
+    OmegaConf.save(cfg, cfg_backup_path)
+
+    return cfg
+
 def init_data(cfg):
-    print("=> initialize data...")
     DATA_MODULE = import_module(cfg.data.module)
     dataloader = getattr(DATA_MODULE, cfg.data.loader)
 
@@ -26,33 +40,24 @@ def init_data(cfg):
 
     return dataset, dataloader
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml', help='path to config file')
-    args = parser.parse_args()
+def init_logger(cfg):
+    logger = pl.loggers.TensorBoardLogger(cfg.general.root, name="logs")
 
-    base_cfg = OmegaConf.load('conf/path.yaml')
-    cfg = OmegaConf.load(args.config)
-    cfg = OmegaConf.merge(base_cfg, cfg)
-    
-    root = os.path.join(cfg.general.output_root, cfg.general.experiment.upper())
-    os.makedirs(root, exist_ok=True)
+    return logger
 
-    cfg.general.task = 'train'
-    cfg.general.root = root
-
-    dataset, dataloader = init_data(cfg)
-
-    logger = pl.loggers.TensorBoardLogger(root, name="logs")
+def init_monitor(cfg):
     monitor = pl.callbacks.ModelCheckpoint(
         monitor="val/{}".format(cfg.general.monitor),
         mode="min",
         # save_weights_only=True,
-        dirpath=root,
+        dirpath=cfg.general.root,
         filename="model",
         save_last=True
     )
 
+    return monitor
+
+def init_trainer(cfg):
     if cfg.model.use_checkpoint:
         print("=> configuring trainer with checkpoint from {} ...".format(cfg.model.use_checkpoint))
         checkpoint = os.path.join(cfg.general.output_root, cfg.model.use_checkpoint, "last.ckpt")
@@ -72,7 +77,36 @@ if __name__ == '__main__':
         resume_from_checkpoint=checkpoint
     )
 
-    PointGroup = getattr(import_module("model.pointgroup"), "PointGroup")
-    pointgroup = PointGroup(cfg)
+    return trainer
 
+def init_model(cfg):
+    PointGroup = getattr(import_module("model.pointgroup"), "PointGroup")
+    model = PointGroup(cfg)
+
+    return model
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml', help='path to config file')
+    args = parser.parse_args()
+
+    print("=> loading configurations...")
+    cfg = load_conf(args)
+
+    print("=> initializing data...")
+    dataset, dataloader = init_data(cfg)
+
+    print("=> initializing logger...")
+    logger = init_logger(cfg)
+    
+    print("=> initializing monitor...")
+    monitor = init_monitor(cfg)
+
+    print("=> initializing trainer...")
+    trainer = init_trainer(cfg)
+    
+    print("=> initializing model...")
+    pointgroup = init_model(cfg)
+
+    print("=> start training...")
     trainer.fit(model=pointgroup, train_dataloader=dataloader["train"], val_dataloaders=dataloader["val"])
