@@ -32,7 +32,7 @@ class PointGroup(pl.LightningModule):
         self.total_epoch = cfg.train.epochs
         # self.current_epoch = 0
 
-        in_channel = cfg.model.use_color * 3 + cfg.model.use_normal * 3 + cfg.model.use_coords * 3 + cfg.model.use_coords * 128
+        in_channel = cfg.model.use_color * 3 + cfg.model.use_normal * 3 + cfg.model.use_coords * 3 + cfg.model.use_multiview * 128
         m = cfg.model.m
         D = 3
         classes = cfg.data.classes
