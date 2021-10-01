@@ -1,0 +1,25 @@
+#!/bin/bash
+
+#SBATCH -p debug
+#SBATCH -q normal
+#SBATCH --job-name=prep_pointgroup
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=zhenyu.chen@tum.de
+#SBATCH --mem=80gb
+#SBATCH -c 8
+#SBATCH -G 1
+#SBATCH --output=/rhome/dchen/pointgroup-minkowski/logs/%j.log
+#SBATCH -x char,pegasus,tarsonis
+
+# Default output information
+date;hostname;pwd
+
+# Your code
+cd data/scannet
+# python -u prepare_scannet.py -s train
+# python -u prepare_scannet.py -s val
+# python -u prepare_scannet.py -s test
+# python -u prepare_scannet_inst_gt.py -s train
+# python -u prepare_scannet_inst_gt.py -s val
+# python -u -W ignore compute_multiview_features.py
+python -u -W ignore project_multiview_features.py --maxpool

@@ -4,6 +4,10 @@ data/scannet/splited_gt
 
 # log
 log/
+logs/
+
+# output
+outputs/
 
 # temp
 temp/

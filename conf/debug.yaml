@@ -6,7 +6,7 @@ general:
   solver: PointGroupSolver
   config: conf/pointgroup_scannet.yaml
   output_root: outputs/
-  experiment: xyz_multiview_normal_from_scratch # TODO
+  experiment: debug # TODO
   monitor: total_loss
 
 
@@ -36,7 +36,7 @@ data:
     jitter: True #True
     flip: True #True
     rot: True #True
-    
+
   requires_bbox: True
 
 
@@ -62,11 +62,11 @@ model:
   num_heading_bin: 1
   num_size_cluster: 18
 
-  use_checkpoint: #XYZ_MULTIVIEW_NORMAL
+  use_checkpoint: XYZ_MULTIVIEW_NORMAL
   resume_epoch: #480
-  pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
-  pretrained_module: [] #[backbone, sem_seg, offset_net, score_net, score_linear]
-  pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
+  pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
+  pretrained_module: [] #[backbone, sem_seg, offset_net]
+  pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000128.pth
   freeze_module: []
 
 
@@ -134,7 +134,6 @@ log:
     - offset_norm_loss
     - offset_dir_loss
     - score_loss
-    - mask_ious
     - total_loss
   tb_names:
     - semantic_loss
@@ -142,14 +141,3 @@ log:
     - offset_dir_loss
     - score_loss
     - total_loss
-  bbox_names:
-    - center_loss
-    - heading_cls_loss
-    - heading_reg_loss
-    - size_cls_loss
-    - size_reg_loss
-    - sem_cls_loss
-    - bbox_loss
-    - pred_crop_bbox_iou
-    - crop_bbox_iou
-    - pred_bbox_iou

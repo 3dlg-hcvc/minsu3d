@@ -1,14 +1,15 @@
-ROOT_PATH: /local-scratch/qiruiw/research/pointgroup-minkowski #TODO
-DATA_PATH: ${ROOT_PATH}/data
-LOG_PATH: ${ROOT_PATH}/log
+ROOT_PATH: /rhome/dchen/pointgroup-minkowski #TODO
+CLUSTER_PATH: /cluster/balrog/dchen/pointgroup-minkowski #TODO
+DATA_PATH: ${CLUSTER_PATH}/data
+OUTPUT_PATH: ${ROOT_PATH}/output
 
 SCANNETV2_PATH:
-  raw_scans: /datasets/released/scannet/public/v2/scans
+  raw_scans: /canis/Datasets/ScanNet/public/v2/scans
   extracted_scans: /local-scratch/qiruiw/dataset/scannet/scans
 
   dir: ${DATA_PATH}/scannet
   splited_scans: /local-scratch/qiruiw/dataset/scannet/splited_scans #TODO
-  splited_data: /project/3dlg-hcvc/dense-scanrefer/scannet/splited_data #TODO
+  splited_data: ${SCANNETV2_PATH.dir}/splited_data #TODO
   splited_gt: ${SCANNETV2_PATH.dir}/splited_gt
   meta_data: ${SCANNETV2_PATH.dir}/meta_data
 
@@ -17,5 +18,11 @@ SCANNETV2_PATH:
   val_list: ${SCANNETV2_PATH.meta_data}/scannetv2_val.txt
   test_list: ${SCANNETV2_PATH.meta_data}/scannetv2_test.txt
   combine_file: ${SCANNETV2_PATH.meta_data}/scannetv2-labels.combined.tsv
+
+  frames: ${DATA_PATH}/frames_square
+
+  enet_weights: ${DATA_PATH}/scannetv2_enet.pth
+  enet_features: ${DATA_PATH}/enet_features
+  multiview_features: ${DATA_PATH}/enet_feats_maxpool.hdf5
 
 split:

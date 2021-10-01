@@ -1,7 +1,14 @@
-import os, sys, time, json
-from tqdm import tqdm
-import numpy as np
+import os
+import sys
+import time
+import json
+import h5py 
 import torch
+
+import numpy as np
+import multiprocessing as mp
+
+from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
 sys.path.append('../')  # HACK add the lib folder
@@ -24,6 +31,10 @@ class ScanNet(Dataset):
         self.scale = cfg.data.scale
         self.max_num_point = cfg.data.max_num_point
         self.mode = cfg.data.mode
+
+        self.use_color = cfg.model.use_color
+        self.use_multiview = cfg.model.use_multiview
+        self.use_normal = cfg.model.use_normal
         self.requires_bbox = cfg.data.requires_bbox
         
         self.DATA_MAP = {
@@ -31,6 +42,8 @@ class ScanNet(Dataset):
             'val': cfg.SCANNETV2_PATH.val_list,
             'test': cfg.SCANNETV2_PATH.test_list
         }
+
+        self.multiview_data = {}
         
         self._load()
 
@@ -48,7 +61,7 @@ class ScanNet(Dataset):
             torch.load(os.path.join(self.root, self.split, d + self.file_suffix))
             for d in tqdm(self.scene_names)
         ]
-        
+
         for scene_data in self.scenes:
             mesh = scene_data["aligned_mesh"]
             mesh[:, :3] -= mesh[:, :3].mean(0)
@@ -145,10 +158,28 @@ class ScanNet(Dataset):
 
         mesh = scene["aligned_mesh"]
 
-        points = mesh[:, :3]  # (N, 3)
-        feats = mesh[:, 3:6]  # (N, 3) rgb
-        # feats = mesh[:, 3:9]  # (N, 6) rgb+normals
+        data = mesh[:, :3]  # (N, 3)
         
+        if self.use_color:
+            colors = mesh[:, 3:6]
+            data = np.concatenate([data, colors], 1)
+
+        if self.use_normal:
+            normals = mesh[:, 6:9]
+            data = np.concatenate([data, normals], 1)
+        
+        if self.use_multiview:
+            # load multiview database
+            pid = mp.current_process().pid
+            if pid not in self.multiview_data:
+                self.multiview_data[pid] = h5py.File(self.cfg.SCANNETV2_PATH.multiview_features, "r", libver="latest")
+
+            multiview = self.multiview_data[pid][scene_id]
+            data = np.concatenate([data, multiview], 1)
+
+        feats = data[:, 3:]
+        points = mesh[:, :3]
+
         data = {}
         data['id'] = np.array(id).astype(np.int32)
         data['scene_id'] = np.array(int(scene_id.lstrip('scene').replace('_', ''))).astype(np.int32)
@@ -270,7 +301,8 @@ def scannet_loader(cfg):
                     torch.from_numpy(b["locs_scaled"]).long()
                 ], 1))
             
-            feats.append(torch.from_numpy(b["feats"]) + torch.randn(3) * 0.1 * (cfg.general.task == 'train'))
+            # feats.append(torch.from_numpy(b["feats"]) + torch.randn(3) * 0.1 * (cfg.general.task == 'train'))
+            feats.append(torch.from_numpy(b["feats"]))
             # feat = torch.from_numpy(b["feats"]) # (N, 6)
             # feat[:, :3] += torch.randn(3) * 0.1 * (cfg.general.task == 'train')
             # feats.append(feat)
@@ -336,8 +368,8 @@ def scannet_loader(cfg):
     dataloader = {
         split:
         DataLoader(dataset[split],
-                   batch_size=cfg.data.batch_size if cfg.general.task == 'train' and split == 'train' else 1,
-                   shuffle=True if cfg.general.task == 'train' and split == 'train' else False,
+                   batch_size=cfg.data.batch_size,
+                   shuffle=True if split == 'train' else False,
                    pin_memory=True,
                    collate_fn=scannet_collate_fn) 
         for split in splits
