@@ -178,6 +178,7 @@ class PointGroupSolver(BaseSolver):
                     crop_bbox_ious[proposal_batch_idx[i]] = np.max(crop_bbox_iou)
             eval_dict['crop_bbox_iou'] = (crop_bbox_ious.mean(), num_proposal)
             data_dict['proposal_crop_bboxes'] = proposal_crop_bboxes
+            # import pdb; pdb.set_trace()
             
         if self.cfg.model.pred_bbox:
             # parse pred_bbox
@@ -460,21 +461,7 @@ class PointGroupSolver(BaseSolver):
         self.max_iter = len(self.loader)
         self.logger.info('>>>>>>>>>>>>>>>> Start Evaluation >>>>>>>>>>>>>>>>')
         self.curr_epoch = self.start_epoch
-        # meters = Meters(*self.cfg.log.meter_names)
-        # print("evaluate detection...")
-        # folder = os.path.join(root, CONF.name.upper(), CONF.tag.upper())
-        
-        # # init training dataset
-        # print("preparing data...")
-        # # get eval data
-        # scanrefer_eval, eval_scene_list = get_eval_data(args)
 
-        # # get dataloader
-        # dataset, dataloader = get_dataloader(args, scanrefer_eval, eval_scene_list, DC)
-
-        # # model
-        # print("initializing...")
-        # model = get_model(args, dataset, folder)
         from lib.utils.eval import APCalculator, parse_predictions, parse_groundtruths
         # config
         POST_DICT = {
@@ -492,57 +479,20 @@ class PointGroupSolver(BaseSolver):
 
         sem_acc = []
         
-        # for data_dict in tqdm(self.loader):
-        #     for key in data_dict:
-        #         data_dict[key] = data_dict[key].cuda()
-
-        #     # feed
-        #     with torch.no_grad():
-        #         data_dict = model.forward(data_dict)
-        #         _, data_dict = get_loss(
-        #             data_dict=data_dict,
-        #             config=DC,
-        #             detection=True,
-        #             caption=False,
-        #             orientation=False,
-        #             distance=False
-        #         )
-
-        #     batch_pred_map_cls = parse_predictions(data_dict, POST_DICT) 
-        #     batch_gt_map_cls = parse_groundtruths(data_dict, POST_DICT) 
-        #     for ap_calculator in AP_CALCULATOR_LIST:
-        #         ap_calculator.step(batch_pred_map_cls, batch_gt_map_cls)
-
-        # aggregate object detection results and report
-        # for i, ap_calculator in enumerate(AP_CALCULATOR_LIST):
-        #     print()
-        #     print("-"*10, "iou_thresh: %f"%(AP_IOU_THRESHOLDS[i]), "-"*10)
-        #     metrics_dict = ap_calculator.compute_metrics()
-        #     for key in metrics_dict:
-        #         print("eval %s: %f"%(key, metrics_dict[key]))
-                
-        
         with torch.no_grad():
-            # start_epoch_time = time.time()
             for i, batch in tqdm(enumerate(self.loader)):
                 torch.cuda.empty_cache()
-                # iter_start_time = time.time()
 
                 ##### prepare input and forward
                 ret = self._feed(batch, self.curr_epoch)
-                # _, loss_input = self._parse_feed_ret(batch, ret)
-                # meter_dict = self._loss(loss_input, batch, self.curr_epoch)
+                _, loss_input = self._parse_feed_ret(batch, ret)
+                meter_dict = self._loss(loss_input, batch, self.curr_epoch)
+                self.get_bbox_iou(loss_input, batch, meter_dict)
                 
-                # import pdb; pdb.set_trace()
                 batch_pred_map_cls = parse_predictions(ret, batch, POST_DICT) 
                 batch_gt_map_cls = parse_groundtruths(batch, POST_DICT) 
                 for ap_calculator in AP_CALCULATOR_LIST:
                     ap_calculator.step(batch_pred_map_cls, batch_gt_map_cls)
-
-                ##### meter_dict
-                # self._log_report(meters, meter_dict, i, iter_start_time)
-                ##### print
-                # self.logger.debug(f"\riter: {i+1}/{len(self.loader)} loss: {meters.get_val('total_loss'):.4f}({meters.get_avg('total_loss'):.4f})")
                 
         for i, ap_calculator in enumerate(AP_CALCULATOR_LIST):
             print()
