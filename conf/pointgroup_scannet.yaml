@@ -55,6 +55,7 @@ model:
   num_bbox_class: 18
   num_heading_bin: 1
   num_size_cluster: 18
+  max_num_proposal: 128
 
   use_checkpoint: #2021-02-10_01-53-53 #2021-09-18_01-04-52 #2021-08-24_11-42-20 #2021-07-12_17-34-59
   resume_epoch: #480
