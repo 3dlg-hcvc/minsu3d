@@ -301,6 +301,7 @@ class PointGroup(pl.LightningModule):
             proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
             # proposals_score_feats = self.proposal_mlp(proposals_score_feats) # (nProposal, 128)
             scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
+            ret["proposal_feats"] = proposals_score_feats
             ret["proposal_scores"] = (scores, proposals_idx, proposals_offset)
 
             ############ extract batch related features and bbox #############
@@ -316,13 +317,13 @@ class PointGroup(pl.LightningModule):
             proposals_batchId = proposals_batchId_all[proposals_offset[:-1].long()] # (nProposal,)
             proposals_batchId = proposals_batchId[thres_mask]
             ret["proposals_batchId"] = proposals_batchId # (nProposal,)
-            ret["proposal_bbox_offsets"] = self.get_batch_offsets(proposals_batchId, batch_size) # (B+1,)
             
             if self.cfg.model.crop_bbox:
-                proposal_crop_bbox = torch.zeros(num_proposals, 8).cuda() # (nProposals, center+size+heading+label)
+                proposal_crop_bbox = torch.zeros(num_proposals, 9).cuda() # (nProposals, center+size+heading+label)
                 proposal_crop_bbox[:, :3] = proposals_center
                 proposal_crop_bbox[:, 3:6] = proposals_size
                 proposal_crop_bbox[:, 7] = semantic_preds[proposals_idx[proposals_offset[:-1].long(), 1].long()]
+                proposal_crop_bbox[:, 8] = scores
                 proposal_crop_bbox = proposal_crop_bbox[thres_mask]
                 ret["proposal_crop_bbox"] = proposal_crop_bbox
 
@@ -525,7 +526,6 @@ class PointGroup(pl.LightningModule):
                 # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
                 # proposals_offset: (nProposal + 1), int, cpu
                 loss_input["proposal_thres_mask"] = ret["proposal_thres_mask"]
-                loss_input["proposal_bbox_offsets"] = ret["proposal_bbox_offsets"]
                 loss_input["proposals_batchId"] = ret["proposals_batchId"]
                 if self.cfg.model.crop_bbox:
                     loss_input["proposal_crop_bboxes"] = ret["proposal_crop_bbox"]
@@ -538,7 +538,6 @@ class PointGroup(pl.LightningModule):
     def get_bbox_iou(self, loss_input, data_dict, eval_dict):
         batch_size = len(data_dict["batch_offsets"]) - 1
         proposal_thres_mask = loss_input["proposal_thres_mask"]
-        proposal_offsets = loss_input["proposal_bbox_offsets"].detach().cpu().numpy()
         instance_offsets = data_dict["instance_offsets"].detach().cpu().numpy()
         proposals_batchId = loss_input["proposals_batchId"]
         
@@ -566,7 +565,6 @@ class PointGroup(pl.LightningModule):
             crop_bbox_ious = np.zeros(num_proposal)
             for b in range(batch_size):
                 proposal_batch_idx = torch.nonzero(proposals_batchId == b)
-                # pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
                 pred_num = len(proposal_batch_idx) #pred_batch_end - pred_batch_start # N
                 gt_batch_start, gt_batch_end = instance_offsets[b], instance_offsets[b+1]
                 gt_num = gt_batch_end - gt_batch_start # M
@@ -596,7 +594,6 @@ class PointGroup(pl.LightningModule):
             pred_bbox_ious = np.zeros(num_proposal)
             for b in range(batch_size):
                 proposal_batch_idx = torch.nonzero(proposals_batchId == b)
-                # pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
                 pred_num = len(proposal_batch_idx) #pred_batch_end - pred_batch_start # N
                 gt_batch_start, gt_batch_end = instance_offsets[b], instance_offsets[b+1]
                 gt_num = gt_batch_end - gt_batch_start # M

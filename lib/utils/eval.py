@@ -207,7 +207,7 @@ def parse_predictions(end_points, data_dict, config_dict):
                     nonempty_box_mask[i,j] = 0
         # -------------------------------------
 
-    proposal_offsets = end_points['proposal_bbox_offsets'].detach().cpu().numpy()
+    # replace proposal_offsets with proposal_batchId
     thres_mask = end_points['proposal_thres_mask']
     batch_pred_map_cls = [] # a list (len: batch_size) of list (len: num of predictions per sample) of tuples of pred_cls, pred_box and conf (0-1)
     pred_mask = np.zeros((num_proposal,))
