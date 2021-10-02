@@ -196,9 +196,8 @@ class PointGroup(pl.LightningModule):
         """
         decode the predicted parameters for the bounding boxes
         """
-        # num_class = 18
-        num_heading_bin = 1
-        num_size_cluster = 18
+        num_heading_bin = self.cfg.model.num_heading_bin
+        num_size_cluster = self.cfg.model.num_size_cluster
         # encoded_bbox = encoded_bbox.transpose(2,1).contiguous() # (batch_size, 1024, ..)
         num_proposal = encoded_bbox.shape[0]
 
@@ -301,7 +300,6 @@ class PointGroup(pl.LightningModule):
             proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
             # proposals_score_feats = self.proposal_mlp(proposals_score_feats) # (nProposal, 128)
             scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
-            ret["proposal_feats"] = proposals_score_feats
             ret["proposal_scores"] = (scores, proposals_idx, proposals_offset)
 
             ############ extract batch related features and bbox #############
@@ -317,6 +315,8 @@ class PointGroup(pl.LightningModule):
             proposals_batchId = proposals_batchId_all[proposals_offset[:-1].long()] # (nProposal,)
             proposals_batchId = proposals_batchId[thres_mask]
             ret["proposals_batchId"] = proposals_batchId # (nProposal,)
+            ret["proposal_feats"] = proposals_score_feats[thres_mask]
+            ret["proposal_objectness_scores"] = scores[thres_mask]
             
             if self.cfg.model.crop_bbox:
                 proposal_crop_bbox = torch.zeros(num_proposals, 9).cuda() # (nProposals, center+size+heading+label)
@@ -334,6 +334,32 @@ class PointGroup(pl.LightningModule):
                 ret = self.decode_bbox_prediction(encoded_pred_bbox, ret)
             
         return ret
+    
+    
+    def convert_stack_to_batch(self, data, ret):
+        batch_size = len(data["batch_offsets"]) - 1
+        max_num_proposal = self.cfg.model.max_num_proposal
+        ret["proposal_feats_batched"] = torch.zeros(batch_size, max_num_proposal, self.cfg.model.m)
+        ret["proposal_bbox_batched"] = torch.zeros(batch_size, max_num_proposal, 8, 3)
+        ret["proposal_center_batched"] = torch.zeros(batch_size, max_num_proposal, 3)
+        ret["proposal_sem_cls_batched"] = torch.zeros(batch_size, max_num_proposal)
+        ret["proposal_scores_batched"] = torch.zeros(batch_size, max_num_proposal)
+        ret["proposal_batch_mask"] = torch.zeros(batch_size, max_num_proposal)
+        
+        proposal_bbox = ret["proposal_crop_bbox"]
+        proposal_bbox = get_3d_box_batch(proposal_bbox[:, :3], proposal_bbox[:, 3:6], proposal_bbox[:, 6]) # (nProposals, 8, 3)
+        
+        for b in range(batch_size):
+            proposal_batch_idx = torch.nonzero(ret["proposals_batchId"] == b)
+            pred_num = len(proposal_batch_idx)
+            pred_num = pred_num if pred_num < max_num_proposal else max_num_proposal
+            ret["proposal_feats_batched"][b, :pred_num, :] = ret["proposal_feats"][proposal_batch_idx]
+            ret["proposal_bbox_batched"][b, :pred_num, :, :] = proposal_bbox[proposal_batch_idx]
+            ret["proposal_center_batched"][b, :pred_num, :] = ret["proposal_crop_bbox"][proposal_batch_idx, :3]
+            ret["proposal_sem_cls_batched"][b, :pred_num] = ret["proposal_crop_bbox"][proposal_batch_idx, 7]
+            ret["proposal_scores_batched"][b, :pred_num] = ret["proposal_objectness_scores"][proposal_batch_idx]
+            ret["proposal_batch_mask"][b, :pred_num] = 1
+                
 
     def _init_random_seed(self):
         print("=> setting random seed...")
@@ -364,7 +390,6 @@ class PointGroup(pl.LightningModule):
         if self.cfg.model.use_checkpoint:
             print("=> restoring checkpoint from {} ...".format(self.cfg.model.use_checkpoint))
             self.start_epoch = self.restore_checkpoint()      # resume from the latest epoch, or specify the epoch to restore
-
         else: 
             self.start_epoch = 1
 

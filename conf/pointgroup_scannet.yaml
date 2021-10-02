@@ -61,6 +61,7 @@ model:
   num_bbox_class: 18
   num_heading_bin: 1
   num_size_cluster: 18
+  max_num_proposal: 128
 
   use_checkpoint: #XYZ_MULTIVIEW_NORMAL
   resume_epoch: #480
