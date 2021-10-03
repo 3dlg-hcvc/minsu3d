@@ -83,6 +83,11 @@ def init_model(cfg):
     PointGroup = getattr(import_module("model.pointgroup"), "PointGroup")
     model = PointGroup(cfg)
 
+    if cfg.model.use_checkpoint:
+        print("=> loading pretrained checkpoint from {} ...".format(cfg.model.use_checkpoint))
+        checkpoint = os.path.join(cfg.general.output_root, cfg.model.use_checkpoint, "last.ckpt")
+        model.load_from_checkpoint(checkpoint)
+
     return model
 
 if __name__ == '__main__':

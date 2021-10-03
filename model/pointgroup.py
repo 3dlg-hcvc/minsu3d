@@ -652,7 +652,8 @@ class PointGroup(pl.LightningModule):
 
         in_prog_bar = ["total_loss"]
         for key, value in loss_dict.items():
-            self.log("train/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=True, on_epoch=True, sync_dist=True)
+            if "loss" in key:
+                self.log("train/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=True, on_epoch=True, sync_dist=True)
 
         return loss
 
@@ -663,11 +664,12 @@ class PointGroup(pl.LightningModule):
         ret = self._feed(data_dict, self.current_epoch)
         _, loss_input = self._parse_feed_ret(data_dict, ret)
         loss_dict = self._loss(loss_input, self.current_epoch)
-        loss = loss_dict["total_loss"][0]
+        # loss = loss_dict["total_loss"][0]
 
         in_prog_bar = ["total_loss"]
         for key, value in loss_dict.items():
-            self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True, sync_dist=True)
+            if "loss" in key:
+                self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True, sync_dist=True)
 
     ######### NOTE DANGER ZONE!!!
     def test(self, split="val"):
