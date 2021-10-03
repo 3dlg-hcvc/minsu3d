@@ -1,5 +1,5 @@
 import warnings
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 
 
 import os
@@ -17,7 +17,7 @@ from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.utils.eval import APCalculator, parse_predictions, parse_groundtruths
 
 def load_conf(args):
-    base_cfg = OmegaConf.load('conf/path.yaml')
+    base_cfg = OmegaConf.load("conf/path.yaml")
     cfg = OmegaConf.load(args.config)
     cfg = OmegaConf.merge(base_cfg, cfg)
     
@@ -26,7 +26,7 @@ def load_conf(args):
 
     # HACK manually setting those properties
     cfg.data.split = args.split
-    cfg.general.task = 'eval'
+    cfg.general.task = "eval"
     cfg.general.root = root
     cfg.cluster.prepare_epochs = -1
 
@@ -50,7 +50,8 @@ def init_model(cfg):
     PointGroup = getattr(import_module("model.pointgroup"), "PointGroup")
     model = PointGroup(cfg)
 
-    checkpoint_name = "model.ckpt"
+    # checkpoint_name = "model.ckpt"
+    checkpoint_name = "last.ckpt"
     checkpoint_path = os.path.join(cfg.general.root, checkpoint_name)
     # model.load_from_checkpoint(checkpoint_path, cfg)
 
@@ -110,13 +111,13 @@ def eval_semantic(cfg, dataloader, model):
 def eval_instance(cfg, dataloader, model):
     raise NotImplementedError
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--folder', type=str, required=True, help='path to folder with model')
-    parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml', help='path to config file')
-    parser.add_argument('-s', '--split', type=str, default='val', help='specify data split')
-    parser.add_argument('-t', '--task', type=str, choices=["semantic", "instance", "detection"], \
-        help='specify task: semantic | instance | detection', required=True)
+    parser.add_argument("-f", "--folder", type=str, required=True, help="path to folder with model")
+    parser.add_argument("-c", "--config", type=str, default="conf/pointgroup_scannet.yaml", help="path to config file")
+    parser.add_argument("-s", "--split", type=str, default="val", help="specify data split")
+    parser.add_argument("-t", "--task", type=str, choices=["semantic", "instance", "detection"], \
+        help="specify task: semantic | instance | detection", required=True)
     args = parser.parse_args()
 
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
