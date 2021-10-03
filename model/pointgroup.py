@@ -321,7 +321,7 @@ class PointGroup(nn.Module):
             proposals_batchId = proposals_batchId[thres_mask]
             ret['proposals_batchId'] = proposals_batchId # (nProposal,)
             ret['proposal_feats'] = proposals_score_feats[thres_mask]
-            ret['proposal_objectness_scores'] = scores.view(-1)[thres_mask]
+            ret['proposal_objectness_scores'] = torch.sigmoid(scores.view(-1))[thres_mask]
             
             if self.cfg.model.crop_bbox:
                 proposal_crop_bbox = torch.zeros(num_proposals, 9).cuda() # (nProposals, center+size+heading+label)
