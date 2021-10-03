@@ -328,7 +328,7 @@ class PointGroup(nn.Module):
                 proposal_crop_bbox[:, :3] = proposals_center
                 proposal_crop_bbox[:, 3:6] = proposals_size
                 proposal_crop_bbox[:, 7] = semantic_preds[proposals_idx[proposals_offset[:-1].long(), 1].long()]
-                proposal_crop_bbox[:, 8] = scores.view(-1)
+                proposal_crop_bbox[:, 8] = torch.sigmoid(scores.view(-1))
                 proposal_crop_bbox = proposal_crop_bbox[thres_mask]
                 ret['proposal_crop_bbox'] = proposal_crop_bbox
 
