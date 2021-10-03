@@ -109,7 +109,6 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
     num_class = 18
     
     pred_center, heading_scores, heading_residuals_normalized, heading_residuals, size_scores, size_residuals_normalized, size_residuals, sem_cls_scores = loss_input['proposal_pred_bboxes']
-    proposal_offsets = loss_input['proposal_bbox_offsets']
     instance_offsets = data_dict['instance_offsets']
     
     center_loss = torch.tensor(0.).cuda()
@@ -120,7 +119,7 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
     sem_cls_loss = torch.tensor(0.).cuda()
 
     for b in range(batch_size):
-        pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
+        ### replace proposal_offsets with proposal_batchId TODO
         pred_num = pred_batch_end - pred_batch_start # N
         gt_batch_start, gt_batch_end = instance_offsets[b], instance_offsets[b+1]
         gt_num = gt_batch_end - gt_batch_start # M

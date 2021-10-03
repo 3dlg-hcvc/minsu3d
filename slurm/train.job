@@ -12,7 +12,7 @@
 # #SBATCH --gpus=rtx_3090:2
 # #SBATCH --gpus=rtx_a6000:1
 #SBATCH -w seti
-#SBATCH -G 7
+#SBATCH -G 5
 #SBATCH -x char,tarsonis
 
 # #SBATCH --time=48:00:00

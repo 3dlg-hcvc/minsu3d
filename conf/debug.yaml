@@ -61,8 +61,9 @@ model:
   num_bbox_class: 18
   num_heading_bin: 1
   num_size_cluster: 18
+  max_num_proposal: 128 # NOTE sometimes the number of proposals could be more than 128
 
-  use_checkpoint: XYZ_MULTIVIEW_NORMAL
+  use_checkpoint: XYZ_MULTIVIEW_NORMAL_FROM_SCRATCH
   resume_epoch: #480
   pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
   pretrained_module: [] #[backbone, sem_seg, offset_net]
@@ -102,7 +103,7 @@ cluster:
   cluster_shift_meanActive: 300
   cluster_npoint_thre: 50
 
-  prepare_epochs: 128
+  prepare_epochs: -1
   freeze_backbone: False
 
 test:
@@ -141,3 +142,14 @@ log:
     - offset_dir_loss
     - score_loss
     - total_loss
+  bbox_names:
+    - center_loss
+    - heading_cls_loss
+    - heading_reg_loss
+    - size_cls_loss
+    - size_reg_loss
+    - sem_cls_loss
+    - bbox_loss
+    - pred_crop_bbox_iou
+    - crop_bbox_iou
+    - pred_bbox_iou

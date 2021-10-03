@@ -1,4 +1,5 @@
 import os
+import re
 import torch
 import functools
 import random
@@ -196,9 +197,8 @@ class PointGroup(pl.LightningModule):
         """
         decode the predicted parameters for the bounding boxes
         """
-        # num_class = 18
-        num_heading_bin = 1
-        num_size_cluster = 18
+        num_heading_bin = self.cfg.model.num_heading_bin
+        num_size_cluster = self.cfg.model.num_size_cluster
         # encoded_bbox = encoded_bbox.transpose(2,1).contiguous() # (batch_size, 1024, ..)
         num_proposal = encoded_bbox.shape[0]
 
@@ -225,6 +225,36 @@ class PointGroup(pl.LightningModule):
         ret["size_residuals_normalized"] = size_residuals_normalized
         ret["size_residuals"] = size_residuals_normalized * torch.from_numpy(self.DC.mean_size_arr.astype(np.float32)).cuda().unsqueeze(0)
         ret["sem_cls_scores"] = sem_cls_scores
+
+        return ret
+    
+    
+    def convert_stack_to_batch(self, data, ret):
+        batch_size = len(data["batch_offsets"]) - 1
+        max_num_proposal = self.cfg.model.max_num_proposal
+        ret["proposal_feats_batched"] = torch.zeros(batch_size, max_num_proposal, self.cfg.model.m).type_as(ret["proposal_feats"])
+        ret["proposal_bbox_batched"] = torch.zeros(batch_size, max_num_proposal, 8, 3).type_as(ret["proposal_feats"])
+        ret["proposal_center_batched"] = torch.zeros(batch_size, max_num_proposal, 3).type_as(ret["proposal_feats"])
+        ret["proposal_sem_cls_batched"] = torch.zeros(batch_size, max_num_proposal).type_as(ret["proposal_feats"])
+        ret["proposal_scores_batched"] = torch.zeros(batch_size, max_num_proposal).type_as(ret["proposal_feats"])
+        ret["proposal_batch_mask"] = torch.zeros(batch_size, max_num_proposal).type_as(ret["proposal_feats"])
+
+        proposal_bbox = ret["proposal_crop_bbox"].detach().cpu().numpy()
+        proposal_bbox = get_3d_box_batch(proposal_bbox[:, :3], proposal_bbox[:, 3:6], proposal_bbox[:, 6]) # (nProposals, 8, 3)
+        proposal_bbox_tensor = torch.tensor(proposal_bbox).type_as(ret["proposal_feats"])
+
+        for b in range(batch_size):
+            proposal_batch_idx = torch.nonzero(ret["proposals_batchId"] == b).squeeze(-1)
+            pred_num = len(proposal_batch_idx)
+            pred_num = pred_num if pred_num < max_num_proposal else max_num_proposal
+            
+            # NOTE proposals should be truncated if more than max_num_proposal proposals are predicted
+            ret["proposal_feats_batched"][b, :pred_num, :] = ret["proposal_feats"][proposal_batch_idx][:pred_num]
+            ret["proposal_bbox_batched"][b, :pred_num, :, :] = proposal_bbox_tensor[proposal_batch_idx][:pred_num]
+            ret["proposal_center_batched"][b, :pred_num, :] = ret["proposal_crop_bbox"][proposal_batch_idx, :3][:pred_num]
+            ret["proposal_sem_cls_batched"][b, :pred_num] = ret["proposal_crop_bbox"][proposal_batch_idx, 7][:pred_num]
+            ret["proposal_scores_batched"][b, :pred_num] = ret["proposal_objectness_scores"][proposal_batch_idx][:pred_num]
+            ret["proposal_batch_mask"][b, :pred_num] = 1
 
         return ret
 
@@ -316,13 +346,15 @@ class PointGroup(pl.LightningModule):
             proposals_batchId = proposals_batchId_all[proposals_offset[:-1].long()] # (nProposal,)
             proposals_batchId = proposals_batchId[thres_mask]
             ret["proposals_batchId"] = proposals_batchId # (nProposal,)
-            ret["proposal_bbox_offsets"] = self.get_batch_offsets(proposals_batchId, batch_size) # (B+1,)
+            ret["proposal_feats"] = proposals_score_feats[thres_mask]
+            ret["proposal_objectness_scores"] = torch.sigmoid(scores.view(-1))[thres_mask]
             
             if self.cfg.model.crop_bbox:
-                proposal_crop_bbox = torch.zeros(num_proposals, 8).cuda() # (nProposals, center+size+heading+label)
+                proposal_crop_bbox = torch.zeros(num_proposals, 9).cuda() # (nProposals, center+size+heading+label)
                 proposal_crop_bbox[:, :3] = proposals_center
                 proposal_crop_bbox[:, 3:6] = proposals_size
                 proposal_crop_bbox[:, 7] = semantic_preds[proposals_idx[proposals_offset[:-1].long(), 1].long()]
+                proposal_crop_bbox[:, 8] = torch.sigmoid(scores.view(-1))
                 proposal_crop_bbox = proposal_crop_bbox[thres_mask]
                 ret["proposal_crop_bbox"] = proposal_crop_bbox
 
@@ -333,6 +365,7 @@ class PointGroup(pl.LightningModule):
                 ret = self.decode_bbox_prediction(encoded_pred_bbox, ret)
             
         return ret
+                
 
     def _init_random_seed(self):
         print("=> setting random seed...")
@@ -363,7 +396,6 @@ class PointGroup(pl.LightningModule):
         if self.cfg.model.use_checkpoint:
             print("=> restoring checkpoint from {} ...".format(self.cfg.model.use_checkpoint))
             self.start_epoch = self.restore_checkpoint()      # resume from the latest epoch, or specify the epoch to restore
-
         else: 
             self.start_epoch = 1
 
@@ -497,6 +529,7 @@ class PointGroup(pl.LightningModule):
         data["voxel_feats"] = pointgroup_ops.voxelization(data["feats"], data["v2p_map"], self.cfg.data.mode)  # (M, C), float, cuda
 
         ret = self.forward(data)
+        ret = self.convert_stack_to_batch(data, ret)
         
         return ret
 
@@ -525,7 +558,6 @@ class PointGroup(pl.LightningModule):
                 # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
                 # proposals_offset: (nProposal + 1), int, cpu
                 loss_input["proposal_thres_mask"] = ret["proposal_thres_mask"]
-                loss_input["proposal_bbox_offsets"] = ret["proposal_bbox_offsets"]
                 loss_input["proposals_batchId"] = ret["proposals_batchId"]
                 if self.cfg.model.crop_bbox:
                     loss_input["proposal_crop_bboxes"] = ret["proposal_crop_bbox"]
@@ -538,7 +570,6 @@ class PointGroup(pl.LightningModule):
     def get_bbox_iou(self, loss_input, data_dict, eval_dict):
         batch_size = len(data_dict["batch_offsets"]) - 1
         proposal_thres_mask = loss_input["proposal_thres_mask"]
-        proposal_offsets = loss_input["proposal_bbox_offsets"].detach().cpu().numpy()
         instance_offsets = data_dict["instance_offsets"].detach().cpu().numpy()
         proposals_batchId = loss_input["proposals_batchId"]
         
@@ -566,7 +597,6 @@ class PointGroup(pl.LightningModule):
             crop_bbox_ious = np.zeros(num_proposal)
             for b in range(batch_size):
                 proposal_batch_idx = torch.nonzero(proposals_batchId == b)
-                # pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
                 pred_num = len(proposal_batch_idx) #pred_batch_end - pred_batch_start # N
                 gt_batch_start, gt_batch_end = instance_offsets[b], instance_offsets[b+1]
                 gt_num = gt_batch_end - gt_batch_start # M
@@ -596,7 +626,6 @@ class PointGroup(pl.LightningModule):
             pred_bbox_ious = np.zeros(num_proposal)
             for b in range(batch_size):
                 proposal_batch_idx = torch.nonzero(proposals_batchId == b)
-                # pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
                 pred_num = len(proposal_batch_idx) #pred_batch_end - pred_batch_start # N
                 gt_batch_start, gt_batch_end = instance_offsets[b], instance_offsets[b+1]
                 gt_num = gt_batch_end - gt_batch_start # M
@@ -623,7 +652,8 @@ class PointGroup(pl.LightningModule):
 
         in_prog_bar = ["total_loss"]
         for key, value in loss_dict.items():
-            self.log("train/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=True, on_epoch=True, sync_dist=True)
+            if "loss" in key:
+                self.log("train/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=True, on_epoch=True, sync_dist=True)
 
         return loss
 
@@ -634,11 +664,12 @@ class PointGroup(pl.LightningModule):
         ret = self._feed(data_dict, self.current_epoch)
         _, loss_input = self._parse_feed_ret(data_dict, ret)
         loss_dict = self._loss(loss_input, self.current_epoch)
-        loss = loss_dict["total_loss"][0]
+        # loss = loss_dict["total_loss"][0]
 
         in_prog_bar = ["total_loss"]
         for key, value in loss_dict.items():
-            self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True, sync_dist=True)
+            if "loss" in key:
+                self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True, sync_dist=True)
 
     ######### NOTE DANGER ZONE!!!
     def test(self, split="val"):
