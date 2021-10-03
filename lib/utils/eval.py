@@ -166,7 +166,7 @@ def softmax(x):
     return probs
 
 
-def parse_predictions(end_points, data_dict, config_dict):
+def parse_predictions(end_points, config_dict):
     """ Parse predictions to OBB parameters and suppress overlapping boxes
     
     Args:
@@ -183,10 +183,10 @@ def parse_predictions(end_points, data_dict, config_dict):
             where j = 0, ..., num of valid detections - 1 from sample input i
     """
     DC = config_dict['dataset_config']
-    bsize = len(data_dict["batch_offsets"]) - 1
+    bsize = len(end_points["batch_offsets"]) - 1
         
-    bbox_corners = data_dict["proposal_crop_bboxes"] # (nProposal, 8, 3)
-    num_proposal = data_dict["proposal_crop_bboxes"].shape[0]
+    bbox_corners = end_points["proposal_crop_bboxes"] # (nProposal, 8, 3)
+    num_proposal = end_points["proposal_crop_bboxes"].shape[0]
     pred_sem_cls = end_points['proposal_crop_bbox'].cpu().numpy()[:, 7] - 2
     pred_sem_cls[pred_sem_cls < 0] = 17
 

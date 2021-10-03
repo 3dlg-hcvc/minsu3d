@@ -51,6 +51,7 @@ def init_model(cfg):
     model = PointGroup(cfg)
 
     # checkpoint_name = "model.ckpt"
+    # checkpoint_name = "/project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar"
     checkpoint_name = "last.ckpt"
     checkpoint_path = os.path.join(cfg.general.root, checkpoint_name)
     # model.load_from_checkpoint(checkpoint_path, cfg)
@@ -81,20 +82,20 @@ def eval_detection(cfg, dataloader, model):
     AP_CALCULATOR_LIST = [APCalculator(iou_thresh, DC.class2type) for iou_thresh in AP_IOU_THRESHOLDS]
 
     with torch.no_grad():
-        for batch in tqdm(dataloader):
-            for key in batch.keys():
-                batch[key] = batch[key].cuda()
+        for data_dict in tqdm(dataloader):
+            for key in data_dict.keys():
+                data_dict[key] = data_dict[key].cuda()
 
             torch.cuda.empty_cache()
 
             ##### prepare input and forward
-            ret = model._feed(batch, 1)
-            _, loss_input = model._parse_feed_ret(batch, ret)
-            meter_dict = model._loss(loss_input, 1)
-            model.get_bbox_iou(loss_input, batch, meter_dict)
+            data_dict = model._feed(data_dict, epoch=1)
+            _, loss_input = model._parse_feed_ret(data_dict)
+            # loss_dict = model._loss(loss_input, epoch=1)
+            model.get_bbox_iou(loss_input, data_dict)
             
-            batch_pred_map_cls = parse_predictions(ret, batch, POST_DICT) 
-            batch_gt_map_cls = parse_groundtruths(batch, POST_DICT) 
+            batch_pred_map_cls = parse_predictions(data_dict, POST_DICT) 
+            batch_gt_map_cls = parse_groundtruths(data_dict, POST_DICT) 
             for ap_calculator in AP_CALCULATOR_LIST:
                 ap_calculator.step(batch_pred_map_cls, batch_gt_map_cls)
             
