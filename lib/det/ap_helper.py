@@ -16,7 +16,7 @@ from lib.det.box_util import get_3d_box
 from data.scannet.model_util_scannet import ScannetDatasetConfig, extract_pc_in_box3d
 
 # constants
-DC = ScannetDatasetConfig()
+# DC = ScannetDatasetConfig()
 
 def softmax(x):
     ''' Numpy function for softmax'''
@@ -25,17 +25,7 @@ def softmax(x):
     probs /= np.sum(probs, axis=len(shape)-1, keepdims=True)
     return probs
 
-def parse_predictions(data_dict, config_dict={
-        "remove_empty_box": True, 
-        "use_3d_nms": True, 
-        "nms_iou": 0.25,
-        "use_old_type_nms": False, 
-        "cls_nms": True, 
-        "per_class_proposal": True,
-        "conf_thresh": 0.05,
-        "dataset_config": DC
-    }):
-
+def parse_predictions(data_dict, config_dict):
     """ Parse predictions to AABB parameters and suppress overlapping boxes
     
     Args:
@@ -65,13 +55,13 @@ def parse_predictions(data_dict, config_dict={
             where j = 0, ..., num of valid detections - 1 from sample input i
     """
     
-    pred_bboxes = data_dict["bbox_corners"].detach().cpu().numpy() # B, num_proposal, 8, 3
-    pred_sem_cls = torch.argmax(data_dict['sem_cls_scores'], -1).detach().cpu().numpy() # B,num_proposal
-    sem_cls_probs = softmax(data_dict['sem_cls_scores'].detach().cpu().numpy()) # B,num_proposal,10
+    pred_bboxes = data_dict["proposal_bbox_batched"].detach().cpu().numpy() # B, num_proposal, 8, 3
+    pred_sem_cls = data_dict['proposal_sem_cls_batched'].detach().cpu().numpy() - 2 # B,num_proposal
+    pred_sem_cls[pred_sem_cls < 0] = 17
+    # sem_cls_probs = softmax(data_dict['sem_cls_scores'].detach().cpu().numpy()) # B,num_proposal,10
 
     bsize, num_proposal, _,  _ = pred_bboxes.shape
-
-    nonempty_box_mask = np.ones((bsize, num_proposal))
+    nonempty_box_mask = data_dict["proposal_batch_mask"].detach().cpu().numpy()
 
     if config_dict['remove_empty_box']:
         # -------------------------------------
@@ -86,11 +76,13 @@ def parse_predictions(data_dict, config_dict={
                     nonempty_box_mask[i, j] = 0
         # -------------------------------------
 
-    obj_logits = data_dict['objectness_scores'].detach().cpu().numpy()
-    obj_prob = softmax(obj_logits)[:, :, 1] # (B,K)
+    # obj_logits = data_dict['objectness_scores'].detach().cpu().numpy()
+    # obj_prob = softmax(obj_logits)[:, :, 1] # (B,K)
+    obj_prob = data_dict['proposal_scores_batched'].detach().cpu().numpy()
+    pred_mask = np.zeros((bsize, num_proposal))
+    
     if not config_dict['use_3d_nms']:
         # ---------- NMS input: pred_with_prob in (B,K,7) -----------
-        pred_mask = np.zeros((bsize, num_proposal))
         for i in range(bsize):
             boxes_2d_with_prob = np.zeros((num_proposal, 5))
             for j in range(num_proposal):
@@ -108,7 +100,6 @@ def parse_predictions(data_dict, config_dict={
         # ---------- NMS output: pred_mask in (B,K) -----------
     elif config_dict['use_3d_nms'] and (not config_dict['cls_nms']):
         # ---------- NMS input: pred_with_prob in (B,K,7) -----------
-        pred_mask = np.zeros((bsize, num_proposal))
         for i in range(bsize):
             boxes_3d_with_prob = np.zeros((num_proposal, 7))
             for j in range(num_proposal):
@@ -128,7 +119,6 @@ def parse_predictions(data_dict, config_dict={
         # ---------- NMS output: pred_mask in (B,K) -----------
     elif config_dict['use_3d_nms'] and config_dict['cls_nms']:
         # ---------- NMS input: pred_with_prob in (B,K,8) -----------
-        pred_mask = np.zeros((bsize, num_proposal))
         for i in range(bsize):
             boxes_3d_with_prob = np.zeros((num_proposal,8))
             for j in range(num_proposal):
@@ -153,8 +143,8 @@ def parse_predictions(data_dict, config_dict={
         if config_dict['per_class_proposal']:
             cur_list = []
             for ii in range(config_dict['dataset_config'].num_class):
-                cur_list += [(ii, pred_bboxes[i,j], sem_cls_probs[i,j,ii]*obj_prob[i,j]) \
-                    for j in range(num_proposal) if pred_mask[i,j]==1 and obj_prob[i,j]>config_dict['conf_thresh']]
+                cur_list += [(ii, pred_bboxes[i,j], obj_prob[i,j]) \
+                    for j in range(num_proposal) if pred_mask[i,j]==1 and pred_sem_cls[i,j]==ii and obj_prob[i,j]>config_dict['conf_thresh']]
             batch_pred_map_cls.append(cur_list)
         else:
             batch_pred_map_cls.append([(pred_sem_cls[i,j], pred_bboxes[i,j], obj_prob[i,j]) \
@@ -163,7 +153,7 @@ def parse_predictions(data_dict, config_dict={
 
     return batch_pred_map_cls
 
-def parse_groundtruths(data_dict):
+def parse_groundtruths(data_dict, config_dict):
 
     """ Parse groundtruth labels to OBB parameters.
     
@@ -193,9 +183,9 @@ def parse_groundtruths(data_dict):
             where j = 0, ..., num of objects - 1 at sample input i
     """
     
-    bbox_corner_labels = data_dict['bbox_corner_labels'].detach().cpu().numpy()
-    box_mask_labels = data_dict['box_mask_labels'].detach().cpu().numpy()
-    sem_cls_labels = data_dict['sem_cls_labels'].detach().cpu().numpy()
+    bbox_corner_labels = data_dict['gt_bbox'].detach().cpu().numpy()
+    box_mask_labels = data_dict['gt_bbox_label'].detach().cpu().numpy()
+    sem_cls_labels = data_dict['sem_cls_label'].detach().cpu().numpy()
     bsize = bbox_corner_labels.shape[0]
     max_num_obj = bbox_corner_labels.shape[1] # K2==MAX_NUM_OBJ
 

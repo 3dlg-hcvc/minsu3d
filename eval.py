@@ -14,7 +14,11 @@ from tqdm import tqdm
 
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 
-from lib.utils.eval import APCalculator, parse_predictions, parse_groundtruths
+# Stack-based detection evaluation
+# from lib.utils.eval import APCalculator, parse_predictions, parse_groundtruths
+# Batch-based detection evaluation
+from lib.det.ap_helper import APCalculator, parse_predictions, parse_groundtruths
+
 
 def load_conf(args):
     base_cfg = OmegaConf.load("conf/path.yaml")
@@ -84,9 +88,9 @@ def eval_detection(cfg, dataloader, model):
     with torch.no_grad():
         for data_dict in tqdm(dataloader):
             for key in data_dict.keys():
-                if isinstance(data_dict[key][0], tuple): continue
-                if isinstance(data_dict[key][0], dict): continue
-                if isinstance(data_dict[key][0], list): continue
+                if isinstance(data_dict[key], tuple): continue
+                if isinstance(data_dict[key], dict): continue
+                if isinstance(data_dict[key], list): continue
 
                 data_dict[key] = data_dict[key].cuda()
 
@@ -94,9 +98,9 @@ def eval_detection(cfg, dataloader, model):
 
             ##### prepare input and forward
             data_dict = model._feed(data_dict, epoch=1)
-            _, loss_input = model._parse_feed_ret(data_dict)
-            # loss_dict = model._loss(loss_input, epoch=1)
-            model.get_bbox_iou(loss_input, data_dict)
+            data_dict = model.convert_stack_to_batch(data_dict)
+            # _, loss_input = model._parse_feed_ret(data_dict)
+            # model.get_bbox_iou(loss_input, data_dict)
             
             batch_pred_map_cls = parse_predictions(data_dict, POST_DICT) 
             batch_gt_map_cls = parse_groundtruths(data_dict, POST_DICT) 

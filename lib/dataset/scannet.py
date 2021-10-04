@@ -290,7 +290,7 @@ def scannet_loader(cfg):
                 data[key] = torch.stack([sample[key] for sample in batch],
                                             axis=0)
             elif isinstance(batch[0][key], dict):
-                data[key] = sparse_collate_fn(
+                data[key] = sparse_collate(
                     [sample[key] for sample in batch])
             else:
                 data[key] = [sample[key] for sample in batch]
