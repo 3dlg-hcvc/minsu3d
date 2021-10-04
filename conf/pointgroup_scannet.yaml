@@ -30,6 +30,7 @@ data:
   num_workers: 16
   full_scale: [128, 512]
   max_num_point: 250000
+  max_num_instance: 128
   mode: 4 # 4=mean
 
   transform:
