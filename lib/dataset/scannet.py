@@ -387,7 +387,7 @@ def scannet_loader(cfg):
                     batch_size=cfg.data.batch_size,
                     shuffle=True if split == "train" else False,
                     pin_memory=True,
-                    collate_fn=scannet_collate_fn) 
+                    collate_fn=sparse_collate_fn) 
         for split in splits
     }
 
