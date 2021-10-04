@@ -224,7 +224,7 @@ class PointGroup(pl.LightningModule):
         data_dict["size_scores"] = size_scores
         data_dict["size_residuals_normalized"] = size_residuals_normalized
         data_dict["size_residuals"] = size_residuals_normalized * torch.from_numpy(self.DC.mean_size_arr.astype(np.float32)).cuda().unsqueeze(0)
-        dadata_dictta["sem_cls_scores"] = sem_cls_scores
+        data_dict["sem_cls_scores"] = sem_cls_scores
 
         return data_dict
     
@@ -518,8 +518,6 @@ class PointGroup(pl.LightningModule):
         
         
     def _feed(self, data_dict, epoch=0):
-        for key in data_dict:
-            data_dict[key] = data_dict[key].cuda()
         data_dict["epoch"] = epoch
 
         if self.cfg.model.use_coords:

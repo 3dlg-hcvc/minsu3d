@@ -112,9 +112,10 @@ class ScanNet(Dataset):
         
         if self.requires_bbox:
             assert sem_labels is not None, "sem_labels are not provided"
-            max_num_instance = num_instance if num_instance < self.cfg.data.max_num_instance else self.cfg.data.max_num_instance
+            max_num_instance = self.cfg.data.max_num_instance # NOTE this should always be the same number
             instance_bboxes = np.zeros((max_num_instance, 6))
             instance_bboxes_semcls = np.zeros((max_num_instance))
+            instance_bbox_ids = np.zeros((max_num_instance))
             angle_classes = np.zeros((max_num_instance,))
             angle_residuals = np.zeros((max_num_instance,))
             size_classes = np.zeros((max_num_instance,))
@@ -149,12 +150,13 @@ class ScanNet(Dataset):
                 sem_cls = sem_labels[inst_i_idx][0]
                 sem_cls = sem_cls - 2 if sem_cls >=  2 else 17
                 instance_bboxes_semcls[k] = sem_cls
+                instance_bbox_ids[k] = i_
                 size_classes[k] = sem_cls
                 size_residuals[k, :] = instance_bboxes[k, 3:] - self.DC.mean_size_arr[int(sem_cls),:]
                 bbox_label[k] = 1
                 
         if self.requires_bbox:
-            return num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, angle_classes, angle_residuals, size_classes, size_residuals, bbox_label
+            return num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, instance_bbox_ids, angle_classes, angle_residuals, size_classes, size_residuals, bbox_label
         else:
             return num_instance, instance_info, instance_num_point
 
@@ -186,7 +188,8 @@ class ScanNet(Dataset):
         feats = data[:, 3:]
         points = mesh[:, :3]
 
-        data = {"id": id, "scene_id": scene_id}
+        # data = {"id": id, "scene_id": scene_id}
+        data = {"id": id}
         # data["id"] = np.array(id).astype(np.int32)
         # data["scene_id"] = np.array(int(scene_id.lstrip("scene").replace("_", ""))).astype(np.int32)
 
@@ -225,8 +228,9 @@ class ScanNet(Dataset):
                 # instance_ids = instance_ids[valid_idxs]
                 instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
 
+            
             if self.requires_bbox:
-                num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, angle_classes, angle_residuals, size_classes, size_residuals, bbox_label = self._getInstanceInfo(points_augment, instance_ids, sem_labels)
+                num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, instance_bbox_ids, angle_classes, angle_residuals, size_classes, size_residuals, bbox_label = self._getInstanceInfo(points_augment, instance_ids, sem_labels)
             else:
                 num_instance, instance_info, instance_num_point = self._getInstanceInfo(points_augment, instance_ids.astype(np.int32))
 
@@ -245,6 +249,7 @@ class ScanNet(Dataset):
                 data["heading_residual_label"] = angle_residuals.astype(np.float32) # (num_instance,)
                 data["size_class_label"] = size_classes.astype(np.int64) # (num_instance,) with int values in 0,...,NUM_SIZE_CLUSTER
                 data["size_residual_label"] = size_residuals.astype(np.float32) # (num_instance, 3)
+                data["gt_bbox_object_id"] = instance_bbox_ids.astype(np.int64)
                 data["gt_bbox_label"] = bbox_label.astype(np.int64)
                 data["gt_bbox"] = get_3d_box_batch(instance_bboxes[:, 0:3], instance_bboxes[:, 3:6], angle_classes).astype(np.float32) # (num_instance, 8, 3)
         else:
@@ -263,117 +268,115 @@ class ScanNet(Dataset):
             data["feats"] = feats.astype(np.float32)  # (N, 3)
 
         return data
-
-
-def scannet_collate_fn(batch):
-    batch_size = batch.__len__()
-    data = {}
-    for key in batch[0].keys():
-        if key in ['locs', 'locs_scaled', 'feats', 'sem_labels', 'instance_ids', 'num_instance', 'instance_info', 'instance_num_point']:
-            continue
-        if isinstance(batch[0][key], tuple):
-            coords, feats = list(zip(*[sample[key] for sample in batch]))
-            coords_b = batched_coordinates(coords)
-            feats_b = torch.from_numpy(np.concatenate(feats, 0)).float()
-            data[key] = (coords_b, feats_b)
-        elif isinstance(batch[0][key], np.ndarray):
-            data[key] = torch.stack(
-                [torch.from_numpy(sample[key]) for sample in batch],
-                axis=0)
-        elif isinstance(batch[0][key], torch.Tensor):
-            data[key] = torch.stack([sample[key] for sample in batch],
-                                        axis=0)
-        elif isinstance(batch[0][key], dict):
-            data[key] = sparse_collate_fn(
-                [sample[key] for sample in batch])
-        else:
-            data[key] = [sample[key] for sample in batch]
-    return data
-
-
-def sparse_collate_fn(batch):
-    data = scannet_collate_fn(batch)
-
-    locs = []
-    locs_scaled = []
-    feats = []
-    sem_labels = []
-    instance_ids = []
-    instance_info = []  # (N, 12)
-    instance_num_point = []  # (total_nInst), int
-    batch_offsets = [0]
-    instance_offsets = [0]
-    total_num_inst = 0
-    
-    # if cfg.data.requires_bbox:
-    #     center_label = []
-    #     sem_cls_label = []
-    #     heading_class_label = []
-    #     heading_residual_label = []
-    #     size_class_label = []
-    #     size_residual_label = []
-    #     gt_bbox = []
-
-    for i, b in enumerate(batch):
-        locs.append(torch.from_numpy(b["locs"]))
-        locs_scaled.append(
-            torch.cat([
-                torch.LongTensor(b["locs_scaled"].shape[0], 1).fill_(i),
-                torch.from_numpy(b["locs_scaled"]).long()
-            ], 1))
-        
-        feats.append(torch.from_numpy(b["feats"]))
-        batch_offsets.append(batch_offsets[-1] + b["locs_scaled"].shape[0])
-        
-        if cfg.general.task != "test":
-            instance_ids_i = b["instance_ids"]
-            instance_ids_i[np.where(instance_ids_i != -1)] += total_num_inst
-            total_num_inst += b["num_instance"].item()
-            instance_ids.append(torch.from_numpy(instance_ids_i))
-            
-            sem_labels.append(torch.from_numpy(b["sem_labels"]))
-
-            instance_info.append(torch.from_numpy(b["instance_info"]))
-            instance_num_point.append(torch.from_numpy(b["instance_num_point"]))
-            instance_offsets.append(instance_offsets[-1] + b["num_instance"].item())
-            
-            # if cfg.data.requires_bbox:
-            #     center_label.append(torch.from_numpy(b["center_label"]))
-            #     sem_cls_label.append(torch.from_numpy(b["sem_cls_label"]))
-            #     heading_class_label.append(torch.from_numpy(b["heading_class_label"]))
-            #     heading_residual_label.append(torch.from_numpy(b["heading_residual_label"]))
-            #     size_class_label.append(torch.from_numpy(b["size_class_label"]))
-            #     size_residual_label.append(torch.from_numpy(b["size_residual_label"]))
-            #     gt_bbox.append(torch.from_numpy(b["gt_bbox"]))
-
-    data["locs"] = torch.cat(locs, 0).to(torch.float32)  # float (N, 3)
-    data["locs_scaled"] = torch.cat(locs_scaled, 0)  # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
-    data["feats"] = torch.cat(feats, 0)  #.to(torch.float32)            # float (N, C)
-    data["batch_offsets"] = torch.tensor(batch_offsets, dtype=torch.int)  # int (B+1)
-    
-    if cfg.general.task != "test":
-        data["sem_labels"] = torch.cat(sem_labels, 0).long()  # long (N,)
-        data["instance_ids"] = torch.cat(instance_ids, 0).long()  # long, (N,)
-        data["instance_info"] = torch.cat(instance_info, 0).to(torch.float32)  # float (total_nInst, 12)
-        data["instance_num_point"] = torch.cat(instance_num_point, 0).int()  # (total_nInst)
-        data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (B+1)
-        
-        # if cfg.data.requires_bbox:
-        #     data["center_label"] = torch.cat(center_label, 0).to(torch.float32)
-        #     data["sem_cls_label"] = torch.cat(sem_cls_label, 0).long()
-        #     data["heading_class_label"] = torch.cat(heading_class_label, 0).long()
-        #     data["heading_residual_label"] = torch.cat(heading_residual_label, 0).to(torch.float32)
-        #     data["size_class_label"] = torch.cat(size_class_label, 0).long()
-        #     data["size_residual_label"] = torch.cat(size_residual_label, 0).to(torch.float32)
-        #     data["gt_bbox"] = torch.cat(gt_bbox, 0).to(torch.float32)
-
-    ### voxelize
-    data["voxel_locs"], data["p2v_map"], data["v2p_map"] = pointgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), 4) # mode=4
-
-    return data
     
 
 def scannet_loader(cfg):
+    def scannet_collate_fn(batch):
+        batch_size = batch.__len__()
+        data = {}
+        for key in batch[0].keys():
+            if key in ['locs', 'locs_scaled', 'feats', 'sem_labels', 'instance_ids', 'num_instance', 'instance_info', 'instance_num_point']:
+                continue
+            if isinstance(batch[0][key], tuple):
+                coords, feats = list(zip(*[sample[key] for sample in batch]))
+                coords_b = batched_coordinates(coords)
+                feats_b = torch.from_numpy(np.concatenate(feats, 0)).float()
+                data[key] = (coords_b, feats_b)
+            elif isinstance(batch[0][key], np.ndarray):
+                data[key] = torch.stack(
+                    [torch.from_numpy(sample[key]) for sample in batch],
+                    axis=0)
+            elif isinstance(batch[0][key], torch.Tensor):
+                data[key] = torch.stack([sample[key] for sample in batch],
+                                            axis=0)
+            elif isinstance(batch[0][key], dict):
+                data[key] = sparse_collate_fn(
+                    [sample[key] for sample in batch])
+            else:
+                data[key] = [sample[key] for sample in batch]
+        return data
+
+    def sparse_collate_fn(batch):
+        data = scannet_collate_fn(batch)
+
+        locs = []
+        locs_scaled = []
+        feats = []
+        sem_labels = []
+        instance_ids = []
+        instance_info = []  # (N, 12)
+        instance_num_point = []  # (total_nInst), int
+        batch_offsets = [0]
+        instance_offsets = [0]
+        total_num_inst = 0
+        
+        # if cfg.data.requires_bbox:
+        #     center_label = []
+        #     sem_cls_label = []
+        #     heading_class_label = []
+        #     heading_residual_label = []
+        #     size_class_label = []
+        #     size_residual_label = []
+        #     gt_bbox = []
+
+        for i, b in enumerate(batch):
+            locs.append(torch.from_numpy(b["locs"]))
+            locs_scaled.append(
+                torch.cat([
+                    torch.LongTensor(b["locs_scaled"].shape[0], 1).fill_(i),
+                    torch.from_numpy(b["locs_scaled"]).long()
+                ], 1))
+            
+            feats.append(torch.from_numpy(b["feats"]))
+            batch_offsets.append(batch_offsets[-1] + b["locs_scaled"].shape[0])
+            
+            if cfg.general.task != "test":
+                instance_ids_i = b["instance_ids"]
+                instance_ids_i[np.where(instance_ids_i != -1)] += total_num_inst
+                total_num_inst += b["num_instance"].item()
+                instance_ids.append(torch.from_numpy(instance_ids_i))
+                
+                sem_labels.append(torch.from_numpy(b["sem_labels"]))
+
+                instance_info.append(torch.from_numpy(b["instance_info"]))
+                instance_num_point.append(torch.from_numpy(b["instance_num_point"]))
+                instance_offsets.append(instance_offsets[-1] + b["num_instance"].item())
+                
+                # if cfg.data.requires_bbox:
+                #     center_label.append(torch.from_numpy(b["center_label"]))
+                #     sem_cls_label.append(torch.from_numpy(b["sem_cls_label"]))
+                #     heading_class_label.append(torch.from_numpy(b["heading_class_label"]))
+                #     heading_residual_label.append(torch.from_numpy(b["heading_residual_label"]))
+                #     size_class_label.append(torch.from_numpy(b["size_class_label"]))
+                #     size_residual_label.append(torch.from_numpy(b["size_residual_label"]))
+                #     gt_bbox.append(torch.from_numpy(b["gt_bbox"]))
+
+        data["locs"] = torch.cat(locs, 0).to(torch.float32)  # float (N, 3)
+        data["locs_scaled"] = torch.cat(locs_scaled, 0)  # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
+        data["feats"] = torch.cat(feats, 0)  #.to(torch.float32)            # float (N, C)
+        data["batch_offsets"] = torch.tensor(batch_offsets, dtype=torch.int)  # int (B+1)
+        
+        if cfg.general.task != "test":
+            data["sem_labels"] = torch.cat(sem_labels, 0).long()  # long (N,)
+            data["instance_ids"] = torch.cat(instance_ids, 0).long()  # long, (N,)
+            data["instance_info"] = torch.cat(instance_info, 0).to(torch.float32)  # float (total_nInst, 12)
+            data["instance_num_point"] = torch.cat(instance_num_point, 0).int()  # (total_nInst)
+            data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (B+1)
+            
+            # if cfg.data.requires_bbox:
+            #     data["center_label"] = torch.cat(center_label, 0).to(torch.float32)
+            #     data["sem_cls_label"] = torch.cat(sem_cls_label, 0).long()
+            #     data["heading_class_label"] = torch.cat(heading_class_label, 0).long()
+            #     data["heading_residual_label"] = torch.cat(heading_residual_label, 0).to(torch.float32)
+            #     data["size_class_label"] = torch.cat(size_class_label, 0).long()
+            #     data["size_residual_label"] = torch.cat(size_residual_label, 0).to(torch.float32)
+            #     data["gt_bbox"] = torch.cat(gt_bbox, 0).to(torch.float32)
+
+        ### voxelize
+        data["voxel_locs"], data["p2v_map"], data["v2p_map"] = pointgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), 4) # mode=4
+
+        return data
+
     if cfg.general.task == "train":
         splits = ["train", "val"]
     else:

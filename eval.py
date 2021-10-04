@@ -84,6 +84,10 @@ def eval_detection(cfg, dataloader, model):
     with torch.no_grad():
         for data_dict in tqdm(dataloader):
             for key in data_dict.keys():
+                if isinstance(data_dict[key][0], tuple): continue
+                if isinstance(data_dict[key][0], dict): continue
+                if isinstance(data_dict[key][0], list): continue
+
                 data_dict[key] = data_dict[key].cuda()
 
             torch.cuda.empty_cache()
