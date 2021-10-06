@@ -188,8 +188,8 @@ class ScanNet(Dataset):
         feats = data[:, 3:]
         points = mesh[:, :3]
 
-        # data = {"id": id, "scene_id": scene_id}
-        data = {"id": id}
+        data = {"id": id, "scene_id": scene_id}
+        # data = {"id": id}
         # data["id"] = np.array(id).astype(np.int32)
         # data["scene_id"] = np.array(int(scene_id.lstrip("scene").replace("_", ""))).astype(np.int32)
 
@@ -227,7 +227,6 @@ class ScanNet(Dataset):
                 sem_labels = sem_labels[valid_idxs]
                 # instance_ids = instance_ids[valid_idxs]
                 instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
-
             
             if self.requires_bbox:
                 num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, instance_bbox_ids, angle_classes, angle_residuals, size_classes, size_residuals, bbox_label = self._getInstanceInfo(points_augment, instance_ids, sem_labels)
