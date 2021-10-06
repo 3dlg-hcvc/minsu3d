@@ -3,14 +3,13 @@ warnings.filterwarnings("ignore")
 
 
 import os
-import torch
 import argparse
-
-import pytorch_lightning as pl
-
 from omegaconf import OmegaConf
 from importlib import import_module
 from tqdm import tqdm
+
+import torch
+# import pytorch_lightning as pl
 
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 
@@ -91,13 +90,12 @@ def eval_detection(cfg, dataloader, model):
                 if isinstance(data_dict[key], tuple): continue
                 if isinstance(data_dict[key], dict): continue
                 if isinstance(data_dict[key], list): continue
-
                 data_dict[key] = data_dict[key].cuda()
 
             torch.cuda.empty_cache()
 
             ##### prepare input and forward
-            data_dict = model._feed(data_dict, epoch=1)
+            data_dict = model._feed(data_dict)
             data_dict = model.convert_stack_to_batch(data_dict)
             # _, loss_input = model._parse_feed_ret(data_dict)
             # model.get_bbox_iou(loss_input, data_dict)
