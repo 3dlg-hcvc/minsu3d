@@ -183,7 +183,7 @@ def parse_predictions(end_points, config_dict):
             where j = 0, ..., num of valid detections - 1 from sample input i
     """
     DC = config_dict['dataset_config']
-    bsize = len(end_points["batch_offsets"]) - 1
+    batch_size = len(end_points["batch_offsets"]) - 1
         
     bbox_corners = end_points["proposal_crop_bboxes"] # (nProposal, 8, 3)
     num_proposal = end_points["proposal_crop_bboxes"].shape[0]
@@ -197,7 +197,7 @@ def parse_predictions(end_points, config_dict):
         # -------------------------------------
         # Remove predicted boxes without any point within them..
         batch_pc = end_points['point_clouds'].cpu().numpy()[:,:,0:3] # B,N,3
-        for i in range(bsize):
+        for i in range(batch_size):
             pc = batch_pc[i,:,:] # (N,3)
             for j in range(K):
                 box3d = bbox_corners[i,j,:,:] # (8,3)
@@ -212,7 +212,7 @@ def parse_predictions(end_points, config_dict):
     batch_pred_map_cls = [] # a list (len: batch_size) of list (len: num of predictions per sample) of tuples of pred_cls, pred_box and conf (0-1)
     obj_prob = torch.sigmoid(end_points['proposal_scores'][0].view(-1))[thres_mask].detach().cpu().numpy()
     
-    for b in range(bsize):
+    for b in range(batch_size):
         proposal_batch_idx = torch.nonzero(proposals_batchId == b).view(-1).detach().cpu().numpy()
         num_proposal_batch = len(proposal_batch_idx)
         bbox_corners_batch = bbox_corners[proposal_batch_idx]
@@ -306,14 +306,14 @@ def parse_groundtruths(end_points, config_dict):
     sem_cls_label = end_points['sem_cls_label']
     
     num_proposal = center_label.shape[0] 
-    bsize = len(end_points["batch_offsets"]) - 1
+    batch_size = len(end_points["batch_offsets"]) - 1
     proposal_offsets = end_points['instance_offsets'].detach().cpu().numpy()
     batch_gt_map_cls = []
 
     gt_corners_3d_upright_camera = np.zeros((num_proposal, 8, 3))
     gt_center_upright_camera = center_label[:,0:3].detach().cpu().numpy()
     
-    for b in range(bsize):
+    for b in range(batch_size):
         start, end = proposal_offsets[b], proposal_offsets[b+1]
         num_proposal_batch = end - start
         gt_center_upright_camera_batch = gt_center_upright_camera[start:end,:]
@@ -352,9 +352,9 @@ class APCalculator(object):
                 should have the same length with batch_pred_map_cls (batch_size)
         """
         
-        bsize = len(batch_pred_map_cls)
-        assert(bsize == len(batch_gt_map_cls))
-        for i in range(bsize):
+        batch_size = len(batch_pred_map_cls)
+        assert(batch_size == len(batch_gt_map_cls))
+        for i in range(batch_size):
             self.gt_map_cls[self.scan_cnt] = batch_gt_map_cls[i] 
             self.pred_map_cls[self.scan_cnt] = batch_pred_map_cls[i] 
             self.scan_cnt += 1
