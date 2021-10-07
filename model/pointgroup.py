@@ -16,6 +16,7 @@ from importlib import import_module
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.eval import get_nms_instances
+from lib.utils.nms import nms_2d_faster, nms_3d_faster, nms_3d_faster_samecls
 from lib.utils.bbox import get_3d_box_batch, get_aabb3d_iou_batch, get_3d_box
 
 from model.common import ResidualBlock, VGGBlock, UBlock
@@ -348,7 +349,7 @@ class PointGroup(pl.LightningModule):
             data_dict["proposal_objectness_scores"] = torch.sigmoid(scores.view(-1))[thres_mask]
             
             if self.cfg.model.crop_bbox:
-                proposal_crop_bboxes = torch.zeros(num_proposals, 9).cuda() # (nProposals, center+size+heading+label)
+                proposal_crop_bboxes = torch.zeros(num_proposals, 9).cuda() # (nProposals, center+size+heading+label+score)
                 proposal_crop_bboxes[:, :3] = proposals_center
                 proposal_crop_bboxes[:, 3:6] = proposals_size
                 proposal_crop_bboxes[:, 7] = semantic_preds[proposals_idx[proposals_offset[:-1].long(), 1].long()]
@@ -531,26 +532,26 @@ class PointGroup(pl.LightningModule):
 
 
     def _parse_feed_ret(self, data_dict):
-        semantic_scores = data_dict["semantic_scores"] # (N, nClass) float32, cuda
-        pt_offsets = data_dict["pt_offsets"]           # (N, 3), float32, cuda
+        # semantic_scores = data_dict["semantic_scores"] # (N, nClass) float32, cuda
+        # pt_offsets = data_dict["pt_offsets"]           # (N, 3), float32, cuda
         
-        preds = {}
+        # preds = {}
         loss_input = {}
         
-        preds["semantic"] = semantic_scores
-        preds["pt_offsets"] = pt_offsets
+        # preds["semantic"] = semantic_scores
+        # preds["pt_offsets"] = pt_offsets
         if self.task != "test":
             loss_input["semantic_scores"] = (semantic_scores, data_dict["sem_labels"])
             loss_input["pt_offsets"] = (pt_offsets, data_dict["locs"], data_dict["instance_info"], data_dict["instance_ids"])
         
         if self.current_epoch > self.cfg.cluster.prepare_epochs:
             scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
-            preds["score"] = scores
-            preds["proposals"] = (proposals_idx, proposals_offset)
-            preds["proposals_npoint"] = data_dict["proposals_npoint"]
-            preds["proposal_thres_mask"] = data_dict["proposal_thres_mask"]
-            if self.cfg.model.crop_bbox:
-                preds["proposal_crop_bboxes"] = data_dict["proposal_crop_bboxes"]
+            # preds["score"] = scores
+            # preds["proposals"] = (proposals_idx, proposals_offset)
+            # preds["proposals_npoint"] = data_dict["proposals_npoint"]
+            # preds["proposal_thres_mask"] = data_dict["proposal_thres_mask"]
+            # if self.cfg.model.crop_bbox:
+            #     preds["proposal_crop_bboxes"] = data_dict["proposal_crop_bboxes"] # (nProposals, center+size+heading+label+score)
             
             if self.task != "test":
                 loss_input["proposal_scores"] = (scores, proposals_idx, proposals_offset, data_dict["instance_num_point"])
@@ -564,7 +565,8 @@ class PointGroup(pl.LightningModule):
                 if self.cfg.model.pred_bbox:
                     loss_input["proposal_pred_bboxes"] = (data_dict["center"], data_dict["heading_scores"], data_dict["heading_residuals_normalized"], data_dict["heading_residuals"], data_dict["size_scores"], data_dict["size_residuals_normalized"], data_dict["size_residuals"], data_dict["sem_cls_scores"])
         
-        return preds, loss_input
+        # return preds, loss_input
+        return loss_input
         
 
     def get_bbox_iou(self, loss_input, data_dict):
@@ -574,18 +576,7 @@ class PointGroup(pl.LightningModule):
         proposals_batchId = loss_input["proposals_batchId"]
         
         # parse gt_bbox
-        center_label = data_dict["center_label"].detach().cpu().numpy()
-        heading_class_label = data_dict["heading_class_label"].detach().cpu().numpy()
-        heading_residual_label = data_dict["heading_residual_label"].detach().cpu().numpy()
-        size_class_label = data_dict["size_class_label"].detach().cpu().numpy()
-        size_residual_label = data_dict["size_residual_label"].detach().cpu().numpy()
-        num_instance = center_label.shape[0]
-        gt_bboxes = np.zeros((num_instance, 8, 3))
-        for j in range(num_instance):
-            heading_angle = self.DC.class2angle(heading_class_label[j], heading_residual_label[j])
-            box_size = self.DC.class2size(int(size_class_label[j]), size_residual_label[j])
-            gt_bboxes[j] = get_3d_box(center_label[j,:], box_size, heading_angle)
-        data_dict["gt_bboxes"] = gt_bboxes
+        gt_bboxes = data_dict["gt_bbox"]
         
         if self.cfg.model.crop_bbox:
             # parse crop_bbox
@@ -645,7 +636,7 @@ class PointGroup(pl.LightningModule):
 
         ##### prepare input and forward
         data_dict = self._feed(data_dict)
-        _, loss_input = self._parse_feed_ret(data_dict)
+        loss_input = self._parse_feed_ret(data_dict)
         loss_dict = self._loss(loss_input)
         loss = loss_dict["total_loss"][0]
 
@@ -662,7 +653,7 @@ class PointGroup(pl.LightningModule):
 
         ##### prepare input and forward
         data_dict = self._feed(data_dict)
-        _, loss_input = self._parse_feed_ret(data_dict)
+        loss_input = self._parse_feed_ret(data_dict)
         loss_dict = self._loss(loss_input)
 
         in_prog_bar = ["total_loss"]
@@ -673,8 +664,15 @@ class PointGroup(pl.LightningModule):
 
     #### inference only works with batch_size = 1 for now
     def inference(self, dataloader, split="val"):
-        # from data.scannet.model_util_scannet import NYU20_CLASS_IDX
-        # NYU20_CLASS_IDX = NYU20_CLASS_IDX[1:] # for scannet
+        POST_DICT = {
+            "remove_empty_box": False, 
+            "use_3d_nms": True, 
+            "nms_iou": 0.25,
+            "use_old_type_nms": False, 
+            "cls_nms": True, 
+            "per_class_proposal": True,
+            "conf_thresh": 0.09,
+        }
         self.eval()
         
         print(">>>>>>>>>>>>>>>> Start Inference >>>>>>>>>>>>>>>>")
@@ -687,15 +685,15 @@ class PointGroup(pl.LightningModule):
                     if isinstance(data_dict[key], list): continue
                     data_dict[key] = data_dict[key].cuda()
                 
-                N = data_dict["feats"].shape[0]
-                scene_id = data_dict["scene_id"][0] #self.dataset[split].scene_names[i]
+                # N = data_dict["feats"].shape[0]
+                # scene_id = data_dict["scene_id"][0] #self.dataset[split].scene_names[i]
                 
                 data_dict = self._feed(data_dict)
-                preds, _ = self._parse_feed_ret(data_dict)
-                preds["scene_id"] = scene_id
+                # preds, _ = self._parse_feed_ret(data_dict)
+                # preds["scene_id"] = scene_id
                 
                 ##### parse semantic predictions (#1 semantic_pred, pt_offsets; #2 scores, proposals_pred)
-                self.parse_semantic_predictions(preds, save_preds=False)
+                self.parse_semantic_predictions(data_dict, save_preds=True)
                 # semantic_scores = preds["semantic"]  # (N, nClass) float32, cuda, 0: unannotated
                 # semantic_pred_labels = semantic_scores.max(1)[1]  # (N) long, cuda
                 # semantic_class_idx = torch.tensor(NYU20_CLASS_IDX, dtype=torch.int).cuda() # (nClass)
@@ -703,7 +701,9 @@ class PointGroup(pl.LightningModule):
                 
                 ##### parse instance predictions
                 if self.current_epoch > self.cfg.cluster.prepare_epochs:
-                    self.parse_instance_predictions(preds, save_preds=False)
+                    self.parse_instance_predictions(data_dict, save_preds=True)
+                    self.parse_bbox_predictions(data_dict, POST_DICT, save_preds=True)
+                    
                     # proposals_score = torch.sigmoid(preds["score"].view(-1)) # (nProposal,) float, cuda
                     # proposals_idx, proposals_offset = preds["proposals"]
                     # # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
@@ -764,20 +764,20 @@ class PointGroup(pl.LightningModule):
                 #     np.savetxt(os.path.join(inst_pred_path, f"{scene_id}.cluster_ids.txt"), cluster_ids, fmt="%d")
 
 
-    def parse_semantic_predictions(self, end_points, save_preds=True):
+    def parse_semantic_predictions(self, data_dict, save_preds=True):
         from data.scannet.model_util_scannet import NYU20_CLASS_IDX
         NYU20_CLASS_IDX = NYU20_CLASS_IDX[1:] # for scannet
         
         ##### parse semantic predictions (#1 semantic_pred, pt_offsets; #2 scores, proposals_pred)
-        semantic_scores = end_points["semantic"]  # (N, nClass) float32, cuda, 0: unannotated
+        semantic_scores = data_dict["semantic_scores"]  # (N, nClass) float32, cuda, 0: unannotated
         semantic_pred_labels = semantic_scores.max(1)[1]  # (N) long, cuda
         semantic_class_idx = torch.tensor(NYU20_CLASS_IDX, dtype=torch.int).cuda() # (nClass)
         semantic_pred_class_idx = semantic_class_idx[semantic_pred_labels].cpu().numpy()
-        end_points["semantic_pred_class_idx"] = semantic_pred_class_idx
+        data_dict["semantic_pred_class_idx"] = semantic_pred_class_idx
         
         ##### save predictions
         if save_preds:
-            scene_id = end_points["scene_id"]
+            scene_id = data_dict["scene_id"][0]
             pred_path = os.path.join(self.cfg.general.root, self.cfg.data.split)
             sem_pred_path = os.path.join(pred_path, "semantic")
             os.makedirs(sem_pred_path, exist_ok=True)
@@ -785,21 +785,21 @@ class PointGroup(pl.LightningModule):
             np.savetxt(sem_pred_file_path, semantic_pred_class_idx, fmt="%d")
             
             
-    def parse_instance_predictions(self, end_points, save_preds=True):
-        proposals_score = torch.sigmoid(end_points["score"].view(-1)) # (nProposal,) float, cuda
-        proposals_idx, proposals_offset = end_points["proposals"]
+    def parse_instance_predictions(self, data_dict, save_preds=True):
+        scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
+        proposals_score = torch.sigmoid(scores.view(-1)) # (nProposal,) float, cuda
         # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
         # proposals_offset: (nProposal + 1), int, cpu
 
         num_proposals = proposals_offset.shape[0] - 1
-        N = end_points["semantic"].shape[0]
+        N = data_dict["semantic_scores"].shape[0]
         
         proposals_mask = torch.zeros((num_proposals, N), dtype=torch.int).cuda() # (nProposal, N), int, cuda
         proposals_mask[proposals_idx[:, 0].long(), proposals_idx[:, 1].long()] = 1
         
         ##### score threshold & min_npoint mask
-        proposals_npoint = end_points["proposals_npoint"] #proposals_mask.sum(1)
-        proposals_thres_mask = end_points["proposal_thres_mask"] #torch.logical_and(proposals_score > self.cfg.test.TEST_SCORE_THRESH, proposals_npoint > self.cfg.test.TEST_NPOINT_THRESH)
+        proposals_npoint = data_dict["proposals_npoint"] #proposals_mask.sum(1)
+        proposals_thres_mask = data_dict["proposal_thres_mask"] #torch.logical_and(proposals_score > self.cfg.test.TEST_SCORE_THRESH, proposals_npoint > self.cfg.test.TEST_NPOINT_THRESH)
         
         proposals_score = proposals_score[proposals_thres_mask]
         proposals_mask = proposals_mask[proposals_thres_mask]
@@ -821,13 +821,13 @@ class PointGroup(pl.LightningModule):
         nclusters = clusters_mask.shape[0]
         
         if save_preds:
-            assert "semantic_pred_class_idx" in end_points, "make sure you parse semantic predictions at first"
-            scene_id = end_points["scene_id"]
-            semantic_pred_class_idx = end_points["semantic_pred_class_idx"]
+            assert "semantic_pred_class_idx" in data_dict, "make sure you parse semantic predictions at first"
+            scene_id = data_dict["scene_id"][0]
+            semantic_pred_class_idx = data_dict["semantic_pred_class_idx"]
             pred_path = os.path.join(self.cfg.general.root, self.cfg.data.split)
             inst_pred_path = os.path.join(pred_path, "instance")
             inst_pred_masks_path = os.path.join(inst_pred_path, "predicted_masks")
-            os.makedirs(inst_pred_path, exist_ok=True)
+            # os.makedirs(inst_pred_path, exist_ok=True)
             os.makedirs(inst_pred_masks_path, exist_ok=True)
             cluster_ids = np.ones(shape=(N)) * -1 # id starts from 0
             with open(os.path.join(inst_pred_path, f"{scene_id}.txt"), "w") as f:
@@ -840,3 +840,146 @@ class PointGroup(pl.LightningModule):
                     f.write(f"predicted_masks/{scene_id}_{c_id:03d}.txt {cluster_i_class_idx} {score:.4f}\n")
                     np.savetxt(os.path.join(inst_pred_masks_path, f"{scene_id}_{c_id:03d}.txt"), cluster_i, fmt="%d")
             np.savetxt(os.path.join(inst_pred_path, f"{scene_id}.cluster_ids.txt"), cluster_ids, fmt="%d")
+            
+    
+    def parse_bbox_predictions(self, data_dict, config_dict, save_preds=True):
+        """ Parse predictions to OBB parameters and suppress overlapping boxes
+        Args:
+            data_dict: dict
+            config_dict: dict
+                {dataset_config, remove_empty_box, use_3d_nms, nms_iou,
+                use_old_type_nms, conf_thresh, per_class_proposal}
+        """
+        batch_size = len(data_dict["batch_offsets"]) - 1
+        
+        num_proposal = data_dict["proposal_crop_bboxes"].shape[0]
+        pred_bboxes = data_dict["proposal_crop_bboxes"].detach().cpu().numpy() # (nProposals, 9)
+        bbox_corners = get_3d_box_batch(pred_bboxes[:, :3], pred_bboxes[:, 3:6], pred_bboxes[:, 6]) # (nProposals, 8, 3) numpy
+        pred_sem_cls = pred_bboxes[:, 7] - 2
+        pred_sem_cls[pred_sem_cls < 0] = 17
+        obj_prob = pred_bboxes[:, 8]
+
+        proposals_batchId = data_dict['proposals_batchId']
+        # batch_pred_map_cls = [] # a list (len: batch_size) of list (len: num of predictions per sample) of tuples of pred_cls, pred_box and conf (0-1)
+
+        nonempty_box_mask = np.ones((num_proposal,))
+        if config_dict['remove_empty_box']:
+            # -------------------------------------
+            # Remove predicted boxes without any point within them..
+            batch_pc = data_dict['point_clouds'].cpu().numpy()[:,:,0:3] # B,N,3
+            for i in range(batch_size):
+                pc = batch_pc[i,:,:] # (N,3)
+                for j in range(K):
+                    box3d = bbox_corners[i,j,:,:] # (8,3)
+                    # box3d = flip_axis_to_depth(box3d)
+                    pc_in_box,inds = extract_pc_in_box3d(pc, box3d)
+                    if len(pc_in_box) < 5:
+                        nonempty_box_mask[i,j] = 0
+            # -------------------------------------
+
+        for b in range(batch_size):
+            proposal_batch_idx = torch.nonzero(proposals_batchId == b).view(-1).detach().cpu().numpy()
+            num_proposal_batch = len(proposal_batch_idx)
+            bbox_corners_batch = bbox_corners[proposal_batch_idx]
+            obj_prob_batch = obj_prob[proposal_batch_idx]
+            pred_sem_cls_batch = pred_sem_cls[proposal_batch_idx]
+            pred_mask = np.zeros((num_proposal_batch,))
+            if not config_dict['use_3d_nms']:
+                # ---------- NMS input: pred_with_prob in (B,K,7) -----------
+                boxes_2d_with_prob = np.zeros((num_proposal_batch, 5))
+                for j in range(num_proposal_batch):
+                    boxes_2d_with_prob[j,0] = np.min(bbox_corners_batch[j,:,0])
+                    boxes_2d_with_prob[j,2] = np.max(bbox_corners_batch[j,:,0])
+                    boxes_2d_with_prob[j,1] = np.min(bbox_corners_batch[j,:,2])
+                    boxes_2d_with_prob[j,3] = np.max(bbox_corners_batch[j,:,2])
+                    boxes_2d_with_prob[j,4] = obj_prob_batch[j]
+                nonempty_box_inds = np.where(nonempty_box_mask[proposal_batch_idx]==1)[0]
+                pick = nms_2d_faster(boxes_2d_with_prob[nonempty_box_inds,:], config_dict['nms_iou'], config_dict['use_old_type_nms'])
+                assert(len(pick)>0)
+                pred_mask[nonempty_box_inds[pick]] = 1
+                # ---------- NMS output: pred_mask in (B,K) -----------
+            elif config_dict['use_3d_nms'] and (not config_dict['cls_nms']):
+                # ---------- NMS input: pred_with_prob in (B,K,7) -----------
+                boxes_3d_with_prob = np.zeros((num_proposal_batch, 7))
+                for j in range(num_proposal_batch):
+                    boxes_3d_with_prob[j,0] = np.min(bbox_corners_batch[j,:,0])
+                    boxes_3d_with_prob[j,1] = np.min(bbox_corners_batch[j,:,1])
+                    boxes_3d_with_prob[j,2] = np.min(bbox_corners_batch[j,:,2])
+                    boxes_3d_with_prob[j,3] = np.max(bbox_corners_batch[j,:,0])
+                    boxes_3d_with_prob[j,4] = np.max(bbox_corners_batch[j,:,1])
+                    boxes_3d_with_prob[j,5] = np.max(bbox_corners_batch[j,:,2])
+                    boxes_3d_with_prob[j,6] = obj_prob_batch[j]
+                nonempty_box_inds = np.where(nonempty_box_mask[proposal_batch_idx]==1)[0]
+                pick = nms_3d_faster(boxes_3d_with_prob[nonempty_box_inds,:], config_dict['nms_iou'], config_dict['use_old_type_nms'])
+                assert(len(pick)>0)
+                pred_mask[nonempty_box_inds[pick]] = 1
+                # ---------- NMS output: pred_mask in (B,K) -----------
+            elif config_dict['use_3d_nms'] and config_dict['cls_nms']:
+                # ---------- NMS input: pred_with_prob in (B,K,8) -----------
+                boxes_3d_with_prob = np.zeros((num_proposal_batch, 8))
+                for j in range(num_proposal_batch):
+                    boxes_3d_with_prob[j,0] = np.min(bbox_corners_batch[j,:,0])
+                    boxes_3d_with_prob[j,1] = np.min(bbox_corners_batch[j,:,1])
+                    boxes_3d_with_prob[j,2] = np.min(bbox_corners_batch[j,:,2])
+                    boxes_3d_with_prob[j,3] = np.max(bbox_corners_batch[j,:,0])
+                    boxes_3d_with_prob[j,4] = np.max(bbox_corners_batch[j,:,1])
+                    boxes_3d_with_prob[j,5] = np.max(bbox_corners_batch[j,:,2])
+                    boxes_3d_with_prob[j,6] = obj_prob_batch[j]
+                    boxes_3d_with_prob[j,7] = pred_sem_cls_batch[j] # only suppress if the two boxes are of the same class!!
+                nonempty_box_inds = np.where(nonempty_box_mask[proposal_batch_idx]==1)[0]
+                pick = nms_3d_faster_samecls(boxes_3d_with_prob[nonempty_box_inds,:], config_dict['nms_iou'], config_dict['use_old_type_nms'])
+                assert(len(pick)>0)
+                pred_mask[nonempty_box_inds[pick]] = 1
+                # ---------- NMS output: pred_mask in (B,K) -----------
+                
+            bbox_corners_batch = bbox_corners_batch[pred_mask == 1]
+            pred_sem_cls_batch = pred_sem_cls_batch[pred_mask == 1]
+            obj_prob_batch = obj_prob_batch[pred_mask == 1]
+            
+            if save_preds:
+                scene_id = data_dict["scene_id"][0]
+                pred_path = os.path.join(self.cfg.general.root, self.cfg.data.split)
+                bbox_path = os.path.join(pred_path, "detection")
+                os.makedirs(bbox_path, exist_ok=True)
+                torch.save({"pred_bbox": bbox_corners_batch, "pred_sem_cls": pred_sem_cls_batch, "pred_obj_prob": obj_prob_batch, "gt_bbox": data_dict['gt_bbox'][b].detach().cpu().numpy(), "gt_bbox_label": data_dict['gt_bbox_label'].detach().cpu().numpy(), "gt_sem_cls": data_dict['sem_cls_label'].detach().cpu().numpy()}, os.path.join(bbox_path, f"{scene_id}.pth"))
+            
+            # if config_dict['per_class_proposal']:
+            #     cur_list = []
+            #     for ii in range(self.DC.num_class):
+            #         cur_list += [(ii, bbox_corners_batch[j], obj_prob_batch[j]) \
+            #             for j in range(num_proposal_batch) if pred_mask[j]==1 and pred_sem_cls_batch[j]==ii and obj_prob_batch[j]>config_dict['conf_thresh']]
+            #     batch_pred_map_cls.append(cur_list)
+            # else:
+            #     batch_pred_map_cls.append([(pred_sem_cls_batch[j], bbox_corners_batch[j], obj_prob_batch[j]) \
+            #         for j in range(num_proposal_batch) if pred_mask[j]==1 and obj_prob_batch[j]>config_dict['conf_thresh']])
+        
+        # data_dict['batch_pred_map_cls'] = batch_pred_map_cls
+
+        # return batch_pred_map_cls
+    
+    # def parse_bbox_groundtruths(self, data_dict, config_dict):
+    #     """ Parse groundtruth labels to OBB parameters.
+        
+    #     Args:
+    #         data_dict: dict
+    #         config_dict: dict
+
+    #     Returns:
+    #         batch_gt_map_cls: a list  of len == batch_size (BS)
+    #             [gt_list_i], i = 0, 1, ..., BS-1
+    #             where gt_list_i = [(gt_sem_cls, gt_box_params)_j]
+    #             where j = 0, ..., num of objects - 1 at sample input i
+    #     """
+        
+    #     bbox_corner_labels = data_dict['gt_bbox'].detach().cpu().numpy()
+    #     box_mask_labels = data_dict['gt_bbox_label'].detach().cpu().numpy()
+    #     sem_cls_labels = data_dict['sem_cls_label'].detach().cpu().numpy()
+    #     bsize = bbox_corner_labels.shape[0]
+    #     max_num_obj = bbox_corner_labels.shape[1] # K2==MAX_NUM_OBJ
+
+    #     batch_gt_map_cls = []
+    #     for i in range(bsize):
+    #         batch_gt_map_cls.append([(sem_cls_labels[i,j], bbox_corner_labels[i,j]) for j in range(max_num_obj) if box_mask_labels[i,j]==1])
+    #     data_dict['batch_gt_map_cls'] = batch_gt_map_cls
+
+    #     return batch_gt_map_cls
