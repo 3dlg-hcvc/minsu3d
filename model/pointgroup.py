@@ -678,90 +678,21 @@ class PointGroup(pl.LightningModule):
         print(">>>>>>>>>>>>>>>> Start Inference >>>>>>>>>>>>>>>>")
         with torch.no_grad():
             for i, data_dict in enumerate(tqdm(dataloader)):
-                # import pdb; pdb.set_trace()
                 for key in data_dict.keys():
                     if isinstance(data_dict[key], tuple): continue
                     if isinstance(data_dict[key], dict): continue
                     if isinstance(data_dict[key], list): continue
                     data_dict[key] = data_dict[key].cuda()
                 
-                # N = data_dict["feats"].shape[0]
-                # scene_id = data_dict["scene_id"][0] #self.dataset[split].scene_names[i]
-                
                 data_dict = self._feed(data_dict)
-                # preds, _ = self._parse_feed_ret(data_dict)
-                # preds["scene_id"] = scene_id
                 
                 ##### parse semantic predictions (#1 semantic_pred, pt_offsets; #2 scores, proposals_pred)
                 self.parse_semantic_predictions(data_dict, save_preds=True)
-                # semantic_scores = preds["semantic"]  # (N, nClass) float32, cuda, 0: unannotated
-                # semantic_pred_labels = semantic_scores.max(1)[1]  # (N) long, cuda
-                # semantic_class_idx = torch.tensor(NYU20_CLASS_IDX, dtype=torch.int).cuda() # (nClass)
-                # semantic_pred_class_idx = semantic_class_idx[semantic_pred_labels].cpu().numpy()
                 
                 ##### parse instance predictions
                 if self.current_epoch > self.cfg.cluster.prepare_epochs:
                     self.parse_instance_predictions(data_dict, save_preds=True)
                     self.parse_bbox_predictions(data_dict, POST_DICT, save_preds=True)
-                    
-                    # proposals_score = torch.sigmoid(preds["score"].view(-1)) # (nProposal,) float, cuda
-                    # proposals_idx, proposals_offset = preds["proposals"]
-                    # # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-                    # # proposals_offset: (nProposal + 1), int, cpu
-
-                    # num_proposals = proposals_offset.shape[0] - 1
-                    # # N = semantic_scores.shape[0]
-                    
-                    # proposals_mask = torch.zeros((num_proposals, N), dtype=torch.int).cuda() # (nProposal, N), int, cuda
-                    # proposals_mask[proposals_idx[:, 0].long(), proposals_idx[:, 1].long()] = 1
-                    
-                    # ##### score threshold & min_npoint mask
-                    # proposals_npoint = preds["proposals_npoint"] #proposals_mask.sum(1)
-                    # proposals_thres_mask = preds["proposal_thres_mask"] #torch.logical_and(proposals_score > self.cfg.test.TEST_SCORE_THRESH, proposals_npoint > self.cfg.test.TEST_NPOINT_THRESH)
-                    
-                    # proposals_score = proposals_score[proposals_thres_mask]
-                    # proposals_mask = proposals_mask[proposals_thres_mask]
-                    
-                    # ##### instance masks non_max_suppression
-                    # if proposals_score.shape[0] == 0:
-                    #     pick_idxs = np.empty(0)
-                    # else:
-                    #     proposals_mask_f = proposals_mask.float()  # (nProposal, N), float, cuda
-                    #     intersection = torch.mm(proposals_mask_f, proposals_mask_f.t())  # (nProposal, nProposal), float, cuda
-                    #     proposals_npoint = proposals_mask_f.sum(1)  # (nProposal), float, cuda
-                    #     proposals_np_repeat_h = proposals_npoint.unsqueeze(-1).repeat(1, proposals_npoint.shape[0])
-                    #     proposals_np_repeat_v = proposals_npoint.unsqueeze(0).repeat(proposals_npoint.shape[0], 1)
-                    #     cross_ious = intersection / (proposals_np_repeat_h + proposals_np_repeat_v - intersection) # (nProposal, nProposal), float, cuda
-                    #     pick_idxs = get_nms_instances(cross_ious.cpu().numpy(), proposals_score.cpu().numpy(), self.cfg.test.TEST_NMS_THRESH)  # int, (nCluster,)
-
-                    # clusters_mask = proposals_mask[pick_idxs].cpu().numpy() # int, (nCluster, N)
-                    # clusters_score = proposals_score[pick_idxs].cpu().numpy() # float, (nCluster,)
-                    # nclusters = clusters_mask.shape[0]
-                
-                ##### save predictions
-                # pred_path = os.path.join(self.cfg.general.root, self.cfg.data.split)
-                
-                # sem_pred_path = os.path.join(pred_path, "semantic")
-                # os.makedirs(sem_pred_path, exist_ok=True)
-                # sem_pred_file_path = os.path.join(sem_pred_path, f"{scene_id}.txt")
-                # np.savetxt(sem_pred_file_path, semantic_pred_class_idx, fmt="%d")
-                
-                # if self.current_epoch > self.cfg.cluster.prepare_epochs:
-                #     inst_pred_path = os.path.join(pred_path, "instance")
-                #     inst_pred_masks_path = os.path.join(inst_pred_path, "predicted_masks")
-                #     os.makedirs(inst_pred_path, exist_ok=True)
-                #     os.makedirs(inst_pred_masks_path, exist_ok=True)
-                #     cluster_ids = np.ones(shape=(N)) * -1 # id starts from 0
-                #     with open(os.path.join(inst_pred_path, f"{scene_id}.txt"), "w") as f:
-                #         for c_id in range(nclusters):
-                #             cluster_i = clusters_mask[c_id]  # (N)
-                #             cluster_ids[cluster_i == 1] = c_id
-                #             assert np.unique(semantic_pred_class_idx[cluster_i == 1]).size == 1
-                #             cluster_i_class_idx = semantic_pred_class_idx[cluster_i == 1][0]
-                #             score = clusters_score[c_id]
-                #             f.write(f"predicted_masks/{scene_id}_{c_id:03d}.txt {cluster_i_class_idx} {score:.4f}\n")
-                #             np.savetxt(os.path.join(inst_pred_masks_path, f"{scene_id}_{c_id:03d}.txt"), cluster_i, fmt="%d")
-                #     np.savetxt(os.path.join(inst_pred_path, f"{scene_id}.cluster_ids.txt"), cluster_ids, fmt="%d")
 
 
     def parse_semantic_predictions(self, data_dict, save_preds=True):
@@ -860,7 +791,6 @@ class PointGroup(pl.LightningModule):
         obj_prob = pred_bboxes[:, 8]
 
         proposals_batchId = data_dict['proposals_batchId']
-        # batch_pred_map_cls = [] # a list (len: batch_size) of list (len: num of predictions per sample) of tuples of pred_cls, pred_box and conf (0-1)
 
         nonempty_box_mask = np.ones((num_proposal,))
         if config_dict['remove_empty_box']:
@@ -941,45 +871,4 @@ class PointGroup(pl.LightningModule):
                 pred_path = os.path.join(self.cfg.general.root, self.cfg.data.split)
                 bbox_path = os.path.join(pred_path, "detection")
                 os.makedirs(bbox_path, exist_ok=True)
-                torch.save({"pred_bbox": bbox_corners_batch, "pred_sem_cls": pred_sem_cls_batch, "pred_obj_prob": obj_prob_batch, "gt_bbox": data_dict['gt_bbox'][b].detach().cpu().numpy(), "gt_bbox_label": data_dict['gt_bbox_label'].detach().cpu().numpy(), "gt_sem_cls": data_dict['sem_cls_label'].detach().cpu().numpy()}, os.path.join(bbox_path, f"{scene_id}.pth"))
-            
-            # if config_dict['per_class_proposal']:
-            #     cur_list = []
-            #     for ii in range(self.DC.num_class):
-            #         cur_list += [(ii, bbox_corners_batch[j], obj_prob_batch[j]) \
-            #             for j in range(num_proposal_batch) if pred_mask[j]==1 and pred_sem_cls_batch[j]==ii and obj_prob_batch[j]>config_dict['conf_thresh']]
-            #     batch_pred_map_cls.append(cur_list)
-            # else:
-            #     batch_pred_map_cls.append([(pred_sem_cls_batch[j], bbox_corners_batch[j], obj_prob_batch[j]) \
-            #         for j in range(num_proposal_batch) if pred_mask[j]==1 and obj_prob_batch[j]>config_dict['conf_thresh']])
-        
-        # data_dict['batch_pred_map_cls'] = batch_pred_map_cls
-
-        # return batch_pred_map_cls
-    
-    # def parse_bbox_groundtruths(self, data_dict, config_dict):
-    #     """ Parse groundtruth labels to OBB parameters.
-        
-    #     Args:
-    #         data_dict: dict
-    #         config_dict: dict
-
-    #     Returns:
-    #         batch_gt_map_cls: a list  of len == batch_size (BS)
-    #             [gt_list_i], i = 0, 1, ..., BS-1
-    #             where gt_list_i = [(gt_sem_cls, gt_box_params)_j]
-    #             where j = 0, ..., num of objects - 1 at sample input i
-    #     """
-        
-    #     bbox_corner_labels = data_dict['gt_bbox'].detach().cpu().numpy()
-    #     box_mask_labels = data_dict['gt_bbox_label'].detach().cpu().numpy()
-    #     sem_cls_labels = data_dict['sem_cls_label'].detach().cpu().numpy()
-    #     bsize = bbox_corner_labels.shape[0]
-    #     max_num_obj = bbox_corner_labels.shape[1] # K2==MAX_NUM_OBJ
-
-    #     batch_gt_map_cls = []
-    #     for i in range(bsize):
-    #         batch_gt_map_cls.append([(sem_cls_labels[i,j], bbox_corner_labels[i,j]) for j in range(max_num_obj) if box_mask_labels[i,j]==1])
-    #     data_dict['batch_gt_map_cls'] = batch_gt_map_cls
-
-    #     return batch_gt_map_cls
+                torch.save({"pred_bbox": bbox_corners_batch, "pred_sem_cls": pred_sem_cls_batch, "pred_obj_prob": obj_prob_batch, "gt_bbox": data_dict['gt_bbox'][b].detach().cpu().numpy(), "gt_bbox_label": data_dict['gt_bbox_label'][b].detach().cpu().numpy(), "gt_sem_cls": data_dict['sem_cls_label'][b].detach().cpu().numpy()}, os.path.join(bbox_path, f"{scene_id}.pth"))
