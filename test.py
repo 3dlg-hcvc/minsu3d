@@ -1,17 +1,26 @@
+import os
 import argparse
 from omegaconf import OmegaConf
 from importlib import import_module
+
+import torch
 
 
 def load_conf(args):
     base_cfg = OmegaConf.load("conf/path.yaml")
     cfg = OmegaConf.load(args.config)
     cfg = OmegaConf.merge(base_cfg, cfg)
+    
+    root = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.test.use_exp)
+    assert os.path.exists(root), "wrong experiment path"
+    root = os.path.join(root, "test")
+    os.makedirs(root, exist_ok=True)
 
     # HACK manually setting those properties
     cfg.data.split = args.split
     cfg.data.batch_size = 1
     cfg.general.task = "test"
+    cfg.general.root = root
     cfg.cluster.prepare_epochs = -1
 
     return cfg
@@ -31,8 +40,8 @@ def init_data(cfg):
     return dataset, dataloader
 
 def init_model(cfg):
-    PointGroup = getattr(import_module("model.pointgroup"), "PointGroup")
-    model = PointGroup(cfg)
+    Model = getattr(import_module(cfg.model.module), cfg.model.name)
+    model = Model(cfg)
 
     # "/project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar"
     checkpoint_path = cfg.model.pretrained_path
@@ -45,6 +54,7 @@ def init_model(cfg):
     model.eval()
 
     return model
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -61,5 +71,4 @@ if __name__ == '__main__':
     print("=> initializing model...")
     model = init_model(cfg)
 
-    ##### test
-    # solver.test(cfg.data.split)
+    model.inference(dataloader[args.split])
