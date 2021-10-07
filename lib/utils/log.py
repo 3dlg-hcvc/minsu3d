@@ -32,7 +32,7 @@ class Logger:
             os.makedirs(self.backup_path, exist_ok=True)
 
         self._init_logger()
-        self._init_tb_writer()
+        # self._init_tb_writer()
     
     def _init_logger(self):
         self.logger = logging.getLogger(self.log_name)
