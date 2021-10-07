@@ -185,9 +185,9 @@ def parse_predictions(end_points, config_dict):
     DC = config_dict['dataset_config']
     batch_size = len(end_points["batch_offsets"]) - 1
         
-    bbox_corners = end_points["proposal_crop_bboxes"] # (nProposal, 8, 3)
-    num_proposal = end_points["proposal_crop_bboxes"].shape[0]
-    pred_sem_cls = end_points['proposal_crop_bbox'].cpu().numpy()[:, 7] - 2
+    bbox_corners = end_points["proposal_crop_bbox_corners"] # (nProposal, 8, 3)
+    num_proposal = end_points["proposal_crop_bbox_corners"].shape[0]
+    pred_sem_cls = end_points['proposal_crop_bboxes'].cpu().numpy()[:, 7] - 2
     pred_sem_cls[pred_sem_cls < 0] = 17
 
     K = num_proposal
