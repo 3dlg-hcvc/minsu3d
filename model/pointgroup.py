@@ -686,7 +686,7 @@ class PointGroup(pl.LightningModule):
                 
                 data_dict = self._feed(data_dict)
                 
-                ##### parse semantic predictions (#1 semantic_pred, pt_offsets; #2 scores, proposals_pred)
+                ##### parse semantic predictions 
                 self.parse_semantic_predictions(data_dict, save_preds=True)
                 
                 ##### parse instance predictions
@@ -699,7 +699,7 @@ class PointGroup(pl.LightningModule):
         from data.scannet.model_util_scannet import NYU20_CLASS_IDX
         NYU20_CLASS_IDX = NYU20_CLASS_IDX[1:] # for scannet
         
-        ##### parse semantic predictions (#1 semantic_pred, pt_offsets; #2 scores, proposals_pred)
+        ##### (#1 semantic_pred, pt_offsets; #2 scores, proposals_pred)
         semantic_scores = data_dict["semantic_scores"]  # (N, nClass) float32, cuda, 0: unannotated
         semantic_pred_labels = semantic_scores.max(1)[1]  # (N) long, cuda
         semantic_class_idx = torch.tensor(NYU20_CLASS_IDX, dtype=torch.int).cuda() # (nClass)
