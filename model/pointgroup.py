@@ -281,7 +281,7 @@ class PointGroup(pl.LightningModule):
             batch_idxs = data_dict["locs_scaled"][:, 0].int()
             
             if not self.requires_gt_mask:
-                object_idxs = torch.nonzero(semantic_preds > 0, as_tuple=False).view(-1)
+                object_idxs = torch.nonzero(semantic_preds > 1, as_tuple=False).view(-1) # exclude predicted wall and floor ???
                 batch_idxs_ = batch_idxs[object_idxs]
                 batch_offsets_ = self.get_batch_offsets(batch_idxs_, batch_size)
                 coords_ = data_dict["locs"][object_idxs]
@@ -700,7 +700,7 @@ class PointGroup(pl.LightningModule):
         NYU20_CLASS_IDX = NYU20_CLASS_IDX[1:] # for scannet
         
         ##### (#1 semantic_pred, pt_offsets; #2 scores, proposals_pred)
-        semantic_scores = data_dict["semantic_scores"]  # (N, nClass) float32, cuda, 0: unannotated
+        semantic_scores = data_dict["semantic_scores"]  # (N, nClass) float32, cuda
         semantic_pred_labels = semantic_scores.max(1)[1]  # (N) long, cuda
         semantic_class_idx = torch.tensor(NYU20_CLASS_IDX, dtype=torch.int).cuda() # (nClass)
         semantic_pred_class_idx = semantic_class_idx[semantic_pred_labels].cpu().numpy()
