@@ -392,7 +392,9 @@ def write_cylinder_bbox(bbox, mode, out_filename=None):
     verts = []
     indices = []
     colors = []
-    if bbox.size == 6:
+    if bbox.size == 24: #corners 8*3
+        corners = bbox
+    elif bbox.size == 6:
         corners = get_3d_box(bbox[:3], bbox[3:6])
     else:
         corners = get_3d_box(bbox[:3], bbox[3:6], bbox[6])
