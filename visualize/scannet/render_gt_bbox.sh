@@ -1,13 +1,13 @@
 #!/bin/bash
 
-data_dir="/project/3dlg-hcvc/dense-scanrefer/scannet/sem_seg/XYZ_MULTIVIEW_NORMAL"
+data_dir="/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_bbox/XYZ_MULTIVIEW_NORMAL"
 stk_dir="/local-scratch/qiruiw/research/stk-motifs"
 script="$stk_dir/ssc/render-file.js"
 config_dir="$stk_dir/ssc/config"
 config_file="/project/3dlg-hcvc/dense-scanrefer/www/scannet/render_turntable.json"
-output_dir="/project/3dlg-hcvc/dense-scanrefer/www/scannet/sem_seg/XYZ_MULTIVIEW_NORMAL"
-scene_ids="/local-scratch/qiruiw/research/dense-scanrefer/data/scannet/meta_data/scannetv2_val.txt"
+output_dir="/project/3dlg-hcvc/dense-scanrefer/www/scannet/bbox/XYZ_MULTIVIEW_NORMAL"
 split="val"
+scene_ids=/local-scratch/qiruiw/research/dense-scanrefer/data/scanrefer/splited_data/ScanRefer_filtered_$split.txt
 n=16
 ​
 parallel -j $n --eta "CUDA_VISIBLE_DEVICES=0 $script \
