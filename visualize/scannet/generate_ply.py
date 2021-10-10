@@ -30,7 +30,7 @@ def generate_rgb_ply(args):
         rgb_file = os.path.join(data_dir, split, f'{scene_id}.pth')
         rgb_ply = os.path.join(output_dir, f'{scene_id}.ply')
         scannet_data = torch.load(rgb_file)
-        points = scannet_data['aligned_mesh'][:, :3].astype(np.float)
+        points = scannet_data['aligned_mesh'][:, :3].astype(np.float32)
         colors = scannet_data['aligned_mesh'][:, 3:6].astype(np.uint8)
         write_ply_rgb(points, colors, rgb_ply)
 
@@ -54,7 +54,7 @@ def generate_gt_sem_ply(args):
         with open(nyu40_sem_ply, 'rb') as f:
             plydata = PlyData.read(f)
             num_verts = plydata['vertex'].count
-            points = np.zeros(shape=[num_verts, 3], dtype=np.float)
+            points = np.zeros(shape=[num_verts, 3], dtype=np.float32)
             points[:,0] = plydata['vertex'].data['x']
             points[:,1] = plydata['vertex'].data['y']
             points[:,2] = plydata['vertex'].data['z']
@@ -85,7 +85,7 @@ def generate_pred_sem_ply(args):
             plydata = PlyData.read(f)
             num_verts = plydata['vertex'].count
             assert num_verts == len(pred_sem_labels)
-            points = np.zeros(shape=[num_verts, 3], dtype=np.float)
+            points = np.zeros(shape=[num_verts, 3], dtype=np.float32)
             points[:,0] = plydata['vertex'].data['x']
             points[:,1] = plydata['vertex'].data['y']
             points[:,2] = plydata['vertex'].data['z']
@@ -112,7 +112,7 @@ def generate_gt_inst_ply(args):
         
         # rgb_data = PlyData.read(open(rgb_ply, 'rb'))
         scannet_data = torch.load(gt_inst_file)
-        points = scannet_data['aligned_mesh'][:, :3].astype(np.float)
+        points = scannet_data['aligned_mesh'][:, :3].astype(np.float32)
         colors = scannet_data['aligned_mesh'][:, 3:6].astype(np.uint8)
         num_verts = len(points)
         instance_ids = scannet_data['instance_ids']
@@ -135,7 +135,7 @@ def generate_gt_inst_ply(args):
         
         
 def visualize_pred_instance(filename, mesh, instance_ids, sem_labels):
-    points = mesh[:, :3].astype(np.float)
+    points = mesh[:, :3].astype(np.float32)
     colors = (mesh[:, 3:6]*256.0 + MEAN_COLOR_RGB).astype(np.uint8)
     sem_labels = sem_labels.astype(np.int)
     instance_ids = instance_ids.astype(np.int)
@@ -178,7 +178,7 @@ def generate_pred_inst_ply(args):
         
         # rgb_data = PlyData.read(open(rgb_ply, 'rb'))
         scannet_data = torch.load(rgb_file)
-        points = scannet_data['aligned_mesh'][:, :3].astype(np.float)
+        points = scannet_data['aligned_mesh'][:, :3].astype(np.float32)
         colors = scannet_data['aligned_mesh'][:, 3:6].astype(np.uint8)
         num_verts = len(points)
         # num_verts = rgb_data['vertex'].count
@@ -306,9 +306,9 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--task', type=str, default='', help='specify task: semantic | instance | detection')
     args = parser.parse_args()
     
-    generate_rgb_ply(args)
+    # generate_rgb_ply(args)
     # generate_gt_sem_ply(args)
-    # generate_pred_sem_ply(args)
+    generate_pred_sem_ply(args)
     # generate_gt_inst_ply(args)
     # generate_pred_inst_ply(args)
     # generate_gt_bbox_ply(args)
