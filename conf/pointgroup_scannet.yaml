@@ -43,7 +43,7 @@ data:
 
 model:
   module: model
-  classname: PointGroup
+  name: PointGroup
   
   # input_channel: 131 # multiview + normals
   m: 16 # 16 or 32
@@ -108,6 +108,8 @@ cluster:
   freeze_backbone: False
 
 test:
+  use_exp: DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
+
   test_epoch: 384
   test_seed: 567
 
@@ -124,7 +126,10 @@ evaluation:
   gt_class_idx: NYU20_CLASS_IDX
 
   task:
-  use_model: #2021-08-24_11-42-20 #2021-06-21_00-37-44
+  use_model: DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
+
+  detection:
+    per_class_proposal: True
 
 
 log:

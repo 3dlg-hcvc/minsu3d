@@ -356,9 +356,9 @@ def evaluate(pred_files, logger):
         pred_sem_cls = bbox_data["pred_sem_cls"]
         pred_obj_prob = bbox_data["pred_obj_prob"]
         gt_bbox = bbox_data["gt_bbox"]
-        gt_bbox_label = bbox_data["gt_bbox_label"][0]
-        gt_sem_cls = bbox_data["gt_sem_cls"][0]
-        
+        gt_bbox_label = bbox_data["gt_bbox_label"]
+        gt_sem_cls = bbox_data["gt_sem_cls"]
+
         if CFG.evaluation.detection.per_class_proposal:
             cur_list = []
             for ii in range(DC.num_class):

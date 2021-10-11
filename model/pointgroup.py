@@ -871,4 +871,4 @@ class PointGroup(pl.LightningModule):
                 pred_path = os.path.join(self.cfg.general.root, self.cfg.data.split)
                 bbox_path = os.path.join(pred_path, "detection")
                 os.makedirs(bbox_path, exist_ok=True)
-                torch.save({"pred_bbox": bbox_corners_batch, "pred_sem_cls": pred_sem_cls_batch, "pred_obj_prob": obj_prob_batch, "gt_bbox": data_dict['gt_bbox'][b].detach().cpu().numpy(), "gt_bbox_label": data_dict['gt_bbox_label'][b].detach().cpu().numpy(), "gt_sem_cls": data_dict['sem_cls_label'][b].detach().cpu().numpy()}, os.path.join(bbox_path, f"{scene_id}.pth"))
+                torch.save({"pred_bbox": bbox_corners_batch, "pred_sem_cls": pred_sem_cls_batch, "pred_obj_prob": obj_prob_batch, "gt_bbox": data_dict['gt_bbox'][b].detach().cpu().numpy(), "gt_bbox_label": data_dict["gt_bbox_label"][b].detach().cpu().numpy(), "gt_sem_cls": data_dict["sem_cls_label"][b].detach().cpu().numpy()}, os.path.join(bbox_path, f"{scene_id}.pth"))

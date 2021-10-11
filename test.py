@@ -43,12 +43,13 @@ def init_model(cfg):
     Model = getattr(import_module(cfg.model.module), cfg.model.name)
     model = Model(cfg)
 
-    # "/project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar"
-    checkpoint_path = cfg.model.pretrained_path
+    # checkpoint_path = "/project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar"
+    checkpoint_path = "/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/DETECTOR/detector.pth"
+    # checkpoint_path = os.path.join(cfg.general.root, checkpoint_name)
     # model.load_from_checkpoint(checkpoint_path, cfg)
 
     checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint["model_state_dict"])
+    model.load_state_dict(checkpoint)
 
     model.cuda()
     model.eval()
