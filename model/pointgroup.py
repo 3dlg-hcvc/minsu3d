@@ -338,7 +338,7 @@ class PointGroup(pl.LightningModule):
             proposals_npoint = torch.zeros(num_proposals).cuda()
             for i in range(num_proposals):
                 proposals_npoint[i] = (proposals_idx[:, 0] == i).sum()
-            thres_mask = torch.logical_and(torch.sigmoid(scores.view(-1)) > self.cfg.test.TEST_SCORE_THRESH, proposals_npoint > self.cfg.test.TEST_NPOINT_THRESH) # (nProposal,)
+            thres_mask = torch.logical_and(torch.sigmoid(scores.view(-1)) > self.cfg.test.TEST_SCORE_THRESH, proposals_npoint > self.cfg.test.TEST_NPOINT_THRESH) if not self.requires_gt_mask else torch.Tensor([True] * scores.shape[0]).cuda()# (nProposal,)
             data_dict["proposals_npoint"] = proposals_npoint
             data_dict["proposal_thres_mask"] = thres_mask
             
