@@ -30,7 +30,7 @@ def generate_rgb_ply(args):
         rgb_file = os.path.join(data_dir, split, f'{scene_id}.pth')
         rgb_ply = os.path.join(output_dir, f'{scene_id}.ply')
         scannet_data = torch.load(rgb_file)
-        points = scannet_data['aligned_mesh'][:, :3].astype(np.float)
+        points = scannet_data['aligned_mesh'][:, :3].astype(np.float32)
         colors = scannet_data['aligned_mesh'][:, 3:6].astype(np.uint8)
         write_ply_rgb(points, colors, rgb_ply)
 
@@ -39,7 +39,7 @@ def generate_gt_sem_ply(args):
     from data.scannet.model_util_scannet import NYU20_CLASS_IDX
     split = args.split
     scan_dir = cfg.SCANNETV2_PATH.splited_scans
-    output_dir = f'/local-scratch/qiruiw/dataset/scannet/splited_nyu20_labels/{split}' # TODO
+    output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/splited_nyu20_labels/{split}' # TODO
     os.makedirs(output_dir, exist_ok=True)
     scene_ids_file = os.path.join(cfg.SCANNETV2_PATH.meta_data, f'scannetv2_{split}.txt')
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
@@ -54,7 +54,7 @@ def generate_gt_sem_ply(args):
         with open(nyu40_sem_ply, 'rb') as f:
             plydata = PlyData.read(f)
             num_verts = plydata['vertex'].count
-            points = np.zeros(shape=[num_verts, 3], dtype=np.float)
+            points = np.zeros(shape=[num_verts, 3], dtype=np.float32)
             points[:,0] = plydata['vertex'].data['x']
             points[:,1] = plydata['vertex'].data['y']
             points[:,2] = plydata['vertex'].data['z']
@@ -67,22 +67,25 @@ def generate_gt_sem_ply(args):
 
 def generate_pred_sem_ply(args):
     split = args.split
+    use_checkpoint = args.use_checkpoint
     scan_dir = cfg.SCANNETV2_PATH.splited_scans
-    pred_dir = f'/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/test/2021-02-10_01-53-53/splited_pred/{split}/semantic' # TODO
+    pred_dir = f'/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/{use_checkpoint}/test/{split}/semantic' # TODO
+    output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/sem_seg/{use_checkpoint}/{split}'
+    os.makedirs(output_dir, exist_ok=True)
     scene_ids_file = os.path.join(cfg.SCANNETV2_PATH.meta_data, f'scannetv2_{split}.txt')
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
     
     for scene_id in scene_ids:
         print(scene_id)
         gt_sem_ply = os.path.join(scan_dir, split, scene_id, f'{scene_id}_vh_clean_2.labels.ply')
-        pred_sem_ply = os.path.join(pred_dir, f'{scene_id}.ply')
+        pred_sem_ply = os.path.join(output_dir, f'{scene_id}.ply')
         pred_sem_labels = np.loadtxt(os.path.join(pred_dir, f'{scene_id}.txt'))
         
         with open(gt_sem_ply, 'rb') as f:
             plydata = PlyData.read(f)
             num_verts = plydata['vertex'].count
             assert num_verts == len(pred_sem_labels)
-            points = np.zeros(shape=[num_verts, 3], dtype=np.float)
+            points = np.zeros(shape=[num_verts, 3], dtype=np.float32)
             points[:,0] = plydata['vertex'].data['x']
             points[:,1] = plydata['vertex'].data['y']
             points[:,2] = plydata['vertex'].data['z']
@@ -109,7 +112,7 @@ def generate_gt_inst_ply(args):
         
         # rgb_data = PlyData.read(open(rgb_ply, 'rb'))
         scannet_data = torch.load(gt_inst_file)
-        points = scannet_data['aligned_mesh'][:, :3].astype(np.float)
+        points = scannet_data['aligned_mesh'][:, :3].astype(np.float32)
         colors = scannet_data['aligned_mesh'][:, 3:6].astype(np.uint8)
         num_verts = len(points)
         instance_ids = scannet_data['instance_ids']
@@ -119,15 +122,6 @@ def generate_gt_inst_ply(args):
         
         invalid_vert_idx = np.in1d(sem_labels, DONOTCARE_CLASS_IDS)
         instance_ids[invalid_vert_idx] = -1 # -1: points are not assigned to any objects
-        
-        # points = np.zeros(shape=[num_verts, 3], dtype=np.float)
-        # colors = np.zeros(shape=[num_verts, 3], dtype=np.uint)
-        # points[:,0] = rgb_data['vertex'].data['x']
-        # points[:,1] = rgb_data['vertex'].data['y']
-        # points[:,2] = rgb_data['vertex'].data['z']
-        # colors[:,0] = rgb_data['vertex'].data['red']
-        # colors[:,1] = rgb_data['vertex'].data['green']
-        # colors[:,2] = rgb_data['vertex'].data['blue']
         
         unique_inst_ids = np.unique(instance_ids)
         colormap = [plt.cm.rainbow(i/(len(unique_inst_ids)+1)) for i in range(len(unique_inst_ids))]
@@ -141,7 +135,7 @@ def generate_gt_inst_ply(args):
         
         
 def visualize_pred_instance(filename, mesh, instance_ids, sem_labels):
-    points = mesh[:, :3].astype(np.float)
+    points = mesh[:, :3].astype(np.float32)
     colors = (mesh[:, 3:6]*256.0 + MEAN_COLOR_RGB).astype(np.uint8)
     sem_labels = sem_labels.astype(np.int)
     instance_ids = instance_ids.astype(np.int)
@@ -167,8 +161,8 @@ def generate_pred_inst_ply(args):
     use_checkpoint = args.use_checkpoint
     # scan_dir = cfg.SCANNETV2_PATH.splited_scans
     data_dir = cfg.SCANNETV2_PATH.splited_data
-    pred_dir = f'/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/test/{use_checkpoint}/splited_pred' # TODO
-    output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_instance/pred_{use_checkpoint}/{split}' # TODO
+    pred_dir = f'/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/{use_checkpoint}/test' # TODO
+    output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_instance/{use_checkpoint}/{split}' # TODO
     os.makedirs(output_dir, exist_ok=True)
     scene_ids_file = os.path.join(cfg.SCANNETV2_PATH.meta_data, f'scannetv2_{split}.txt')
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
@@ -184,22 +178,13 @@ def generate_pred_inst_ply(args):
         
         # rgb_data = PlyData.read(open(rgb_ply, 'rb'))
         scannet_data = torch.load(rgb_file)
-        points = scannet_data['aligned_mesh'][:, :3].astype(np.float)
+        points = scannet_data['aligned_mesh'][:, :3].astype(np.float32)
         colors = scannet_data['aligned_mesh'][:, 3:6].astype(np.uint8)
         num_verts = len(points)
         # num_verts = rgb_data['vertex'].count
         sem_labels = np.loadtxt(pred_sem_file, dtype=np.int)
         instance_ids = np.loadtxt(pred_inst_file, dtype=np.int)
         assert num_verts == len(sem_labels) and num_verts == len(instance_ids)
-        
-        # points = np.zeros(shape=[num_verts, 3], dtype=np.float)
-        # colors = np.zeros(shape=[num_verts, 3], dtype=np.uint)
-        # points[:,0] = rgb_data['vertex'].data['x']
-        # points[:,1] = rgb_data['vertex'].data['y']
-        # points[:,2] = rgb_data['vertex'].data['z']
-        # colors[:,0] = rgb_data['vertex'].data['red']
-        # colors[:,1] = rgb_data['vertex'].data['green']
-        # colors[:,2] = rgb_data['vertex'].data['blue']
         
         unique_inst_ids = np.unique(instance_ids)
         colormap = [plt.cm.rainbow(i/(len(unique_inst_ids)+1)) for i in range(len(unique_inst_ids))]
@@ -273,6 +258,45 @@ def generate_gt_bbox_ply(args):
                             np.concatenate([np.array(bbox_colors_all), mesh[:, 3:]]),
                             np.array(bbox_indices_all),
                             rgb_bbox_ply)
+        
+        
+def generate_pred_bbox_ply(args):
+    split = args.split
+    use_checkpoint = args.use_checkpoint
+    data_dir = cfg.SCANNETV2_PATH.splited_data
+    bbox_dir = f'/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/{use_checkpoint}/test/{split}/detection' # TODO
+    output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_bbox/{use_checkpoint}/{split}' # TODO
+    os.makedirs(output_dir, exist_ok=True)
+    scene_ids_file = f'/local-scratch/qiruiw/research/dense-scanrefer/data/scanrefer/splited_data/ScanRefer_filtered_{split}.txt'
+    scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
+    
+    for scene_id in scene_ids:
+        print(scene_id)
+        rgb_file = os.path.join(data_dir, split, f'{scene_id}.pth')
+        bbox_file = os.path.join(bbox_dir, f"{scene_id}.pth")
+        rgb_bbox_ply = os.path.join(output_dir, f'{scene_id}.ply')
+        
+        scannet_data = torch.load(rgb_file)
+        mesh = scannet_data['aligned_mesh'][:, :6]
+        bbox_data = torch.load(bbox_file)
+        pred_bboxes = bbox_data["pred_bbox"]
+        num_instances = len(pred_bboxes)
+        
+        bbox_verts_all = []
+        bbox_colors_all = []
+        bbox_indices_all = []
+        for i in range(num_instances):
+            pred_bbox = pred_bboxes[i]
+            pred_bbox_verts, pred_bbox_colors, pred_bbox_indices = write_cylinder_bbox(pred_bbox, mode=1)
+            pred_bbox_indices = [ind + len(bbox_verts_all) for ind in pred_bbox_indices]
+            bbox_verts_all.extend(pred_bbox_verts)
+            bbox_colors_all.extend(pred_bbox_colors)
+            bbox_indices_all.extend(pred_bbox_indices)
+            
+        write_ply_rgb_face(np.concatenate([np.array(bbox_verts_all), mesh[:, :3]]),
+                            np.concatenate([np.array(bbox_colors_all), mesh[:, 3:]]),
+                            np.array(bbox_indices_all),
+                            rgb_bbox_ply)
             
 
 if __name__ == "__main__":
@@ -282,9 +306,9 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--task', type=str, default='', help='specify task: semantic | instance | detection')
     args = parser.parse_args()
     
-    generate_rgb_ply(args)
+    # generate_rgb_ply(args)
     # generate_gt_sem_ply(args)
-    # generate_pred_sem_ply(args)
+    generate_pred_sem_ply(args)
     # generate_gt_inst_ply(args)
     # generate_pred_inst_ply(args)
     # generate_gt_bbox_ply(args)

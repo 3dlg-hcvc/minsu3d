@@ -11,28 +11,28 @@ sys.path.append('../')
 
 class Logger:
 
-    def __init__(self, cfg, log_date=None, log_task=None):
+    def __init__(self, cfg, ckp_name=None, log_task=None):
         self.cfg = cfg
         self.use_console = cfg.log.use_console_log
         
         self.log_task = log_task if log_task else cfg.general.task
         self.log_name = f'{cfg.general.task}-logger'
-        self.log_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") if log_date is None else log_date
+        self.ckp_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") if ckp_name is None else ckp_name
         self.log_filenames = {m: f'{self.log_task}.{m}.log' for m in ['full', 'less']}
 
-        self.logdir_path = os.path.join(cfg.LOG_PATH, cfg.general.dataset, cfg.general.model, cfg.general.task)
-        self.log_path = os.path.join(self.logdir_path, self.log_date)
-        self.model_path = os.path.join(self.cfg.LOG_PATH, self.cfg.general.dataset, cfg.general.model, 'train', self.log_date)
+        self.log_path = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, self.ckp_name, cfg.general.task)
+        # self.log_path = os.path.join(self.logdir_path, self.ckp_name)
+        self.model_path = os.path.join(self.cfg.OUTPUT_PATH, self.cfg.general.dataset, cfg.general.model, self.ckp_name, "train")
         self.backup_path = os.path.join(self.log_path, 'backup')
         
-        self.logfile_exists = True if self.log_date and cfg.general.task == 'train' else False
+        self.logfile_exists = True if self.ckp_name and cfg.general.task == 'train' else False
         
         if not os.path.exists(self.log_path):
             os.makedirs(self.log_path, exist_ok=True)
             os.makedirs(self.backup_path, exist_ok=True)
 
         self._init_logger()
-        self._init_tb_writer()
+        # self._init_tb_writer()
     
     def _init_logger(self):
         self.logger = logging.getLogger(self.log_name)
@@ -70,15 +70,15 @@ class Logger:
 
     @classmethod
     def from_checkpoint(cls, cfg):
-        log_date = cfg.model.use_checkpoint
-        logger = cls(cfg, log_date)
+        ckp_name = cfg.model.use_checkpoint
+        logger = cls(cfg, ckp_name)
         return logger
     
     @classmethod
     def from_evaluation(cls, cfg):
-        log_date = cfg.evaluation.use_model
+        ckp_name = cfg.evaluation.use_model
         log_task = cfg.evaluation.task
-        logger = cls(cfg, log_date, log_task)
+        logger = cls(cfg, ckp_name, log_task)
         return logger
     
     def store_backup_config(self):

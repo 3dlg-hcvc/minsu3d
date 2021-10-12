@@ -1,12 +1,17 @@
 # scannet data
 data/scannet/splited_data
 data/scannet/splited_gt
+data/scannet/frames_square
+data/scannet/enet_features
+data/scannet/scannetv2_enet.pth
+data/scannet/enet_feats_maxpool.hdf5
 
 # log
 log/
 logs/
 
 # output
+output/
 outputs/
 
 # temp
