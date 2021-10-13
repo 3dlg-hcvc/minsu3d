@@ -137,8 +137,8 @@ def generate_gt_inst_ply(args):
 def visualize_pred_instance(filename, mesh, instance_ids, sem_labels):
     points = mesh[:, :3].astype(np.float32)
     colors = (mesh[:, 3:6]*256.0 + MEAN_COLOR_RGB).astype(np.uint8)
-    sem_labels = sem_labels.astype(np.int)
-    instance_ids = instance_ids.astype(np.int)
+    sem_labels = sem_labels.astype(np.int32)
+    instance_ids = instance_ids.astype(np.int32)
     num_verts = len(points)
     assert num_verts == len(sem_labels) and num_verts == len(instance_ids)
     
@@ -182,8 +182,8 @@ def generate_pred_inst_ply(args):
         colors = scannet_data['aligned_mesh'][:, 3:6].astype(np.uint8)
         num_verts = len(points)
         # num_verts = rgb_data['vertex'].count
-        sem_labels = np.loadtxt(pred_sem_file, dtype=np.int)
-        instance_ids = np.loadtxt(pred_inst_file, dtype=np.int)
+        sem_labels = np.loadtxt(pred_sem_file, dtype=np.int32)
+        instance_ids = np.loadtxt(pred_inst_file, dtype=np.int32)
         assert num_verts == len(sem_labels) and num_verts == len(instance_ids)
         
         unique_inst_ids = np.unique(instance_ids)
@@ -308,7 +308,7 @@ if __name__ == "__main__":
     
     # generate_rgb_ply(args)
     # generate_gt_sem_ply(args)
-    generate_pred_sem_ply(args)
+    # generate_pred_sem_ply(args)
     # generate_gt_inst_ply(args)
-    # generate_pred_inst_ply(args)
+    generate_pred_inst_ply(args)
     # generate_gt_bbox_ply(args)
