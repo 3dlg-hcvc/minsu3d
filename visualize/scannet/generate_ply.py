@@ -278,6 +278,7 @@ def generate_pred_bbox_ply(args):
         
         scannet_data = torch.load(rgb_file)
         mesh = scannet_data['aligned_mesh'][:, :6]
+        mesh[:, :3] -= mesh[:, :3].mean(0)
         bbox_data = torch.load(bbox_file)
         pred_bboxes = bbox_data["pred_bbox"]
         num_instances = len(pred_bboxes)
@@ -310,5 +311,6 @@ if __name__ == "__main__":
     # generate_gt_sem_ply(args)
     # generate_pred_sem_ply(args)
     # generate_gt_inst_ply(args)
-    generate_pred_inst_ply(args)
+    # generate_pred_inst_ply(args)
     # generate_gt_bbox_ply(args)
+    generate_pred_bbox_ply(args)
