@@ -13,13 +13,13 @@ def load_conf(args):
     
     root = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.test.use_exp)
     assert os.path.exists(root), "wrong experiment path"
-    root = os.path.join(root, "test")
+    root = os.path.join(root, f"{args.task}")
     os.makedirs(root, exist_ok=True)
 
     # HACK manually setting those properties
     cfg.data.split = args.split
     cfg.data.batch_size = 1
-    cfg.general.task = "test"
+    cfg.general.task = args.task
     cfg.general.root = root
     cfg.cluster.prepare_epochs = -1
 
@@ -61,6 +61,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml', help='path to config file')
     parser.add_argument('-s', '--split', type=str, default='val', help='specify data split')
+    parser.add_argument('-t', '--task', type=str, default='test', help='specify task')
     args = parser.parse_args()
 
     print("=> loading configurations...")
@@ -72,4 +73,11 @@ if __name__ == '__main__':
     print("=> initializing model...")
     model = init_model(cfg)
 
-    model.inference(dataloader[args.split])
+    if args.task == 'test':
+        model.inference(dataloader[args.split])
+    elif args.task == 'gt_feats':
+        if args.split == 'train':
+            epoch = 200
+        else:
+            epoch = 1
+        model.generate_gt_features(dataloader[args.split], cfg.data.split, epoch)

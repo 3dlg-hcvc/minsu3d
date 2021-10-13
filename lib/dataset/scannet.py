@@ -12,13 +12,14 @@ from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 from MinkowskiEngine.utils import sparse_collate, batched_coordinates
 
-from lib.utils.bbox import get_3d_box_batch
+from lib.utils.bbox import get_3d_box_batch, get_3d_box
 
 sys.path.append("../")  # HACK add the lib folder
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.pc import crop, random_sampling
 from lib.utils.transform import jitter, flip, rotz, elastic
+from data.scannet.model_util_scannet import rotate_aligned_boxes_along_axis
 
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 
@@ -74,16 +75,25 @@ class ScanNet(Dataset):
     def __len__(self):
         return len(self.scenes)
 
-    def _augment(self, xyz):
+    def _augment(self, xyz, instance_bboxes=None, return_mat=False):
         m = np.eye(3)
         if self.cfg.data.transform.jitter:
             m *= jitter()
         if self.cfg.data.transform.flip:
-            m *= flip(0, random=True)
+            flip_m = flip(0, random=True)
+            m *= flip_m
+            if instance_bboxes is not None and flip_m[0, 0] == -1:
+                instance_bboxes[:, 0] = -1 * instance_bboxes[:, 0]    
         if self.cfg.data.transform.rot:
             t = np.random.rand() * 2 * np.pi
-            m = np.matmul(m, rotz(t))  # rotation around z
-        return np.matmul(xyz, m)
+            rot_m = rotz(t)
+            m = np.matmul(m, rot_m)  # rotation around z
+            if instance_bboxes is not None:
+                instance_bboxes[:, :6] = rotate_aligned_boxes_along_axis(instance_bboxes, rot_m, "z")
+        if return_mat:
+            return np.matmul(xyz, m), instance_bboxes, m
+        else:
+            return np.matmul(xyz, m), instance_bboxes
 
     def _croppedInstanceIds(self, instance_ids, valid_idxs):
         """
@@ -159,6 +169,40 @@ class ScanNet(Dataset):
             return num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, instance_bbox_ids, angle_classes, angle_residuals, size_classes, size_residuals, bbox_label
         else:
             return num_instance, instance_info, instance_num_point
+        
+        
+    def _generate_gt_clusters(self, points, instance_ids):
+        gt_proposals_idx = []
+        gt_proposals_offset = [0]
+        unique_instance_ids = np.unique(instance_ids)
+        num_instance = len(unique_instance_ids) - 1 if -1 in unique_instance_ids else len(unique_instance_ids)
+        instance_bboxes = np.zeros((num_instance, 6))
+        
+        object_ids = []
+        for cid, i_ in enumerate(unique_instance_ids, -1):
+            if i_ < 0: continue
+            
+            object_ids.append(i_)
+            inst_i_idx = np.where(instance_ids == i_)[0]
+            inst_i_points = points[inst_i_idx]
+            xmin = np.min(inst_i_points[:, 0])
+            ymin = np.min(inst_i_points[:, 1])
+            zmin = np.min(inst_i_points[:, 2])
+            xmax = np.max(inst_i_points[:, 0])
+            ymax = np.max(inst_i_points[:, 1])
+            zmax = np.max(inst_i_points[:, 2])
+            bbox = np.array([(xmin+xmax)/2, (ymin+ymax)/2, (zmin+zmax)/2, xmax-xmin, ymax-ymin, zmax-zmin]) 
+            instance_bboxes[cid, :] = bbox
+            
+            proposals_idx_i = np.vstack((np.ones(len(inst_i_idx)) * cid, inst_i_idx)).transpose().astype(np.int32)
+            gt_proposals_idx.append(proposals_idx_i)
+            gt_proposals_offset.append(len(inst_i_idx) + gt_proposals_offset[-1])
+            
+        gt_proposals_idx = np.concatenate(gt_proposals_idx, axis=0)
+        gt_proposals_offset = np.array(gt_proposals_offset).astype(np.int32)
+        
+        return gt_proposals_idx, gt_proposals_offset, object_ids, instance_bboxes
+    
 
     def __getitem__(self, id):
         scene_id = self.scene_names[id]
@@ -189,11 +233,8 @@ class ScanNet(Dataset):
         points = mesh[:, :3]
 
         data = {"id": id, "scene_id": scene_id}
-        # data = {"id": id}
-        # data["id"] = np.array(id).astype(np.int32)
-        # data["scene_id"] = np.array(int(scene_id.lstrip("scene").replace("_", ""))).astype(np.int32)
 
-        if self.split != "test":
+        if self.cfg.general.task != "gt_feats":
             instance_ids = scene["instance_ids"]
             sem_labels = scene["sem_labels"]  # {0,1,...,19}, -1 as ignored (unannotated) class
             
@@ -252,8 +293,25 @@ class ScanNet(Dataset):
                 data["gt_bbox_label"] = bbox_label.astype(np.int64)
                 data["gt_bbox"] = get_3d_box_batch(instance_bboxes[:, 0:3], instance_bboxes[:, 3:6], angle_classes).astype(np.float32) # (num_instance, 8, 3)
         else:
+            instance_ids = scene["instance_ids"]
+            sem_labels = scene["sem_labels"]  # {0,1,...,19}, -1 as ignored (unannotated) class
             # augment
-            points_augment = points.copy()
+            gt_proposals_idx, gt_proposals_offset, object_ids, instance_bboxes = self._generate_gt_clusters(points, instance_ids)
+            # augment
+            if self.split == 'train':
+                points_augment, instance_bboxes, m = self._augment(points, instance_bboxes, True)
+            else:
+                points_augment = points.copy()
+                m = np.eye(3)
+                
+            heading_angles = np.zeros((len(instance_bboxes),))
+            bbox_corner = get_3d_box_batch(instance_bboxes[:, 0:3], instance_bboxes[:, 3:6], heading_angles).astype(np.float32)
+            
+            data['gt_proposals_idx'] = gt_proposals_idx
+            data['gt_proposals_offset'] = gt_proposals_offset
+            data['bbox_corner'] = bbox_corner
+            data['object_ids'] = np.array(object_ids).astype(np.int32)
+            data['transformation'] = m
             
             # scale
             points = points_augment * self.scale
@@ -274,7 +332,7 @@ def scannet_loader(cfg):
         batch_size = batch.__len__()
         data = {}
         for key in batch[0].keys():
-            if key in ['locs', 'locs_scaled', 'feats', 'sem_labels', 'instance_ids', 'num_instance', 'instance_info', 'instance_num_point']:
+            if key in ['locs', 'locs_scaled', 'feats', 'sem_labels', 'instance_ids', 'num_instance', 'instance_info', 'instance_num_point', 'gt_proposals_idx', 'gt_proposals_offset']:
                 continue
             if isinstance(batch[0][key], tuple):
                 coords, feats = list(zip(*[sample[key] for sample in batch]))
@@ -308,6 +366,9 @@ def scannet_loader(cfg):
         batch_offsets = [0]
         instance_offsets = [0]
         total_num_inst = 0
+        
+        gt_proposals_idx = []
+        gt_proposals_offset = []
 
         for i, b in enumerate(batch):
             locs.append(torch.from_numpy(b["locs"]))
@@ -320,7 +381,11 @@ def scannet_loader(cfg):
             feats.append(torch.from_numpy(b["feats"]))
             batch_offsets.append(batch_offsets[-1] + b["locs_scaled"].shape[0])
             
-            if cfg.general.task != "test":
+            if cfg.general.task == 'gt_feats':
+                gt_proposals_idx.append(torch.from_numpy(b["gt_proposals_idx"]))
+                gt_proposals_offset.append(torch.from_numpy(b["gt_proposals_offset"]))
+            
+            if cfg.general.task == "train":
                 instance_ids_i = b["instance_ids"]
                 instance_ids_i[np.where(instance_ids_i != -1)] += total_num_inst
                 total_num_inst += b["num_instance"].item()
@@ -337,7 +402,11 @@ def scannet_loader(cfg):
         data["feats"] = torch.cat(feats, 0)  #.to(torch.float32)            # float (N, C)
         data["batch_offsets"] = torch.tensor(batch_offsets, dtype=torch.int)  # int (B+1)
         
-        if cfg.general.task != "test":
+        if cfg.general.task == 'gt_feats':
+            data["gt_proposals_idx"] = torch.cat(gt_proposals_idx, 0).to(torch.int32)
+            data["gt_proposals_offset"] = torch.cat(gt_proposals_offset, 0).to(torch.int32)
+        
+        if cfg.general.task == "train":
             data["sem_labels"] = torch.cat(sem_labels, 0).long()  # long (N,)
             data["instance_ids"] = torch.cat(instance_ids, 0).long()  # long, (N,)
             data["instance_info"] = torch.cat(instance_info, 0).to(torch.float32)  # float (total_nInst, 12)
