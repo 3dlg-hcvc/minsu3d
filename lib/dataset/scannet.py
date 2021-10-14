@@ -40,6 +40,7 @@ class ScanNet(Dataset):
         self.use_multiview = cfg.model.use_multiview
         self.use_normal = cfg.model.use_normal
         self.requires_bbox = cfg.data.requires_bbox
+        self.requires_gt_mask = cfg.data.requires_gt_mask
         
         self.DATA_MAP = {
             "train": cfg.SCANNETV2_PATH.train_list,
@@ -198,7 +199,7 @@ class ScanNet(Dataset):
             gt_proposals_idx.append(proposals_idx_i)
             gt_proposals_offset.append(len(inst_i_idx) + gt_proposals_offset[-1])
             
-        gt_proposals_idx = np.concatenate(gt_proposals_idx, axis=0)
+        gt_proposals_idx = np.concatenate(gt_proposals_idx, axis=0).astype(np.int32)
         gt_proposals_offset = np.array(gt_proposals_offset).astype(np.int32)
         
         return gt_proposals_idx, gt_proposals_offset, object_ids, instance_bboxes
@@ -234,13 +235,13 @@ class ScanNet(Dataset):
 
         data = {"id": id, "scene_id": scene_id}
 
-        if self.cfg.general.task != "gt_feats":
+        if self.split != "test":
             instance_ids = scene["instance_ids"]
             sem_labels = scene["sem_labels"]  # {0,1,...,19}, -1 as ignored (unannotated) class
             
             # augment
             if self.split == "train" and self.cfg.general.task == "train":
-                points_augment = self._augment(points)
+                points_augment, _ = self._augment(points)
             else:
                 points_augment = points.copy()
             
@@ -273,6 +274,9 @@ class ScanNet(Dataset):
                 num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, instance_bbox_ids, angle_classes, angle_residuals, size_classes, size_residuals, bbox_label = self._getInstanceInfo(points_augment, instance_ids, sem_labels)
             else:
                 num_instance, instance_info, instance_num_point = self._getInstanceInfo(points_augment, instance_ids.astype(np.int32))
+                
+            if self.requires_gt_mask:
+                gt_proposals_idx, gt_proposals_offset, _, _ = self._generate_gt_clusters(points, instance_ids)
 
             data["locs"] = points_augment.astype(np.float32)  # (N, 3)
             data["locs_scaled"] = points.astype(np.float32)  # (N, 3)
@@ -292,6 +296,9 @@ class ScanNet(Dataset):
                 data["gt_bbox_object_id"] = instance_bbox_ids.astype(np.int64)
                 data["gt_bbox_label"] = bbox_label.astype(np.int64)
                 data["gt_bbox"] = get_3d_box_batch(instance_bboxes[:, 0:3], instance_bboxes[:, 3:6], angle_classes).astype(np.float32) # (num_instance, 8, 3)
+            if self.requires_gt_mask:
+                data['gt_proposals_idx'] = gt_proposals_idx
+                data['gt_proposals_offset'] = gt_proposals_offset
         else:
             instance_ids = scene["instance_ids"]
             sem_labels = scene["sem_labels"]  # {0,1,...,19}, -1 as ignored (unannotated) class
@@ -381,7 +388,7 @@ def scannet_loader(cfg):
             feats.append(torch.from_numpy(b["feats"]))
             batch_offsets.append(batch_offsets[-1] + b["locs_scaled"].shape[0])
             
-            if cfg.general.task == 'gt_feats':
+            if cfg.data.requires_gt_mask:
                 gt_proposals_idx.append(torch.from_numpy(b["gt_proposals_idx"]))
                 gt_proposals_offset.append(torch.from_numpy(b["gt_proposals_offset"]))
             
@@ -402,7 +409,7 @@ def scannet_loader(cfg):
         data["feats"] = torch.cat(feats, 0)  #.to(torch.float32)            # float (N, C)
         data["batch_offsets"] = torch.tensor(batch_offsets, dtype=torch.int)  # int (B+1)
         
-        if cfg.general.task == 'gt_feats':
+        if cfg.data.requires_gt_mask:
             data["gt_proposals_idx"] = torch.cat(gt_proposals_idx, 0).to(torch.int32)
             data["gt_proposals_offset"] = torch.cat(gt_proposals_offset, 0).to(torch.int32)
         

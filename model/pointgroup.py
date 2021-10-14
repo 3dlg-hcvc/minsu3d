@@ -314,8 +314,8 @@ class PointGroup(pl.LightningModule):
                 # proposals_offset = proposals_offset_shift
                 # proposals_batchId_all = proposals_batchId_shift_all
             else:
-                proposals_idx = data_dict["gt_proposals_idx"]
-                proposals_offset = data_dict["gt_proposals_offset"]
+                proposals_idx = data_dict["gt_proposals_idx"].cpu()
+                proposals_offset = data_dict["gt_proposals_offset"].cpu()
                 proposals_batchId_all = batch_idxs[proposals_idx[:, 1].long()].int() # (sumNPoint,)
 
             #### proposals voxelization again
@@ -533,8 +533,8 @@ class PointGroup(pl.LightningModule):
 
 
     def _parse_feed_ret(self, data_dict):
-        # semantic_scores = data_dict["semantic_scores"] # (N, nClass) float32, cuda
-        # pt_offsets = data_dict["pt_offsets"]           # (N, 3), float32, cuda
+        semantic_scores = data_dict["semantic_scores"] # (N, nClass) float32, cuda
+        pt_offsets = data_dict["pt_offsets"]           # (N, 3), float32, cuda
         
         # preds = {}
         loss_input = {}

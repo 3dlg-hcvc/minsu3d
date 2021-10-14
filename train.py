@@ -15,11 +15,12 @@ def load_conf(args):
     cfg = OmegaConf.load(args.config)
     cfg = OmegaConf.merge(base_cfg, cfg)
     
-    root = os.path.join(cfg.general.output_root, cfg.general.experiment.upper())
+    root = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.general.experiment.upper())
     os.makedirs(root, exist_ok=True)
 
     cfg.general.task = 'train'
     cfg.general.root = root
+    # cfg.cluster.prepare_epochs = -1
 
     cfg_backup_path = os.path.join(cfg.general.root, "config.yaml")
     OmegaConf.save(cfg, cfg_backup_path)
@@ -93,6 +94,7 @@ def init_model(cfg):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml', help='path to config file')
+    parser.add_argument('-e', '--experiment', type=str, default='', help='specify experiment')
     args = parser.parse_args()
 
     print("=> loading configurations...")
