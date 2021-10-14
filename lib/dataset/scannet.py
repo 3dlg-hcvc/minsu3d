@@ -373,6 +373,7 @@ def scannet_loader(cfg):
         batch_offsets = [0]
         instance_offsets = [0]
         total_num_inst = 0
+        total_points = 0
         
         gt_proposals_idx = []
         gt_proposals_offset = []
@@ -388,14 +389,23 @@ def scannet_loader(cfg):
             feats.append(torch.from_numpy(b["feats"]))
             batch_offsets.append(batch_offsets[-1] + b["locs_scaled"].shape[0])
             
-            if cfg.data.requires_gt_mask:
-                gt_proposals_idx.append(torch.from_numpy(b["gt_proposals_idx"]))
-                gt_proposals_offset.append(torch.from_numpy(b["gt_proposals_offset"]))
-            
-            if cfg.general.task == "train":
+            if cfg.general.task != "test":
+                if cfg.data.requires_gt_mask:
+                    gt_proposals_idx_i = b["gt_proposals_idx"]
+                    gt_proposals_idx_i[:, 0] += total_num_inst
+                    gt_proposals_idx_i[:, 1] += total_points
+                    gt_proposals_idx.append(torch.from_numpy(b["gt_proposals_idx"]))
+                    if gt_proposals_offset != []:
+                        gt_proposals_offset_i = b["gt_proposals_offset"]
+                        gt_proposals_offset_i += gt_proposals_offset[-1][-1].item()
+                        gt_proposals_offset.append(torch.from_numpy(gt_proposals_offset_i[1:]))
+                    else:
+                        gt_proposals_offset.append(torch.from_numpy(b["gt_proposals_offset"]))
+                
                 instance_ids_i = b["instance_ids"]
                 instance_ids_i[np.where(instance_ids_i != -1)] += total_num_inst
                 total_num_inst += b["num_instance"].item()
+                total_points += len(instance_ids_i)
                 instance_ids.append(torch.from_numpy(instance_ids_i))
                 
                 sem_labels.append(torch.from_numpy(b["sem_labels"]))
@@ -409,16 +419,15 @@ def scannet_loader(cfg):
         data["feats"] = torch.cat(feats, 0)  #.to(torch.float32)            # float (N, C)
         data["batch_offsets"] = torch.tensor(batch_offsets, dtype=torch.int)  # int (B+1)
         
-        if cfg.data.requires_gt_mask:
-            data["gt_proposals_idx"] = torch.cat(gt_proposals_idx, 0).to(torch.int32)
-            data["gt_proposals_offset"] = torch.cat(gt_proposals_offset, 0).to(torch.int32)
-        
-        if cfg.general.task == "train":
+        if cfg.general.task != "test":
             data["sem_labels"] = torch.cat(sem_labels, 0).long()  # long (N,)
             data["instance_ids"] = torch.cat(instance_ids, 0).long()  # long, (N,)
             data["instance_info"] = torch.cat(instance_info, 0).to(torch.float32)  # float (total_nInst, 12)
             data["instance_num_point"] = torch.cat(instance_num_point, 0).int()  # (total_nInst)
             data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (B+1)
+            if cfg.data.requires_gt_mask:
+                data["gt_proposals_idx"] = torch.cat(gt_proposals_idx, 0).to(torch.int32)
+                data["gt_proposals_offset"] = torch.cat(gt_proposals_offset, 0).to(torch.int32)
 
         ### voxelize
         data["voxel_locs"], data["p2v_map"], data["v2p_map"] = pointgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), 4) # mode=4
