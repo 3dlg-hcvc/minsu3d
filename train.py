@@ -61,7 +61,7 @@ def init_monitor(cfg):
 def init_trainer(cfg):
     if cfg.model.use_checkpoint:
         print("=> configuring trainer with checkpoint from {} ...".format(cfg.model.use_checkpoint))
-        checkpoint = os.path.join(cfg.general.output_root, cfg.model.use_checkpoint, "last.ckpt")
+        checkpoint = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.model.use_checkpoint, "last.ckpt")
     else:
         checkpoint = None
 
@@ -86,7 +86,12 @@ def init_model(cfg):
 
     if cfg.model.use_checkpoint:
         print("=> loading pretrained checkpoint from {} ...".format(cfg.model.use_checkpoint))
-        checkpoint = os.path.join(cfg.general.output_root, cfg.model.use_checkpoint, "last.ckpt")
+        checkpoint = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.model.use_checkpoint, "last.ckpt")
+        # import torch
+        # ckpt = torch.load(checkpoint)
+        # ckpt["hyper_parameters"]["cfg"]["ROOT_PATH"] = "/local-scratch/qiruiw/research/pointgroup-minkowski"
+        # ckpt["hyper_parameters"]["cfg"]["DATA_PATH"] = "${ROOT_PATH}/data"
+        # torch.save(ckpt, checkpoint)
         model.load_from_checkpoint(checkpoint)
 
     return model
