@@ -75,11 +75,11 @@ def read_agg_file(agg_file):
                 # print('ignore wall, floor or ceiling')
                 continue
             else:
-                objectId2segs[objectId] = segs
+                objectId2segs[objectId] = segs.copy()
                 if label in label2segs:
-                    label2segs[label].extend(segs)
+                    label2segs[label].extend(segs.copy())
                 else:
-                    label2segs[label] = segs
+                    label2segs[label] = segs.copy()
                 # objectId += 1
 
     if agg_file.split('/')[-2] == 'scene0217_00':
