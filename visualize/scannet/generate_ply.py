@@ -162,13 +162,15 @@ def generate_pred_inst_ply(args):
     # scan_dir = cfg.SCANNETV2_PATH.splited_scans
     data_dir = cfg.SCANNETV2_PATH.splited_data
     pred_dir = f'/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/{use_checkpoint}/test' # TODO
-    output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_instance/{use_checkpoint}/{split}' # TODO
+    # output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_instance/{use_checkpoint}/{split}' # TODO
+    output_dir = f'/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/{use_checkpoint}/visualize/instance'
     os.makedirs(output_dir, exist_ok=True)
     scene_ids_file = os.path.join(cfg.SCANNETV2_PATH.meta_data, f'scannetv2_{split}.txt')
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
     DONOTCARE_CLASS_IDS = np.array([1, 2, 22]) # exclude wall, floor and ceiling
     
     for scene_id in scene_ids:
+        if scene_id not in ['scene0011_00', 'scene0025_00', 'scene0046_00', 'scene0050_00', 'scene0064_00', 'scene0144_00', 'scene0329_00', 'scene0427_00', ]: continue
         print(scene_id)
         # rgb_ply = os.path.join(scan_dir, split, scene_id, f'{scene_id}_vh_clean_2.ply')
         rgb_file = os.path.join(data_dir, split, f'{scene_id}.pth')
@@ -182,8 +184,8 @@ def generate_pred_inst_ply(args):
         colors = scannet_data['aligned_mesh'][:, 3:6].astype(np.uint8)
         num_verts = len(points)
         # num_verts = rgb_data['vertex'].count
-        sem_labels = np.loadtxt(pred_sem_file, dtype=np.int)
-        instance_ids = np.loadtxt(pred_inst_file, dtype=np.int)
+        sem_labels = np.loadtxt(pred_sem_file, dtype=np.int32)
+        instance_ids = np.loadtxt(pred_inst_file, dtype=np.int32)
         assert num_verts == len(sem_labels) and num_verts == len(instance_ids)
         
         unique_inst_ids = np.unique(instance_ids)
@@ -265,12 +267,14 @@ def generate_pred_bbox_ply(args):
     use_checkpoint = args.use_checkpoint
     data_dir = cfg.SCANNETV2_PATH.splited_data
     bbox_dir = f'/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/{use_checkpoint}/test/{split}/detection' # TODO
-    output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_bbox/{use_checkpoint}/{split}' # TODO
+    # output_dir = f'/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_bbox/{use_checkpoint}/{split}' # TODO
+    output_dir = f'/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/{use_checkpoint}/visualize/detection'
     os.makedirs(output_dir, exist_ok=True)
     scene_ids_file = f'/local-scratch/qiruiw/research/dense-scanrefer/data/scanrefer/splited_data/ScanRefer_filtered_{split}.txt'
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
     
     for scene_id in scene_ids:
+        if scene_id not in ['scene0011_00', 'scene0025_00', 'scene0046_00', 'scene0050_00', 'scene0064_00', 'scene0144_00', 'scene0329_00', 'scene0427_00', ]: continue
         print(scene_id)
         rgb_file = os.path.join(data_dir, split, f'{scene_id}.pth')
         bbox_file = os.path.join(bbox_dir, f"{scene_id}.pth")
@@ -279,7 +283,7 @@ def generate_pred_bbox_ply(args):
         scannet_data = torch.load(rgb_file)
         mesh = scannet_data['aligned_mesh'][:, :6]
         bbox_data = torch.load(bbox_file)
-        pred_bboxes = bbox_data["pred_bbox"]
+        pred_bboxes = bbox_data["pred_bbox"] + mesh[:, :3].mean(0) # revert centering
         num_instances = len(pred_bboxes)
         
         bbox_verts_all = []
@@ -293,8 +297,8 @@ def generate_pred_bbox_ply(args):
             bbox_colors_all.extend(pred_bbox_colors)
             bbox_indices_all.extend(pred_bbox_indices)
             
-        write_ply_rgb_face(np.concatenate([np.array(bbox_verts_all), mesh[:, :3]]),
-                            np.concatenate([np.array(bbox_colors_all), mesh[:, 3:]]),
+        write_ply_rgb_face(np.concatenate([np.array(bbox_verts_all)]),
+                            np.concatenate([np.array(bbox_colors_all)]),
                             np.array(bbox_indices_all),
                             rgb_bbox_ply)
             
@@ -308,7 +312,29 @@ if __name__ == "__main__":
     
     # generate_rgb_ply(args)
     # generate_gt_sem_ply(args)
-    generate_pred_sem_ply(args)
+    # generate_pred_sem_ply(args)
     # generate_gt_inst_ply(args)
-    # generate_pred_inst_ply(args)
+    generate_pred_inst_ply(args)
     # generate_gt_bbox_ply(args)
+    # generate_pred_bbox_ply(args)
+    
+    # import h5py
+    # val = h5py.File("/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/DETECTOR/gt_feats/val.hdf5", "r", libver="latest")
+    # bbox = val["{}|{}_bbox_corners".format(str(0), "scene0011_00")]
+    # print(bbox.shape)
+    # num_instances = len(bbox)
+    # bbox_verts_all = []
+    # bbox_colors_all = []
+    # bbox_indices_all = []
+    # for i in range(num_instances):
+    #     crop_bbox = bbox[i]
+    #     crop_bbox_verts, crop_bbox_colors, crop_bbox_indices = write_cylinder_bbox(crop_bbox, mode=1)
+    #     crop_bbox_indices = [ind + len(bbox_verts_all) for ind in crop_bbox_indices]
+    #     bbox_verts_all.extend(crop_bbox_verts)
+    #     bbox_colors_all.extend(crop_bbox_colors)
+    #     bbox_indices_all.extend(crop_bbox_indices)
+        
+    # write_ply_rgb_face(np.array(bbox_verts_all),
+    #                     np.array(bbox_colors_all),
+    #                     np.array(bbox_indices_all),
+    #                     "bbox.test.scene0011_00.ply")
