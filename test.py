@@ -44,7 +44,7 @@ def init_model(cfg):
     model = Model(cfg)
 
     # checkpoint_path = "/project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar"
-    checkpoint_path = "/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/DETECTOR/detector.pth"
+    checkpoint_path = "/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/DETECTOR_F/detector.pth"
     # checkpoint_path = os.path.join(cfg.general.root, checkpoint_name)
     # model.load_from_checkpoint(checkpoint_path, cfg)
 

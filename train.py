@@ -67,7 +67,7 @@ def init_trainer(cfg):
 
     trainer = pl.Trainer(
         gpus=-1, # use all available GPUs 
-        accelerator='ddp', # use multiple GPUs on the same machine
+        strategy='ddp', # use multiple GPUs on the same machine
         max_epochs=cfg.train.epochs, 
         num_sanity_val_steps=cfg.train.num_sanity_val_steps, # validate on all val data before training 
         log_every_n_steps=cfg.train.log_every_n_steps,
