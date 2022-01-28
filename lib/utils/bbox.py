@@ -387,7 +387,7 @@ def write_cylinder_bbox(bbox, mode, out_filename=None):
             
         return verts, indices
 
-    radius = 0.01
+    radius = 0.03
     offset = [0,0,0]
     verts = []
     indices = []

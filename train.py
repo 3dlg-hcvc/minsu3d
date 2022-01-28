@@ -15,11 +15,12 @@ def load_conf(args):
     cfg = OmegaConf.load(args.config)
     cfg = OmegaConf.merge(base_cfg, cfg)
     
-    root = os.path.join(cfg.general.output_root, cfg.general.experiment.upper())
+    root = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.general.experiment.upper())
     os.makedirs(root, exist_ok=True)
 
     cfg.general.task = 'train'
     cfg.general.root = root
+    # cfg.cluster.prepare_epochs = -1
 
     cfg_backup_path = os.path.join(cfg.general.root, "config.yaml")
     OmegaConf.save(cfg, cfg_backup_path)
@@ -60,13 +61,13 @@ def init_monitor(cfg):
 def init_trainer(cfg):
     if cfg.model.use_checkpoint:
         print("=> configuring trainer with checkpoint from {} ...".format(cfg.model.use_checkpoint))
-        checkpoint = os.path.join(cfg.general.output_root, cfg.model.use_checkpoint, "last.ckpt")
+        checkpoint = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.model.use_checkpoint, "last.ckpt")
     else:
         checkpoint = None
 
     trainer = pl.Trainer(
         gpus=-1, # use all available GPUs 
-        accelerator='ddp', # use multiple GPUs on the same machine
+        strategy='ddp', # use multiple GPUs on the same machine
         max_epochs=cfg.train.epochs, 
         num_sanity_val_steps=cfg.train.num_sanity_val_steps, # validate on all val data before training 
         log_every_n_steps=cfg.train.log_every_n_steps,
@@ -85,7 +86,12 @@ def init_model(cfg):
 
     if cfg.model.use_checkpoint:
         print("=> loading pretrained checkpoint from {} ...".format(cfg.model.use_checkpoint))
-        checkpoint = os.path.join(cfg.general.output_root, cfg.model.use_checkpoint, "last.ckpt")
+        checkpoint = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.model.use_checkpoint, "last.ckpt")
+        # import torch
+        # ckpt = torch.load(checkpoint)
+        # ckpt["hyper_parameters"]["cfg"]["ROOT_PATH"] = "/local-scratch/qiruiw/research/pointgroup-minkowski"
+        # ckpt["hyper_parameters"]["cfg"]["DATA_PATH"] = "${ROOT_PATH}/data"
+        # torch.save(ckpt, checkpoint)
         model.load_from_checkpoint(checkpoint)
 
     return model
@@ -93,6 +99,7 @@ def init_model(cfg):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml', help='path to config file')
+    parser.add_argument('-e', '--experiment', type=str, default='', help='specify experiment')
     args = parser.parse_args()
 
     print("=> loading configurations...")

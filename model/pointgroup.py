@@ -89,16 +89,6 @@ class PointGroup(pl.LightningModule):
             ME.MinkowskiReLU(inplace=True)
         )
         
-        # self.proposal_mlp = nn.Sequential(
-        #     nn.Linear(m, 32),
-        #     nn.BatchNorm1d(32),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(32, 64),
-        #     nn.BatchNorm1d(64),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(64, 128)
-        # )
-        
         if cfg.model.pred_bbox:
             num_class = cfg.model.num_bbox_class
             num_heading_bin = cfg.model.num_heading_bin
@@ -114,13 +104,8 @@ class PointGroup(pl.LightningModule):
             )
         
         self.score_linear = nn.Linear(m, 1)
-        # self.score_linear = nn.Linear(128, 1)
 
         self._init_random_seed()
-
-        # NOTE do NOT manually load the pretrained weights during training!!!
-        # if cfg.general.task == "test":
-        #     self._load_pretrained_model()
         
     
     @staticmethod
@@ -314,8 +299,8 @@ class PointGroup(pl.LightningModule):
                 # proposals_offset = proposals_offset_shift
                 # proposals_batchId_all = proposals_batchId_shift_all
             else:
-                proposals_idx = data_dict["gt_proposals_idx"]
-                proposals_offset = data_dict["gt_proposals_offset"]
+                proposals_idx = data_dict["gt_proposals_idx"].cpu()
+                proposals_offset = data_dict["gt_proposals_offset"].cpu()
                 proposals_batchId_all = batch_idxs[proposals_idx[:, 1].long()].int() # (sumNPoint,)
 
             #### proposals voxelization again
@@ -328,7 +313,6 @@ class PointGroup(pl.LightningModule):
             score_feats = self.score_net(proposals_voxel_feats)
             pt_score_feats = score_feats.features[proposals_p2v_map.long()] # (sumNPoint, C)
             proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
-            # proposals_score_feats = self.proposal_mlp(proposals_score_feats) # (nProposal, 128)
             scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
             data_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
 
@@ -338,7 +322,7 @@ class PointGroup(pl.LightningModule):
             proposals_npoint = torch.zeros(num_proposals).cuda()
             for i in range(num_proposals):
                 proposals_npoint[i] = (proposals_idx[:, 0] == i).sum()
-            thres_mask = torch.logical_and(torch.sigmoid(scores.view(-1)) > self.cfg.test.TEST_SCORE_THRESH, proposals_npoint > self.cfg.test.TEST_NPOINT_THRESH) if not self.requires_gt_mask else torch.Tensor([True] * scores.shape[0]).cuda()# (nProposal,)
+            thres_mask = torch.logical_and(torch.sigmoid(scores.view(-1)) > self.cfg.test.TEST_SCORE_THRESH, proposals_npoint > self.cfg.test.TEST_NPOINT_THRESH) if not self.requires_gt_mask else torch.tensor([True] * scores.shape[0]).cuda()# (nProposal,)
             data_dict["proposals_npoint"] = proposals_npoint
             data_dict["proposal_thres_mask"] = thres_mask
             
@@ -391,18 +375,6 @@ class PointGroup(pl.LightningModule):
     
     
     # NOTE deprecated - will be removed soon
-    def _resume_from_checkpoint(self):
-        if self.cfg.model.use_checkpoint:
-            print("=> restoring checkpoint from {} ...".format(self.cfg.model.use_checkpoint))
-            self.start_epoch = self.restore_checkpoint()      # resume from the latest epoch, or specify the epoch to restore
-        else: 
-            self.start_epoch = 1
-
-            if self.cfg.model.pretrained_module:
-                self._load_pretrained_module()
-    
-    
-    # NOTE deprecated - will be removed soon
     def _load_pretrained_module(self):
         self.logger.info("=> loading pretrained {}...".format(self.cfg.model.pretrained_module))
         for i, module_name in enumerate(self.cfg.model.pretrained_module):
@@ -414,33 +386,8 @@ class PointGroup(pl.LightningModule):
             for param in self.backbone.parameters():
                 param.requires_grad = False
         
-    # NOTE deprecated - will be removed soon
-    def _load_pretrained_model(self):
-        pretrained_path = self.cfg.model.pretrained_path
-        self.logger.info("=> load pretrained model from {} ...".format(pretrained_path))
         
-        model_state = torch.load(pretrained_path)
-        self.load_state_dict(model_state["state_dict"])
-        
-        self.start_epoch = self.cfg.model.resume_epoch
-    
-    
-    # NOTE deprecated - will be removed soon
-    def restore_checkpoint(self):
-        ckp_filename = os.path.join(self.cfg.general.output_root, self.cfg.model.use_checkpoint, "last.ckpt")
-        assert os.path.isfile(ckp_filename), "Invalid checkpoint file: {}".format(ckp_filename)
-
-        checkpoint = torch.load(ckp_filename)
-        epoch = checkpoint["epoch"]
-        
-        print("=> relocating epoch at {} ...".format(epoch))
-
-        self.load_state_dict(checkpoint["state_dict"])
-        
-        return checkpoint["epoch"]
-        
-        
-    def _loss(self, loss_input):
+    def _loss(self, data_dict):
 
         def get_segmented_scores(scores, fg_thresh=1.0, bg_thresh=0.0):
             """
@@ -458,19 +405,17 @@ class PointGroup(pl.LightningModule):
 
             return segmented_scores
 
-        loss_dict = {}
-
         """semantic loss"""
-        semantic_scores, semantic_labels = loss_input["semantic_scores"]
+        semantic_scores, semantic_labels = data_dict["semantic_scores"], data_dict["sem_labels"]
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
 
         semantic_criterion = nn.CrossEntropyLoss(ignore_index=self.cfg.data.ignore_label)
         semantic_loss = semantic_criterion(semantic_scores, semantic_labels)
-        loss_dict["semantic_loss"] = (semantic_loss, semantic_scores.shape[0])
+        data_dict["semantic_loss"] = (semantic_loss, semantic_scores.shape[0])
 
         """offset loss"""
-        pt_offsets, coords, instance_info, instance_ids = loss_input["pt_offsets"]
+        pt_offsets, coords, instance_info, instance_ids = data_dict["pt_offsets"], data_dict["locs"], data_dict["instance_info"], data_dict["instance_ids"]
         # pt_offsets: (N, 3), float, cuda
         # coords: (N, 3), float32
         # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
@@ -489,12 +434,13 @@ class PointGroup(pl.LightningModule):
         direction_diff = - (gt_offsets_ * pt_offsets_).sum(-1)   # (N)
         offset_dir_loss = torch.sum(direction_diff * valid) / (torch.sum(valid) + 1e-6)
 
-        loss_dict["offset_norm_loss"] = (offset_norm_loss, valid.sum())
-        loss_dict["offset_dir_loss"] = (offset_dir_loss, valid.sum())
+        data_dict["offset_norm_loss"] = (offset_norm_loss, valid.sum())
+        data_dict["offset_dir_loss"] = (offset_dir_loss, valid.sum())
 
         if self.current_epoch > self.cfg.cluster.prepare_epochs:
             """score loss"""
-            scores, proposals_idx, proposals_offset, instance_pointnum = loss_input["proposal_scores"]
+            scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
+            instance_pointnum = data_dict["instance_num_point"]
             # scores: (nProposal, 1), float32
             # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
             # proposals_offset: (nProposal + 1), int, cpu
@@ -508,15 +454,15 @@ class PointGroup(pl.LightningModule):
             score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             score_loss = score_loss.mean()
 
-            loss_dict["score_loss"] = (score_loss, gt_ious.shape[0])
+            data_dict["score_loss"] = (score_loss, gt_ious.shape[0])
 
         """total loss"""
         loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + self.cfg.train.loss_weight[2] * offset_dir_loss
         if self.current_epoch > self.cfg.cluster.prepare_epochs:
             loss += (self.cfg.train.loss_weight[3] * score_loss)
-        loss_dict["total_loss"] = (loss, semantic_labels.shape[0])
+        data_dict["total_loss"] = (loss, semantic_labels.shape[0])
 
-        return loss_dict
+        return data_dict
         
         
     def _feed(self, data_dict):
@@ -526,61 +472,24 @@ class PointGroup(pl.LightningModule):
         data_dict["voxel_feats"] = pointgroup_ops.voxelization(data_dict["feats"], data_dict["v2p_map"], self.cfg.data.mode)  # (M, C), float, cuda
 
         data_dict = self.forward(data_dict)
-        data_dict = self.convert_stack_to_batch(data_dict)
+        if self.cfg.model.crop_bbox or self.cfg.model.pred_bbox:
+            data_dict = self.convert_stack_to_batch(data_dict)
         
         return data_dict
-
-
-    def _parse_feed_ret(self, data_dict):
-        # semantic_scores = data_dict["semantic_scores"] # (N, nClass) float32, cuda
-        # pt_offsets = data_dict["pt_offsets"]           # (N, 3), float32, cuda
-        
-        # preds = {}
-        loss_input = {}
-        
-        # preds["semantic"] = semantic_scores
-        # preds["pt_offsets"] = pt_offsets
-        if self.task != "test":
-            loss_input["semantic_scores"] = (semantic_scores, data_dict["sem_labels"])
-            loss_input["pt_offsets"] = (pt_offsets, data_dict["locs"], data_dict["instance_info"], data_dict["instance_ids"])
-        
-        if self.current_epoch > self.cfg.cluster.prepare_epochs:
-            scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
-            # preds["score"] = scores
-            # preds["proposals"] = (proposals_idx, proposals_offset)
-            # preds["proposals_npoint"] = data_dict["proposals_npoint"]
-            # preds["proposal_thres_mask"] = data_dict["proposal_thres_mask"]
-            # if self.cfg.model.crop_bbox:
-            #     preds["proposal_crop_bboxes"] = data_dict["proposal_crop_bboxes"] # (nProposals, center+size+heading+label+score)
-            
-            if self.task != "test":
-                loss_input["proposal_scores"] = (scores, proposals_idx, proposals_offset, data_dict["instance_num_point"])
-                # scores: (nProposal, 1) float, cuda
-                # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-                # proposals_offset: (nProposal + 1), int, cpu
-                loss_input["proposal_thres_mask"] = data_dict["proposal_thres_mask"]
-                loss_input["proposals_batchId"] = data_dict["proposals_batchId"]
-                if self.cfg.model.crop_bbox:
-                    loss_input["proposal_crop_bboxes"] = data_dict["proposal_crop_bboxes"]
-                if self.cfg.model.pred_bbox:
-                    loss_input["proposal_pred_bboxes"] = (data_dict["center"], data_dict["heading_scores"], data_dict["heading_residuals_normalized"], data_dict["heading_residuals"], data_dict["size_scores"], data_dict["size_residuals_normalized"], data_dict["size_residuals"], data_dict["sem_cls_scores"])
-        
-        # return preds, loss_input
-        return loss_input
         
 
-    def get_bbox_iou(self, loss_input, data_dict):
+    def get_bbox_iou(self, data_dict):
         batch_size = len(data_dict["batch_offsets"]) - 1
-        proposal_thres_mask = loss_input["proposal_thres_mask"]
+        proposal_thres_mask = data_dict["proposal_thres_mask"]
         instance_offsets = data_dict["instance_offsets"].detach().cpu().numpy()
-        proposals_batchId = loss_input["proposals_batchId"]
+        proposals_batchId = data_dict["proposals_batchId"]
         
         # parse gt_bbox
         gt_bboxes = data_dict["gt_bbox"]
         
         if self.cfg.model.crop_bbox:
             # parse crop_bbox
-            proposal_crop_bboxes = loss_input["proposal_crop_bboxes"]
+            proposal_crop_bboxes = data_dict["proposal_crop_bboxes"]
             proposal_crop_bboxes = proposal_crop_bboxes.detach().cpu().numpy() # (nProposals, center+size+heading+label)
             proposal_crop_bbox_corners = get_3d_box_batch(proposal_crop_bboxes[:, 0:3], proposal_crop_bboxes[:, 3:6], proposal_crop_bboxes[:, 6]) # (nProposals, 8, 3)
             num_proposal = proposal_crop_bboxes.shape[0] 
@@ -599,7 +508,7 @@ class PointGroup(pl.LightningModule):
             
         if self.cfg.model.pred_bbox:
             # parse pred_bbox
-            pred_center, heading_scores, heading_residuals_normalized, heading_residuals, size_scores, size_residuals_normalized, size_residuals, sem_cls_scores = loss_input["proposal_pred_bboxes"]
+            pred_center, heading_scores, heading_residuals_normalized, heading_residuals, size_scores, size_residuals_normalized, size_residuals, sem_cls_scores = data_dict["center"], data_dict["heading_scores"], data_dict["heading_residuals_normalized"], data_dict["heading_residuals"], data_dict["size_scores"], data_dict["size_residuals_normalized"], data_dict["size_residuals"], data_dict["sem_cls_scores"]
             pred_center = pred_center.detach().cpu().numpy()
             pred_heading_class = torch.argmax(heading_scores, -1).detach().cpu().numpy() # num_proposal
             pred_heading_residual = torch.gather(heading_scores, 1, pred_heading_class.unsqueeze(-1)).squeeze(1).detach().cpu().numpy() # num_proposal
@@ -636,12 +545,11 @@ class PointGroup(pl.LightningModule):
 
         ##### prepare input and forward
         data_dict = self._feed(data_dict)
-        loss_input = self._parse_feed_ret(data_dict)
-        loss_dict = self._loss(loss_input)
-        loss = loss_dict["total_loss"][0]
+        data_dict = self._loss(data_dict)
+        loss = data_dict["total_loss"][0]
 
         in_prog_bar = ["total_loss"]
-        for key, value in loss_dict.items():
+        for key, value in data_dict.items():
             if "loss" in key:
                 self.log("train/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=True, on_epoch=True, sync_dist=True)
 
@@ -653,11 +561,10 @@ class PointGroup(pl.LightningModule):
 
         ##### prepare input and forward
         data_dict = self._feed(data_dict)
-        loss_input = self._parse_feed_ret(data_dict)
-        loss_dict = self._loss(loss_input)
+        data_dict = self._loss(data_dict)
 
         in_prog_bar = ["total_loss"]
-        for key, value in loss_dict.items():
+        for key, value in data_dict.items():
             if "loss" in key:
                 self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True, sync_dist=True)
 
@@ -872,3 +779,78 @@ class PointGroup(pl.LightningModule):
                 bbox_path = os.path.join(pred_path, "detection")
                 os.makedirs(bbox_path, exist_ok=True)
                 torch.save({"pred_bbox": bbox_corners_batch, "pred_sem_cls": pred_sem_cls_batch, "pred_obj_prob": obj_prob_batch, "gt_bbox": data_dict['gt_bbox'][b].detach().cpu().numpy(), "gt_bbox_label": data_dict["gt_bbox_label"][b].detach().cpu().numpy(), "gt_sem_cls": data_dict["sem_cls_label"][b].detach().cpu().numpy()}, os.path.join(bbox_path, f"{scene_id}.pth"))
+                
+                
+    def generate_gt_features(self, dataloader, split="val", epoch=1):
+        import h5py
+
+        self.eval()
+        print('>>>>>>>>>>>>>>>> Start Generation >>>>>>>>>>>>>>>>')
+        
+        database = h5py.File(os.path.join(self.cfg.general.root, f"{split}.hdf5"), "w", libver="latest")
+        
+        for e in range(epoch):
+            print("extracting for epoch {}...".format(e))
+            # HACK temporarily storing all results in a dict, then dump into hdf5 database after organization
+            epoch_dict = {}
+            
+            with torch.no_grad():
+                for i, data_dict in enumerate(tqdm(dataloader)):
+                    # import pdb; pdb.set_trace()
+                    for key in data_dict.keys():
+                        if isinstance(data_dict[key], tuple): continue
+                        if isinstance(data_dict[key], dict): continue
+                        if isinstance(data_dict[key], list): continue
+                        if key in self.cfg.data.exclude_keys: continue
+                        data_dict[key] = data_dict[key].cuda()
+                    
+                    data_dict = self._feed(data_dict)
+                    
+                    scene_id = data_dict["scene_id"][0]
+                    features = data_dict['proposal_feats']
+                    bbox_corners = data_dict["bbox_corner"][0]
+                    object_ids = data_dict["object_ids"][0]
+                    transformation = data_dict["transformation"][0]
+                    
+                    epoch_dict[scene_id] = {
+                        "object_ids": [],
+                        "features": [],
+                        "bbox_corners": [],
+                        "transformation": []
+                    }
+                    
+                    for inst_i in range(len(features)):
+                        cur_feat = features[inst_i]
+                        cur_corners = bbox_corners[inst_i]
+                        object_id = object_ids[inst_i]
+                        
+                        epoch_dict[scene_id]["object_ids"].append(object_id.cpu().numpy())
+                        epoch_dict[scene_id]["features"].append(cur_feat.cpu().numpy())
+                        epoch_dict[scene_id]["bbox_corners"].append(cur_corners.cpu().numpy())
+                        epoch_dict[scene_id]["transformation"].append(transformation.cpu().numpy())
+                        
+            for scene_id in epoch_dict:
+                # save scene object ids
+                object_id_dataset = "{}|{}_gt_ids".format(str(e), scene_id)
+                object_ids = np.array(epoch_dict[scene_id]["object_ids"])
+                database.create_dataset(object_id_dataset, data=object_ids)
+
+                # save features
+                feature_dataset = "{}|{}_features".format(str(e), scene_id)
+                features = np.stack(epoch_dict[scene_id]["features"], axis=0)
+                database.create_dataset(feature_dataset, data=features)
+
+                # save bboxes
+                bbox_dataset = "{}|{}_bbox_corners".format(str(e), scene_id)
+                bbox_corners = np.stack(epoch_dict[scene_id]["bbox_corners"], axis=0)
+                database.create_dataset(bbox_dataset, data=bbox_corners)
+                
+                # save GT bboxes
+                gt_dataset = "{}|{}_gt_corners".format(str(e), scene_id)
+                gt_corners = np.stack(epoch_dict[scene_id]["bbox_corners"], axis=0)
+                database.create_dataset(gt_dataset, data=gt_corners)
+                
+                # save transformations
+                trans_dataset = "{}|{}_transformation".format(str(e), scene_id)
+                trans_mat = np.stack(epoch_dict[scene_id]["transformation"], axis=0)
+                database.create_dataset(trans_dataset, data=trans_mat)

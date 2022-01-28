@@ -1,10 +1,10 @@
-ROOT_PATH: /rhome/dchen/pointgroup-minkowski #TODO
+ROOT_PATH: /local-scratch/qiruiw/research/pointgroup-minkowski #TODO
 CLUSTER_PATH: /cluster/balrog/dchen/pointgroup-minkowski #TODO
-DATA_PATH: ${CLUSTER_PATH}/data
+DATA_PATH: ${ROOT_PATH}/data
 OUTPUT_PATH: ${ROOT_PATH}/output
 
 SCANNETV2_PATH:
-  raw_scans: /canis/Datasets/ScanNet/public/v2/scans
+  raw_scans: /datasets/released/scannet/public/v2/scans
   extracted_scans: /local-scratch/qiruiw/dataset/scannet/scans
 
   dir: ${DATA_PATH}/scannet
