@@ -1,27 +1,26 @@
 import os
 import sys
 import time
-import json
 import h5py 
-import torch
+from tqdm import tqdm
 
 import numpy as np
 import multiprocessing as mp
 
-from tqdm import tqdm
+import torch
 from torch.utils.data import Dataset, DataLoader
 from MinkowskiEngine.utils import sparse_collate, batched_coordinates
-
-from lib.utils.bbox import get_3d_box_batch, get_3d_box
 
 sys.path.append("../")  # HACK add the lib folder
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.pc import crop, random_sampling
+from lib.utils.bbox import get_3d_box_batch
 from lib.utils.transform import jitter, flip, rotz, elastic
 from data.scannet.model_util_scannet import rotate_aligned_boxes_along_axis
 
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
+
 
 class ScanNet(Dataset):
 
@@ -76,25 +75,21 @@ class ScanNet(Dataset):
     def __len__(self):
         return len(self.scenes)
 
-    def _augment(self, xyz, instance_bboxes=None, return_mat=False):
+    def _augment(self, xyz, return_mat=False):
         m = np.eye(3)
         if self.cfg.data.transform.jitter:
             m *= jitter()
         if self.cfg.data.transform.flip:
             flip_m = flip(0, random=True)
-            m *= flip_m
-            if instance_bboxes is not None and flip_m[0, 0] == -1:
-                instance_bboxes[:, 0] = -1 * instance_bboxes[:, 0]    
+            m *= flip_m  
         if self.cfg.data.transform.rot:
             t = np.random.rand() * 2 * np.pi
             rot_m = rotz(t)
             m = np.matmul(m, rot_m)  # rotation around z
-            if instance_bboxes is not None:
-                instance_bboxes[:, :6] = rotate_aligned_boxes_along_axis(instance_bboxes, rot_m, "z")
         if return_mat:
-            return np.matmul(xyz, m), instance_bboxes, m
+            return np.matmul(xyz, m), m
         else:
-            return np.matmul(xyz, m), instance_bboxes
+            return np.matmul(xyz, m)
 
     def _croppedInstanceIds(self, instance_ids, valid_idxs):
         """
@@ -171,7 +166,6 @@ class ScanNet(Dataset):
         else:
             return num_instance, instance_info, instance_num_point
         
-        
     def _generate_gt_clusters(self, points, instance_ids):
         gt_proposals_idx = []
         gt_proposals_offset = [0]
@@ -204,29 +198,24 @@ class ScanNet(Dataset):
         
         return gt_proposals_idx, gt_proposals_offset, object_ids, instance_bboxes
     
-
     def __getitem__(self, id):
         scene_id = self.scene_names[id]
         scene = self.scenes[id]
 
         mesh = scene["aligned_mesh"]
-
         data = mesh[:, :3]  # (N, 3)
         
         if self.use_color:
             colors = mesh[:, 3:6]
             data = np.concatenate([data, colors], 1)
-
         if self.use_normal:
             normals = mesh[:, 6:9]
             data = np.concatenate([data, normals], 1)
-        
         if self.use_multiview:
             # load multiview database
             pid = mp.current_process().pid
             if pid not in self.multiview_data:
                 self.multiview_data[pid] = h5py.File(self.cfg.SCANNETV2_PATH.multiview_features, "r", libver="latest")
-
             multiview = self.multiview_data[pid][scene_id]
             data = np.concatenate([data, multiview], 1)
 
@@ -240,8 +229,8 @@ class ScanNet(Dataset):
             sem_labels = scene["sem_labels"]  # {0,1,...,19}, -1 as ignored (unannotated) class
             
             # augment
-            if self.split == "train" and self.cfg.general.task == "train":
-                points_augment, _ = self._augment(points)
+            if self.split == "train":
+                points_augment = self._augment(points)
             else:
                 points_augment = points.copy()
             
@@ -249,16 +238,14 @@ class ScanNet(Dataset):
             points = points_augment * self.scale
             
             # elastic
-            if self.split == "train" and self.cfg.general.task == "train":
-                points = elastic(points, 6 * self.scale // 50,
-                             40 * self.scale / 50)
-                points = elastic(points, 20 * self.scale // 50,
-                             160 * self.scale / 50)
+            if self.split == "train":
+                points = elastic(points, 6 * self.scale // 50, 40 * self.scale / 50)
+                points = elastic(points, 20 * self.scale // 50, 160 * self.scale / 50)
             
             # offset
             points -= points.min(0)
             
-            if self.split == "train" and self.cfg.general.task == "train":
+            if self.split == "train":
                 ### crop
                 points, valid_idxs = crop(points, self.max_num_point, self.full_scale[1])
                 # points, valid_idxs = random_sampling(points, self.max_num_point, return_choices=True)
@@ -300,29 +287,8 @@ class ScanNet(Dataset):
                 data['gt_proposals_idx'] = gt_proposals_idx
                 data['gt_proposals_offset'] = gt_proposals_offset
         else:
-            instance_ids = scene["instance_ids"]
-            sem_labels = scene["sem_labels"]  # {0,1,...,19}, -1 as ignored (unannotated) class
-            # augment
-            gt_proposals_idx, gt_proposals_offset, object_ids, instance_bboxes = self._generate_gt_clusters(points, instance_ids)
-            # augment
-            if self.split == 'train':
-                points_augment, instance_bboxes, m = self._augment(points, instance_bboxes, True)
-            else:
-                points_augment = points.copy()
-                m = np.eye(3)
-                
-            heading_angles = np.zeros((len(instance_bboxes),))
-            bbox_corner = get_3d_box_batch(instance_bboxes[:, 0:3], instance_bboxes[:, 3:6], heading_angles).astype(np.float32)
-            
-            data['gt_proposals_idx'] = gt_proposals_idx
-            data['gt_proposals_offset'] = gt_proposals_offset
-            data['bbox_corner'] = bbox_corner
-            data['object_ids'] = np.array(object_ids).astype(np.int32)
-            data['transformation'] = m
-            
             # scale
-            points = points_augment * self.scale
-            # points *= self.scale
+            points = points.copy() * self.scale
             
             # offset
             points -= points.min(0)
@@ -335,6 +301,7 @@ class ScanNet(Dataset):
     
 
 def scannet_loader(cfg):
+    
     def scannet_collate_fn(batch):
         batch_size = batch.__len__()
         data = {}
@@ -401,7 +368,6 @@ def scannet_loader(cfg):
                         gt_proposals_offset.append(torch.from_numpy(gt_proposals_offset_i[1:]))
                     else:
                         gt_proposals_offset.append(torch.from_numpy(b["gt_proposals_offset"]))
-                
                 instance_ids_i = b["instance_ids"]
                 instance_ids_i[np.where(instance_ids_i != -1)] += total_num_inst
                 total_num_inst += b["num_instance"].item()
@@ -420,14 +386,14 @@ def scannet_loader(cfg):
         data["batch_offsets"] = torch.tensor(batch_offsets, dtype=torch.int)  # int (B+1)
         
         if cfg.general.task != "test":
+            if cfg.data.requires_gt_mask:
+                data["gt_proposals_idx"] = torch.cat(gt_proposals_idx, 0).to(torch.int32)
+                data["gt_proposals_offset"] = torch.cat(gt_proposals_offset, 0).to(torch.int32)
             data["sem_labels"] = torch.cat(sem_labels, 0).long()  # long (N,)
             data["instance_ids"] = torch.cat(instance_ids, 0).long()  # long, (N,)
             data["instance_info"] = torch.cat(instance_info, 0).to(torch.float32)  # float (total_nInst, 12)
             data["instance_num_point"] = torch.cat(instance_num_point, 0).int()  # (total_nInst)
             data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (B+1)
-            if cfg.data.requires_gt_mask:
-                data["gt_proposals_idx"] = torch.cat(gt_proposals_idx, 0).to(torch.int32)
-                data["gt_proposals_offset"] = torch.cat(gt_proposals_offset, 0).to(torch.int32)
 
         ### voxelize
         data["voxel_locs"], data["p2v_map"], data["v2p_map"] = pointgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), 4) # mode=4
