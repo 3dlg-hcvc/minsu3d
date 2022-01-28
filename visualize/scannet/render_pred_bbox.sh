@@ -1,11 +1,11 @@
 #!/bin/bash
 
-data_dir="/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_bbox/gt"
+data_dir="/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_bbox/DETECTOR"
 stk_dir="/local-scratch/qiruiw/research/stk-motifs"
 script="$stk_dir/ssc/render-file.js"
 config_dir="$stk_dir/ssc/config"
 config_file="/project/3dlg-hcvc/dense-scanrefer/www/scannet/render_turntable.json"
-output_dir="/project/3dlg-hcvc/dense-scanrefer/www/scannet/bbox/gt"
+output_dir="/project/3dlg-hcvc/dense-scanrefer/www/scannet/bbox/DETECTOR"
 split="val"
 scene_ids=/local-scratch/qiruiw/research/dense-scanrefer/data/scanrefer/splited_data/ScanRefer_filtered_$split.txt
 n=16

@@ -137,8 +137,8 @@ def generate_gt_inst_ply(args):
 def visualize_pred_instance(filename, mesh, instance_ids, sem_labels):
     points = mesh[:, :3].astype(np.float32)
     colors = (mesh[:, 3:6]*256.0 + MEAN_COLOR_RGB).astype(np.uint8)
-    sem_labels = sem_labels.astype(np.int)
-    instance_ids = instance_ids.astype(np.int)
+    sem_labels = sem_labels.astype(np.int32)
+    instance_ids = instance_ids.astype(np.int32)
     num_verts = len(points)
     assert num_verts == len(sem_labels) and num_verts == len(instance_ids)
     
@@ -282,6 +282,7 @@ def generate_pred_bbox_ply(args):
         
         scannet_data = torch.load(rgb_file)
         mesh = scannet_data['aligned_mesh'][:, :6]
+        mesh[:, :3] -= mesh[:, :3].mean(0)
         bbox_data = torch.load(bbox_file)
         pred_bboxes = bbox_data["pred_bbox"] + mesh[:, :3].mean(0) # revert centering
         num_instances = len(pred_bboxes)
