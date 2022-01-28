@@ -89,16 +89,6 @@ class PointGroup(pl.LightningModule):
             ME.MinkowskiReLU(inplace=True)
         )
         
-        # self.proposal_mlp = nn.Sequential(
-        #     nn.Linear(m, 32),
-        #     nn.BatchNorm1d(32),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(32, 64),
-        #     nn.BatchNorm1d(64),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(64, 128)
-        # )
-        
         if cfg.model.pred_bbox:
             num_class = cfg.model.num_bbox_class
             num_heading_bin = cfg.model.num_heading_bin
@@ -114,13 +104,8 @@ class PointGroup(pl.LightningModule):
             )
         
         self.score_linear = nn.Linear(m, 1)
-        # self.score_linear = nn.Linear(128, 1)
 
         self._init_random_seed()
-
-        # NOTE do NOT manually load the pretrained weights during training!!!
-        # if cfg.general.task == "test":
-        #     self._load_pretrained_model()
         
     
     @staticmethod
@@ -328,7 +313,6 @@ class PointGroup(pl.LightningModule):
             score_feats = self.score_net(proposals_voxel_feats)
             pt_score_feats = score_feats.features[proposals_p2v_map.long()] # (sumNPoint, C)
             proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
-            # proposals_score_feats = self.proposal_mlp(proposals_score_feats) # (nProposal, 128)
             scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
             data_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
 
@@ -391,18 +375,6 @@ class PointGroup(pl.LightningModule):
     
     
     # NOTE deprecated - will be removed soon
-    def _resume_from_checkpoint(self):
-        if self.cfg.model.use_checkpoint:
-            print("=> restoring checkpoint from {} ...".format(self.cfg.model.use_checkpoint))
-            self.start_epoch = self.restore_checkpoint()      # resume from the latest epoch, or specify the epoch to restore
-        else: 
-            self.start_epoch = 1
-
-            if self.cfg.model.pretrained_module:
-                self._load_pretrained_module()
-    
-    
-    # NOTE deprecated - will be removed soon
     def _load_pretrained_module(self):
         self.logger.info("=> loading pretrained {}...".format(self.cfg.model.pretrained_module))
         for i, module_name in enumerate(self.cfg.model.pretrained_module):
@@ -414,33 +386,8 @@ class PointGroup(pl.LightningModule):
             for param in self.backbone.parameters():
                 param.requires_grad = False
         
-    # NOTE deprecated - will be removed soon
-    def _load_pretrained_model(self):
-        pretrained_path = self.cfg.model.pretrained_path
-        self.logger.info("=> load pretrained model from {} ...".format(pretrained_path))
         
-        model_state = torch.load(pretrained_path)
-        self.load_state_dict(model_state["state_dict"])
-        
-        self.start_epoch = self.cfg.model.resume_epoch
-    
-    
-    # NOTE deprecated - will be removed soon
-    def restore_checkpoint(self):
-        ckp_filename = os.path.join(self.cfg.general.output_root, self.cfg.model.use_checkpoint, "last.ckpt")
-        assert os.path.isfile(ckp_filename), "Invalid checkpoint file: {}".format(ckp_filename)
-
-        checkpoint = torch.load(ckp_filename)
-        epoch = checkpoint["epoch"]
-        
-        print("=> relocating epoch at {} ...".format(epoch))
-
-        self.load_state_dict(checkpoint["state_dict"])
-        
-        return checkpoint["epoch"]
-        
-        
-    def _loss(self, loss_input):
+    def _loss(self, data_dict):
 
         def get_segmented_scores(scores, fg_thresh=1.0, bg_thresh=0.0):
             """
@@ -458,19 +405,17 @@ class PointGroup(pl.LightningModule):
 
             return segmented_scores
 
-        loss_dict = {}
-
         """semantic loss"""
-        semantic_scores, semantic_labels = loss_input["semantic_scores"]
+        semantic_scores, semantic_labels = data_dict["semantic_scores"], data_dict["sem_labels"]
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
 
         semantic_criterion = nn.CrossEntropyLoss(ignore_index=self.cfg.data.ignore_label)
         semantic_loss = semantic_criterion(semantic_scores, semantic_labels)
-        loss_dict["semantic_loss"] = (semantic_loss, semantic_scores.shape[0])
+        data_dict["semantic_loss"] = (semantic_loss, semantic_scores.shape[0])
 
         """offset loss"""
-        pt_offsets, coords, instance_info, instance_ids = loss_input["pt_offsets"]
+        pt_offsets, coords, instance_info, instance_ids = data_dict["pt_offsets"], data_dict["locs"], data_dict["instance_info"], data_dict["instance_ids"]
         # pt_offsets: (N, 3), float, cuda
         # coords: (N, 3), float32
         # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
@@ -489,12 +434,13 @@ class PointGroup(pl.LightningModule):
         direction_diff = - (gt_offsets_ * pt_offsets_).sum(-1)   # (N)
         offset_dir_loss = torch.sum(direction_diff * valid) / (torch.sum(valid) + 1e-6)
 
-        loss_dict["offset_norm_loss"] = (offset_norm_loss, valid.sum())
-        loss_dict["offset_dir_loss"] = (offset_dir_loss, valid.sum())
+        data_dict["offset_norm_loss"] = (offset_norm_loss, valid.sum())
+        data_dict["offset_dir_loss"] = (offset_dir_loss, valid.sum())
 
         if self.current_epoch > self.cfg.cluster.prepare_epochs:
             """score loss"""
-            scores, proposals_idx, proposals_offset, instance_pointnum = loss_input["proposal_scores"]
+            scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
+            instance_pointnum = data_dict["instance_num_point"]
             # scores: (nProposal, 1), float32
             # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
             # proposals_offset: (nProposal + 1), int, cpu
@@ -508,15 +454,15 @@ class PointGroup(pl.LightningModule):
             score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             score_loss = score_loss.mean()
 
-            loss_dict["score_loss"] = (score_loss, gt_ious.shape[0])
+            data_dict["score_loss"] = (score_loss, gt_ious.shape[0])
 
         """total loss"""
         loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + self.cfg.train.loss_weight[2] * offset_dir_loss
         if self.current_epoch > self.cfg.cluster.prepare_epochs:
             loss += (self.cfg.train.loss_weight[3] * score_loss)
-        loss_dict["total_loss"] = (loss, semantic_labels.shape[0])
+        data_dict["total_loss"] = (loss, semantic_labels.shape[0])
 
-        return loss_dict
+        return data_dict
         
         
     def _feed(self, data_dict):
@@ -530,58 +476,20 @@ class PointGroup(pl.LightningModule):
             data_dict = self.convert_stack_to_batch(data_dict)
         
         return data_dict
-
-
-    def _parse_feed_ret(self, data_dict):
-        semantic_scores = data_dict["semantic_scores"] # (N, nClass) float32, cuda
-        pt_offsets = data_dict["pt_offsets"]           # (N, 3), float32, cuda
-        
-        # preds = {}
-        loss_input = {}
-        
-        # preds["semantic"] = semantic_scores
-        # preds["pt_offsets"] = pt_offsets
-        if self.task != "test":
-            loss_input["semantic_scores"] = (semantic_scores, data_dict["sem_labels"])
-            loss_input["pt_offsets"] = (pt_offsets, data_dict["locs"], data_dict["instance_info"], data_dict["instance_ids"])
-        
-        if self.current_epoch > self.cfg.cluster.prepare_epochs:
-            scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
-            # preds["score"] = scores
-            # preds["proposals"] = (proposals_idx, proposals_offset)
-            # preds["proposals_npoint"] = data_dict["proposals_npoint"]
-            # preds["proposal_thres_mask"] = data_dict["proposal_thres_mask"]
-            # if self.cfg.model.crop_bbox:
-            #     preds["proposal_crop_bboxes"] = data_dict["proposal_crop_bboxes"] # (nProposals, center+size+heading+label+score)
-            
-            if self.task != "test":
-                loss_input["proposal_scores"] = (scores, proposals_idx, proposals_offset, data_dict["instance_num_point"])
-                # scores: (nProposal, 1) float, cuda
-                # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-                # proposals_offset: (nProposal + 1), int, cpu
-                loss_input["proposal_thres_mask"] = data_dict["proposal_thres_mask"]
-                loss_input["proposals_batchId"] = data_dict["proposals_batchId"]
-                if self.cfg.model.crop_bbox:
-                    loss_input["proposal_crop_bboxes"] = data_dict["proposal_crop_bboxes"]
-                if self.cfg.model.pred_bbox:
-                    loss_input["proposal_pred_bboxes"] = (data_dict["center"], data_dict["heading_scores"], data_dict["heading_residuals_normalized"], data_dict["heading_residuals"], data_dict["size_scores"], data_dict["size_residuals_normalized"], data_dict["size_residuals"], data_dict["sem_cls_scores"])
-        
-        # return preds, loss_input
-        return loss_input
         
 
-    def get_bbox_iou(self, loss_input, data_dict):
+    def get_bbox_iou(self, data_dict):
         batch_size = len(data_dict["batch_offsets"]) - 1
-        proposal_thres_mask = loss_input["proposal_thres_mask"]
+        proposal_thres_mask = data_dict["proposal_thres_mask"]
         instance_offsets = data_dict["instance_offsets"].detach().cpu().numpy()
-        proposals_batchId = loss_input["proposals_batchId"]
+        proposals_batchId = data_dict["proposals_batchId"]
         
         # parse gt_bbox
         gt_bboxes = data_dict["gt_bbox"]
         
         if self.cfg.model.crop_bbox:
             # parse crop_bbox
-            proposal_crop_bboxes = loss_input["proposal_crop_bboxes"]
+            proposal_crop_bboxes = data_dict["proposal_crop_bboxes"]
             proposal_crop_bboxes = proposal_crop_bboxes.detach().cpu().numpy() # (nProposals, center+size+heading+label)
             proposal_crop_bbox_corners = get_3d_box_batch(proposal_crop_bboxes[:, 0:3], proposal_crop_bboxes[:, 3:6], proposal_crop_bboxes[:, 6]) # (nProposals, 8, 3)
             num_proposal = proposal_crop_bboxes.shape[0] 
@@ -600,7 +508,7 @@ class PointGroup(pl.LightningModule):
             
         if self.cfg.model.pred_bbox:
             # parse pred_bbox
-            pred_center, heading_scores, heading_residuals_normalized, heading_residuals, size_scores, size_residuals_normalized, size_residuals, sem_cls_scores = loss_input["proposal_pred_bboxes"]
+            pred_center, heading_scores, heading_residuals_normalized, heading_residuals, size_scores, size_residuals_normalized, size_residuals, sem_cls_scores = data_dict["center"], data_dict["heading_scores"], data_dict["heading_residuals_normalized"], data_dict["heading_residuals"], data_dict["size_scores"], data_dict["size_residuals_normalized"], data_dict["size_residuals"], data_dict["sem_cls_scores"]
             pred_center = pred_center.detach().cpu().numpy()
             pred_heading_class = torch.argmax(heading_scores, -1).detach().cpu().numpy() # num_proposal
             pred_heading_residual = torch.gather(heading_scores, 1, pred_heading_class.unsqueeze(-1)).squeeze(1).detach().cpu().numpy() # num_proposal
@@ -637,12 +545,11 @@ class PointGroup(pl.LightningModule):
 
         ##### prepare input and forward
         data_dict = self._feed(data_dict)
-        loss_input = self._parse_feed_ret(data_dict)
-        loss_dict = self._loss(loss_input)
-        loss = loss_dict["total_loss"][0]
+        data_dict = self._loss(data_dict)
+        loss = data_dict["total_loss"][0]
 
         in_prog_bar = ["total_loss"]
-        for key, value in loss_dict.items():
+        for key, value in data_dict.items():
             if "loss" in key:
                 self.log("train/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=True, on_epoch=True, sync_dist=True)
 
@@ -654,11 +561,10 @@ class PointGroup(pl.LightningModule):
 
         ##### prepare input and forward
         data_dict = self._feed(data_dict)
-        loss_input = self._parse_feed_ret(data_dict)
-        loss_dict = self._loss(loss_input)
+        data_dict = self._loss(data_dict)
 
         in_prog_bar = ["total_loss"]
-        for key, value in loss_dict.items():
+        for key, value in data_dict.items():
             if "loss" in key:
                 self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True, sync_dist=True)
 
@@ -879,7 +785,6 @@ class PointGroup(pl.LightningModule):
         import h5py
 
         self.eval()
-        
         print('>>>>>>>>>>>>>>>> Start Generation >>>>>>>>>>>>>>>>')
         
         database = h5py.File(os.path.join(self.cfg.general.root, f"{split}.hdf5"), "w", libver="latest")
