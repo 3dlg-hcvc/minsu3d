@@ -3,9 +3,8 @@ general:
   manual_seed: 123
   dataset: scannet
   model: pointgroup
-  solver: PointGroupSolver
   config: conf/pointgroup_scannet.yaml
-  output_root: outputs/
+  output_root: output/
   experiment: xyz_multiview_normal_from_scratch # TODO
   monitor: total_loss
 
@@ -37,8 +36,9 @@ data:
     flip: True #True
     rot: True #True
     
-  requires_gt_mask: True
-  requires_bbox: False
+  requires_bbox: True
+  requires_gt_mask: False
+  requires_gt_feats: False
 
   exclude_keys: ['gt_proposals_idx', 'gt_proposals_offset']
 
@@ -110,7 +110,7 @@ cluster:
   freeze_backbone: False
 
 test:
-  use_exp: DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
+  use_exp: DETECTOR_F #DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
 
   test_epoch: 384
   test_seed: 567
@@ -128,7 +128,7 @@ evaluation:
   gt_class_idx: NYU20_CLASS_IDX
 
   task:
-  use_model: DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
+  use_model: DETECTOR_F #DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
 
   detection:
     per_class_proposal: True
