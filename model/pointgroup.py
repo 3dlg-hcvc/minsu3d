@@ -18,6 +18,8 @@ from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.eval import get_nms_instances
 from lib.utils.nms import nms_2d_faster, nms_3d_faster, nms_3d_faster_samecls
 from lib.utils.bbox import get_3d_box_batch, get_aabb3d_iou_batch, get_3d_box
+from lib.loss import SemSegLoss, PTOffsetLoss
+from lib.loss.utils import get_segmented_scores
 
 from model.common import ResidualBlock, VGGBlock, UBlock
 
@@ -106,6 +108,7 @@ class PointGroup(pl.LightningModule):
         self.score_linear = nn.Linear(m, 1)
 
         self._init_random_seed()
+        self._init_criterion()
         
     
     @staticmethod
@@ -357,6 +360,12 @@ class PointGroup(pl.LightningModule):
             np.random.seed(self.cfg.general.manual_seed)
             torch.manual_seed(self.cfg.general.manual_seed)
             torch.cuda.manual_seed_all(self.cfg.general.manual_seed)
+            
+    
+    def _init_criterion(self):
+        self.sem_seg_criterion = SemSegLoss(self.cfg.data.ignore_label)
+        self.pt_offset_criterion = PTOffsetLoss()
+        self.score_criterion = nn.BCELoss()
 
     
     def configure_optimizers(self):
@@ -388,30 +397,10 @@ class PointGroup(pl.LightningModule):
         
         
     def _loss(self, data_dict):
-
-        def get_segmented_scores(scores, fg_thresh=1.0, bg_thresh=0.0):
-            """
-            :param scores: (N), float, 0~1
-            :return: segmented_scores: (N), float 0~1, >fg_thresh: 1, <bg_thresh: 0, mid: linear
-            """
-            fg_mask = scores > fg_thresh
-            bg_mask = scores < bg_thresh
-            interval_mask = (fg_mask == 0) & (bg_mask == 0)
-
-            segmented_scores = (fg_mask > 0).float()
-            k = 1 / (fg_thresh - bg_thresh)
-            b = bg_thresh / (bg_thresh - fg_thresh)
-            segmented_scores[interval_mask] = scores[interval_mask] * k + b
-
-            return segmented_scores
-
         """semantic loss"""
-        semantic_scores, semantic_labels = data_dict["semantic_scores"], data_dict["sem_labels"]
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
-
-        semantic_criterion = nn.CrossEntropyLoss(ignore_index=self.cfg.data.ignore_label)
-        semantic_loss = semantic_criterion(semantic_scores, semantic_labels)
+        semantic_loss = self.sem_seg_criterion(data_dict["semantic_scores"], data_dict["sem_labels"])
         data_dict["semantic_loss"] = (semantic_loss, semantic_scores.shape[0])
 
         """offset loss"""
@@ -420,20 +409,9 @@ class PointGroup(pl.LightningModule):
         # coords: (N, 3), float32
         # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
         # instance_ids: (N), long
-
         gt_offsets = instance_info[:, 0:3] - coords   # (N, 3)
-        pt_diff = pt_offsets - gt_offsets   # (N, 3)
-        pt_dist = torch.sum(torch.abs(pt_diff), dim=-1)   # (N)
         valid = (instance_ids != self.cfg.data.ignore_label).float()
-        offset_norm_loss = torch.sum(pt_dist * valid) / (torch.sum(valid) + 1e-6)
-
-        gt_offsets_norm = torch.norm(gt_offsets, p=2, dim=1)   # (N), float
-        gt_offsets_ = gt_offsets / (gt_offsets_norm.unsqueeze(-1) + 1e-8)
-        pt_offsets_norm = torch.norm(pt_offsets, p=2, dim=1)
-        pt_offsets_ = pt_offsets / (pt_offsets_norm.unsqueeze(-1) + 1e-8)
-        direction_diff = - (gt_offsets_ * pt_offsets_).sum(-1)   # (N)
-        offset_dir_loss = torch.sum(direction_diff * valid) / (torch.sum(valid) + 1e-6)
-
+        offset_norm_loss, offset_dir_loss = self.pt_offset_criterion(pt_offsets, gt_offsets, valid_mask=valid)
         data_dict["offset_norm_loss"] = (offset_norm_loss, valid.sum())
         data_dict["offset_dir_loss"] = (offset_dir_loss, valid.sum())
 
@@ -445,15 +423,10 @@ class PointGroup(pl.LightningModule):
             # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
             # proposals_offset: (nProposal + 1), int, cpu
             # instance_pointnum: (total_nInst), int
-
             ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_ids, instance_pointnum) # (nProposal, nInstance), float
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
             gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
-
-            score_criterion = nn.BCELoss(reduction="none")
-            score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
-            score_loss = score_loss.mean()
-
+            score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             data_dict["score_loss"] = (score_loss, gt_ious.shape[0])
 
         """total loss"""
