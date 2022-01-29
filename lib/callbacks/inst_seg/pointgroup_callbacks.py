@@ -1,4 +1,5 @@
 import os
+import h5py
 import numpy as np
 
 import torch
@@ -11,11 +12,76 @@ from lib.utils.nms import nms_2d_faster, nms_3d_faster, nms_3d_faster_samecls
 from lib.utils.bbox import get_3d_box_batch
 
 
+class GTFeaturesGenCallback(Callback):
+    
+    def __init__(self, ):
+        super(GTFeaturesGenCallback, self).__init__()
+    
+    
+    def on_validation_epoch_start(self, trainer, pl_module):
+        self.cfg = pl_module.cfg
+        self.database = h5py.File(os.path.join(self.cfg.general.root, f"{self.cfg.data.split}.gt_feats.hdf5"), "w", libver="latest")
+        self.epoch_dict = {}
+    
+    
+    def on_validation_batch_end(self, trainer, pl_module, data_dict, batch, batch_idx, dataloader_idx):
+        scene_id = data_dict["scene_id"][0]
+        features = data_dict['proposal_feats']
+        bbox_corners = data_dict["bbox_corner"][0]
+        object_ids = data_dict["object_ids"][0]
+        transformation = data_dict["transformation"][0]
+        
+        self.epoch_dict[scene_id] = {"object_ids": [],
+                                    "features": [],
+                                    "bbox_corners": [],
+                                    "transformation": []
+                                }
+        
+        for inst_i in range(len(features)):
+            cur_feat = features[inst_i]
+            cur_corners = bbox_corners[inst_i]
+            object_id = object_ids[inst_i]
+            
+            self.epoch_dict[scene_id]["object_ids"].append(object_id.cpu().numpy())
+            self.epoch_dict[scene_id]["features"].append(cur_feat.cpu().numpy())
+            self.epoch_dict[scene_id]["bbox_corners"].append(cur_corners.cpu().numpy())
+            self.epoch_dict[scene_id]["transformation"].append(transformation.cpu().numpy())
+                
+                
+    def on_validation_epoch_end(self, trainer, pl_module):
+        for scene_id in epoch_dict:
+            # save scene object ids
+            object_id_dataset = "{}|{}_gt_ids".format(str(e), scene_id)
+            object_ids = np.array(epoch_dict[scene_id]["object_ids"])
+            self.database.create_dataset(object_id_dataset, data=object_ids)
+
+            # save features
+            feature_dataset = "{}|{}_features".format(str(e), scene_id)
+            features = np.stack(epoch_dict[scene_id]["features"], axis=0)
+            self.database.create_dataset(feature_dataset, data=features)
+
+            # save bboxes
+            bbox_dataset = "{}|{}_bbox_corners".format(str(e), scene_id)
+            bbox_corners = np.stack(epoch_dict[scene_id]["bbox_corners"], axis=0)
+            self.database.create_dataset(bbox_dataset, data=bbox_corners)
+            
+            # save GT bboxes
+            gt_dataset = "{}|{}_gt_corners".format(str(e), scene_id)
+            gt_corners = np.stack(epoch_dict[scene_id]["bbox_corners"], axis=0)
+            self.database.create_dataset(gt_dataset, data=gt_corners)
+            
+            # save transformations
+            trans_dataset = "{}|{}_transformation".format(str(e), scene_id)
+            trans_mat = np.stack(epoch_dict[scene_id]["transformation"], axis=0)
+            self.database.create_dataset(trans_dataset, data=trans_mat)
+    
+    
 class ParsePredictionCallback(Callback):
     
     def __init__(self, save_preds=True):
         super(ParsePredictionCallback, self).__init__()
         self.save_preds = save_preds
+        
     
     def on_test_start(self, trainer, pl_module):
         self.cfg = pl_module.cfg

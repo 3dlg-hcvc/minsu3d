@@ -537,6 +537,8 @@ class PointGroup(pl.LightningModule):
         for key, value in data_dict.items():
             if "loss" in key:
                 self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True, sync_dist=True)
+                
+        return data_dict
 
     
     def test_step(self, data_dict, idx):
@@ -545,78 +547,3 @@ class PointGroup(pl.LightningModule):
         data_dict = self._feed(data_dict)
         
         return data_dict
-
-                
-    def generate_gt_features(self, dataloader, split="val", epoch=1):
-        import h5py
-
-        self.eval()
-        print('>>>>>>>>>>>>>>>> Start Generation >>>>>>>>>>>>>>>>')
-        
-        database = h5py.File(os.path.join(self.cfg.general.root, f"{split}.hdf5"), "w", libver="latest")
-        
-        for e in range(epoch):
-            print("extracting for epoch {}...".format(e))
-            # HACK temporarily storing all results in a dict, then dump into hdf5 database after organization
-            epoch_dict = {}
-            
-            with torch.no_grad():
-                for i, data_dict in enumerate(tqdm(dataloader)):
-                    # import pdb; pdb.set_trace()
-                    for key in data_dict.keys():
-                        if isinstance(data_dict[key], tuple): continue
-                        if isinstance(data_dict[key], dict): continue
-                        if isinstance(data_dict[key], list): continue
-                        if key in self.cfg.data.exclude_keys: continue
-                        data_dict[key] = data_dict[key].cuda()
-                    
-                    data_dict = self._feed(data_dict)
-                    
-                    scene_id = data_dict["scene_id"][0]
-                    features = data_dict['proposal_feats']
-                    bbox_corners = data_dict["bbox_corner"][0]
-                    object_ids = data_dict["object_ids"][0]
-                    transformation = data_dict["transformation"][0]
-                    
-                    epoch_dict[scene_id] = {
-                        "object_ids": [],
-                        "features": [],
-                        "bbox_corners": [],
-                        "transformation": []
-                    }
-                    
-                    for inst_i in range(len(features)):
-                        cur_feat = features[inst_i]
-                        cur_corners = bbox_corners[inst_i]
-                        object_id = object_ids[inst_i]
-                        
-                        epoch_dict[scene_id]["object_ids"].append(object_id.cpu().numpy())
-                        epoch_dict[scene_id]["features"].append(cur_feat.cpu().numpy())
-                        epoch_dict[scene_id]["bbox_corners"].append(cur_corners.cpu().numpy())
-                        epoch_dict[scene_id]["transformation"].append(transformation.cpu().numpy())
-                        
-            for scene_id in epoch_dict:
-                # save scene object ids
-                object_id_dataset = "{}|{}_gt_ids".format(str(e), scene_id)
-                object_ids = np.array(epoch_dict[scene_id]["object_ids"])
-                database.create_dataset(object_id_dataset, data=object_ids)
-
-                # save features
-                feature_dataset = "{}|{}_features".format(str(e), scene_id)
-                features = np.stack(epoch_dict[scene_id]["features"], axis=0)
-                database.create_dataset(feature_dataset, data=features)
-
-                # save bboxes
-                bbox_dataset = "{}|{}_bbox_corners".format(str(e), scene_id)
-                bbox_corners = np.stack(epoch_dict[scene_id]["bbox_corners"], axis=0)
-                database.create_dataset(bbox_dataset, data=bbox_corners)
-                
-                # save GT bboxes
-                gt_dataset = "{}|{}_gt_corners".format(str(e), scene_id)
-                gt_corners = np.stack(epoch_dict[scene_id]["bbox_corners"], axis=0)
-                database.create_dataset(gt_dataset, data=gt_corners)
-                
-                # save transformations
-                trans_dataset = "{}|{}_transformation".format(str(e), scene_id)
-                trans_mat = np.stack(epoch_dict[scene_id]["transformation"], axis=0)
-                database.create_dataset(trans_dataset, data=trans_mat)
