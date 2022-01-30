@@ -44,8 +44,9 @@ data:
 
 
 model:
+  name: pointgroup
   module: model
-  name: PointGroup
+  classname: PointGroup
   
   # input_channel: 131 # multiview + normals
   m: 16 # 16 or 32
@@ -72,6 +73,7 @@ model:
   pretrained_module: [] #[backbone, sem_seg, offset_net, score_net, score_linear]
   pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
   freeze_module: []
+  freeze_backbone: False
 
 
 train:
@@ -99,6 +101,7 @@ train:
   score_mode: 4 # mean
 
 
+
 cluster:
   ### point grouping
   cluster_radius: 0.03
@@ -107,7 +110,6 @@ cluster:
   cluster_npoint_thre: 50
 
   prepare_epochs: 128
-  freeze_backbone: False
 
 test:
   use_exp: DETECTOR_F #DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53

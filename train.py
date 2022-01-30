@@ -20,7 +20,6 @@ def load_conf(args):
 
     cfg.general.task = 'train'
     cfg.general.root = root
-    # cfg.cluster.prepare_epochs = -1
 
     cfg_backup_path = os.path.join(cfg.general.root, "config.yaml")
     OmegaConf.save(cfg, cfg_backup_path)
@@ -81,18 +80,23 @@ def init_trainer(cfg):
     return trainer
 
 def init_model(cfg):
-    PointGroup = getattr(import_module("model.pointgroup"), "PointGroup")
-    model = PointGroup(cfg)
+    MODEL = getattr(import_module(cfg.model.module), cfg.model.classname)
+    model = MODEL(cfg)
 
     if cfg.model.use_checkpoint:
         print("=> loading pretrained checkpoint from {} ...".format(cfg.model.use_checkpoint))
         checkpoint = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.model.use_checkpoint, "last.ckpt")
-        # import torch
-        # ckpt = torch.load(checkpoint)
-        # ckpt["hyper_parameters"]["cfg"]["ROOT_PATH"] = "/local-scratch/qiruiw/research/pointgroup-minkowski"
-        # ckpt["hyper_parameters"]["cfg"]["DATA_PATH"] = "${ROOT_PATH}/data"
-        # torch.save(ckpt, checkpoint)
         model.load_from_checkpoint(checkpoint)
+        
+    if cfg.model.pretrained_module:
+        for i, module_name in enumerate(cfg.model.pretrained_module):
+            module = getattr(model, module_name)
+            ckp = torch.load(cfg.model.pretrained_module_path[i])
+            module.load_state_dict(ckp)
+    
+    if cfg.model.freeze_backbone:
+        for param in model.backbone.parameters():
+            param.requires_grad = False
 
     return model
 

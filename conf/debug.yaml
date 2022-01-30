@@ -42,6 +42,7 @@ data:
 
 
 model:
+  name: pointgroup
   module: model
   classname: PointGroup
   
@@ -70,6 +71,7 @@ model:
   pretrained_module: [] #[backbone, sem_seg, offset_net]
   pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000128.pth
   freeze_module: []
+  freeze_backbone: False
 
 
 train:
@@ -105,7 +107,6 @@ cluster:
   cluster_npoint_thre: 50
 
   prepare_epochs: -1
-  freeze_backbone: False
 
 test:
   test_epoch: 384

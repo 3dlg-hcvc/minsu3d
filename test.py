@@ -40,8 +40,8 @@ def init_data(cfg):
     return dataset, dataloader
 
 def init_model(cfg):
-    Model = getattr(import_module(cfg.model.module), cfg.model.name)
-    model = Model(cfg)
+    MODEL = getattr(import_module(cfg.model.module), cfg.model.classname)
+    model = MODEL(cfg)
 
     # checkpoint_path = "/project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar"
     checkpoint_path = "/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/DETECTOR_F/detector.pth"

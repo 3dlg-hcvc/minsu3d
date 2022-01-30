@@ -31,7 +31,6 @@ class PointGroup(pl.LightningModule):
         self.DC = ScannetDatasetConfig(cfg)
 
         self.task = cfg.general.task
-        self.total_epoch = cfg.train.epochs
 
         in_channel = cfg.model.use_color * 3 + cfg.model.use_normal * 3 + cfg.model.use_coords * 3 + cfg.model.use_multiview * 128
         m = cfg.model.m
@@ -42,19 +41,18 @@ class PointGroup(pl.LightningModule):
         block_reps = cfg.model.block_reps
         block_residual = cfg.model.block_residual
         
+        self.freeze_backbone = cfg.model.freeze_backbone
         self.requires_gt_mask = cfg.data.requires_gt_mask
 
         self.cluster_radius = cfg.cluster.cluster_radius
         self.cluster_meanActive = cfg.cluster.cluster_meanActive
         self.cluster_shift_meanActive = cfg.cluster.cluster_shift_meanActive
         self.cluster_npoint_thre = cfg.cluster.cluster_npoint_thre
-        self.freeze_backbone = cfg.cluster.freeze_backbone
+        self.prepare_epochs = cfg.cluster.prepare_epochs
 
         self.score_scale = cfg.train.score_scale
         self.score_fullscale = cfg.train.score_fullscale
         self.mode = cfg.train.score_mode
-
-        self.prepare_epochs = cfg.cluster.prepare_epochs
 
         if block_residual:
             block = ResidualBlock
@@ -378,19 +376,6 @@ class PointGroup(pl.LightningModule):
             raise NotImplemented
 
         return [optimizer]
-    
-    
-    # NOTE deprecated - will be removed soon
-    def _load_pretrained_module(self):
-        self.logger.info("=> loading pretrained {}...".format(self.cfg.model.pretrained_module))
-        for i, module_name in enumerate(self.cfg.model.pretrained_module):
-            module = getattr(self, module_name)
-            ckp = torch.load(self.cfg.model.pretrained_module_path[i])
-            module.load_state_dict(ckp)
-            
-        if self.cfg.cluster.freeze_backbone:
-            for param in self.backbone.parameters():
-                param.requires_grad = False
         
         
     def _loss(self, data_dict):
