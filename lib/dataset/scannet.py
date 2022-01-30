@@ -34,11 +34,7 @@ class ScanNet(Dataset):
         self.scale = cfg.data.scale
         self.max_num_point = cfg.data.max_num_point
         self.mode = cfg.data.mode
-
-        self.use_color = cfg.model.use_color
-        self.use_multiview = cfg.model.use_multiview
-        self.use_normal = cfg.model.use_normal
-        self.requires_bbox = cfg.data.requires_bbox
+        
         self.requires_gt_mask = cfg.data.requires_gt_mask
         
         self.DATA_MAP = {
@@ -52,9 +48,6 @@ class ScanNet(Dataset):
         self._load()
 
     def _load(self):
-        if self.requires_bbox:
-            self.DC = ScannetDatasetConfig(self.cfg)
-        
         with open(self.DATA_MAP[self.split]) as f:
             self.scene_names = [l.rstrip() for l in f]
 
@@ -115,18 +108,6 @@ class ScanNet(Dataset):
         instance_info = np.zeros(
             (xyz.shape[0], 12), dtype=np.float32
         )  # (n, 12), float, (meanx, meany, meanz, cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
-        
-        if self.requires_bbox:
-            assert sem_labels is not None, "sem_labels are not provided"
-            max_num_instance = self.cfg.data.max_num_instance # NOTE this should always be the same number
-            instance_bboxes = np.zeros((max_num_instance, 6))
-            instance_bboxes_semcls = np.zeros((max_num_instance))
-            instance_bbox_ids = np.zeros((max_num_instance))
-            angle_classes = np.zeros((max_num_instance,))
-            angle_residuals = np.zeros((max_num_instance,))
-            size_classes = np.zeros((max_num_instance,))
-            size_residuals = np.zeros((max_num_instance, 3))
-            bbox_label = np.zeros((max_num_instance))
 
         for k, i_ in enumerate(unique_instance_ids, -1):
             if i_ < 0: continue
@@ -149,22 +130,7 @@ class ScanNet(Dataset):
             ### instance_num_point
             instance_num_point.append(inst_i_idx[0].size)
             
-            if self.requires_bbox:
-                if k >= 128: continue
-                instance_bboxes[k, :3] = c_xyz_i
-                instance_bboxes[k, 3:] = max_xyz_i - min_xyz_i
-                sem_cls = sem_labels[inst_i_idx][0]
-                sem_cls = sem_cls - 2 if sem_cls >=  2 else 17
-                instance_bboxes_semcls[k] = sem_cls
-                instance_bbox_ids[k] = i_
-                size_classes[k] = sem_cls
-                size_residuals[k, :] = instance_bboxes[k, 3:] - self.DC.mean_size_arr[int(sem_cls),:]
-                bbox_label[k] = 1
-                
-        if self.requires_bbox:
-            return num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, instance_bbox_ids, angle_classes, angle_residuals, size_classes, size_residuals, bbox_label
-        else:
-            return num_instance, instance_info, instance_num_point
+        return num_instance, instance_info, instance_num_point
         
     def _generate_gt_clusters(self, points, instance_ids):
         gt_proposals_idx = []
@@ -203,24 +169,9 @@ class ScanNet(Dataset):
         scene = self.scenes[id]
 
         mesh = scene["aligned_mesh"]
-        data = mesh[:, :3]  # (N, 3)
         
-        if self.use_color:
-            colors = mesh[:, 3:6]
-            data = np.concatenate([data, colors], 1)
-        if self.use_normal:
-            normals = mesh[:, 6:9]
-            data = np.concatenate([data, normals], 1)
-        if self.use_multiview:
-            # load multiview database
-            pid = mp.current_process().pid
-            if pid not in self.multiview_data:
-                self.multiview_data[pid] = h5py.File(self.cfg.SCANNETV2_PATH.multiview_features, "r", libver="latest")
-            multiview = self.multiview_data[pid][scene_id]
-            data = np.concatenate([data, multiview], 1)
-
-        feats = data[:, 3:]
-        points = mesh[:, :3]
+        points = mesh[:, :3]  # (N, 3)
+        feats = mesh[:, 3:6]  # (N, 3) rgb
 
         data = {"id": id, "scene_id": scene_id}
 
@@ -257,10 +208,7 @@ class ScanNet(Dataset):
                 # instance_ids = instance_ids[valid_idxs]
                 instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
             
-            if self.requires_bbox:
-                num_instance, instance_info, instance_num_point, instance_bboxes, instance_bboxes_semcls, instance_bbox_ids, angle_classes, angle_residuals, size_classes, size_residuals, bbox_label = self._getInstanceInfo(points_augment, instance_ids, sem_labels)
-            else:
-                num_instance, instance_info, instance_num_point = self._getInstanceInfo(points_augment, instance_ids.astype(np.int32))
+            num_instance, instance_info, instance_num_point = self._getInstanceInfo(points_augment, instance_ids.astype(np.int32))
                 
             if self.requires_gt_mask:
                 gt_proposals_idx, gt_proposals_offset, _, _ = self._generate_gt_clusters(points, instance_ids)
@@ -273,16 +221,6 @@ class ScanNet(Dataset):
             data["num_instance"] = np.array(num_instance).astype(np.int32)  # int
             data["instance_info"] = instance_info.astype(np.float32)  # (N, 12)
             data["instance_num_point"] = np.array(instance_num_point).astype(np.int32)  # (num_instance,)
-            if self.requires_bbox:
-                data["center_label"] = instance_bboxes.astype(np.float32)[:,0:3] # (num_instance, 3) for GT box center XYZ
-                data["sem_cls_label"] = instance_bboxes_semcls.astype(np.int64) # (num_instance,) semantic class index
-                data["heading_class_label"] = angle_classes.astype(np.int64) # (num_instance,) with int values in 0,...,NUM_HEADING_BIN-1
-                data["heading_residual_label"] = angle_residuals.astype(np.float32) # (num_instance,)
-                data["size_class_label"] = size_classes.astype(np.int64) # (num_instance,) with int values in 0,...,NUM_SIZE_CLUSTER
-                data["size_residual_label"] = size_residuals.astype(np.float32) # (num_instance, 3)
-                data["gt_bbox_object_id"] = instance_bbox_ids.astype(np.int64)
-                data["gt_bbox_label"] = bbox_label.astype(np.int64)
-                data["gt_bbox"] = get_3d_box_batch(instance_bboxes[:, 0:3], instance_bboxes[:, 3:6], angle_classes).astype(np.float32) # (num_instance, 8, 3)
             if self.requires_gt_mask:
                 data['gt_proposals_idx'] = gt_proposals_idx
                 data['gt_proposals_offset'] = gt_proposals_offset
@@ -405,11 +343,11 @@ def scannet_loader(cfg):
     else:
         splits = [cfg.data.split]
 
-    dataset = {split: ScanNet(cfg, split) for split in splits}
+    datasets = {split: ScanNet(cfg, split) for split in splits}
 
-    dataloader = {
+    dataloaders = {
         split:
-        DataLoader(dataset[split],
+        DataLoader(datasets[split],
                     batch_size=cfg.data.batch_size,
                     shuffle=True if split == "train" else False,
                     pin_memory=True,
@@ -417,4 +355,4 @@ def scannet_loader(cfg):
         for split in splits
     }
 
-    return dataset, dataloader
+    return datasets, dataloaders
