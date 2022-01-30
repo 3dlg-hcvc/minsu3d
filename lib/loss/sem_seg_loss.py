@@ -19,6 +19,6 @@ class SemSegLoss(nn.Module):
         Returns:
             torch.Tensor: [description]
         """
-        loss = semantic_criterion(preds, gts)
+        loss = self.criterion(preds, gts)
         
         return loss

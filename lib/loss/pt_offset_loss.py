@@ -7,24 +7,24 @@ class PTOffsetLoss(nn.Module):
     def __init__(self):
         super(PTOffsetLoss, self).__init__()
     
-    def forward(self, preds, gts, valid_mask=None):
+    def forward(self, pred_offsets, gt_offsets, valid_mask=None):
         """Pointwise offset prediction losses in norm and direction
 
         Args:
-            preds (torch.Tensor): predicted point offsets, (B, 3), float32, cuda
-            gts (torch.Tensor): GT point offsets, (B, 3), float32, cuda
+            pred_offsets (torch.Tensor): predicted point offsets, (B, 3), float32, cuda
+            gt_offsets (torch.Tensor): GT point offsets, (B, 3), float32, cuda
             valid_mask (torch.Tensor): indicate valid points involving in loss, (B,), bool, cuda
 
         Returns:
             torch.Tensor: [description]
         """
-        pt_diff = preds - gts   # (N, 3)
+        pt_diff = pred_offsets - gt_offsets   # (N, 3)
         pt_dist = torch.sum(torch.abs(pt_diff), dim=-1)   # (N)
 
         gt_offsets_norm = torch.norm(gt_offsets, p=2, dim=1)   # (N), float
         gt_offsets_ = gt_offsets / (gt_offsets_norm.unsqueeze(-1) + 1e-8)
-        pt_offsets_norm = torch.norm(pt_offsets, p=2, dim=1)
-        pt_offsets_ = pt_offsets / (pt_offsets_norm.unsqueeze(-1) + 1e-8)
+        pt_offsets_norm = torch.norm(pred_offsets, p=2, dim=1)
+        pt_offsets_ = pred_offsets / (pt_offsets_norm.unsqueeze(-1) + 1e-8)
         direction_diff = - (gt_offsets_ * pt_offsets_).sum(-1)   # (N)
         
         if valid_mask is not None:
