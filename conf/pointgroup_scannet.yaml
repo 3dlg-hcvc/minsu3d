@@ -5,7 +5,7 @@ general:
   model: pointgroup
   config: conf/pointgroup_scannet.yaml
   output_root: output/
-  experiment: xyz_multiview_normal_from_scratch # TODO
+  experiment: refactor # TODO
   monitor: total_loss
 
 
@@ -56,9 +56,9 @@ model:
   block_reps: 2
 
   use_coords: True
-  use_color: False
-  use_multiview: True
-  use_normal: True
+  use_color: True
+  use_multiview: False
+  use_normal: False
   crop_bbox: False
   pred_bbox: False
 
@@ -70,17 +70,17 @@ model:
   use_checkpoint: #XYZ_MULTIVIEW_NORMAL
   resume_epoch: #480
   pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
-  pretrained_module: [] #[backbone, sem_seg, offset_net, score_net, score_linear]
+  pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]
   pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
   freeze_module: []
   freeze_backbone: False
 
 
 train:
-  epochs: 480
+  epochs: 384 # 480
   num_sanity_val_steps: 10
   log_every_n_steps: 10
-  check_val_every_n_epoch: 1
+  check_val_every_n_epoch: 2
 
   optim: 
     classname: Adam # Adam or SGD
@@ -99,7 +99,6 @@ train:
   score_scale: 50 # the minimal voxel size is 2cm
   score_fullscale: 14
   score_mode: 4 # mean
-
 
 
 cluster:
@@ -153,14 +152,3 @@ log:
     - offset_dir_loss
     - score_loss
     - total_loss
-  bbox_names:
-    - center_loss
-    - heading_cls_loss
-    - heading_reg_loss
-    - size_cls_loss
-    - size_reg_loss
-    - sem_cls_loss
-    - bbox_loss
-    - pred_crop_bbox_iou
-    - crop_bbox_iou
-    - pred_bbox_iou

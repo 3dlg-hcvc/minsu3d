@@ -4,10 +4,11 @@ warnings.filterwarnings('ignore')
 import os
 import argparse
 
-import pytorch_lightning as pl
-
 from omegaconf import OmegaConf
 from importlib import import_module
+
+import torch
+import pytorch_lightning as pl
 
 
 def load_conf(args):
@@ -15,10 +16,10 @@ def load_conf(args):
     cfg = OmegaConf.load(args.config)
     cfg = OmegaConf.merge(base_cfg, cfg)
     
-    root = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.general.experiment.upper())
-    os.makedirs(root, exist_ok=True)
-
     cfg.general.task = 'train'
+
+    root = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.general.experiment, cfg.general.task)
+    os.makedirs(root, exist_ok=True)
     cfg.general.root = root
 
     cfg_backup_path = os.path.join(cfg.general.root, "config.yaml")
@@ -28,34 +29,33 @@ def load_conf(args):
 
 def init_data(cfg):
     DATA_MODULE = import_module(cfg.data.module)
-    dataloader = getattr(DATA_MODULE, cfg.data.loader)
+    DATA_LOADER = getattr(DATA_MODULE, cfg.data.loader)
 
     if cfg.general.task == "train":
         print("=> loading the train and val datasets...")
     else:
         print("=> loading the {} dataset...".format(cfg.data.split))
         
-    dataset, dataloader = dataloader(cfg)
+    datasets, dataloaders = DATA_LOADER(cfg)
     print("=> loading dataset completed")
 
-    return dataset, dataloader
+    return datasets, dataloaders
 
 def init_logger(cfg):
     logger = pl.loggers.TensorBoardLogger(cfg.general.root, name="logs")
 
     return logger
 
-def init_monitor(cfg):
+def init_callbacks(cfg):
     monitor = pl.callbacks.ModelCheckpoint(
         monitor="val/{}".format(cfg.general.monitor),
         mode="min",
-        # save_weights_only=True,
         dirpath=cfg.general.root,
-        filename="model",
+        filename="pointgroup.xyz.rgb-{epoch}",
         save_last=True
     )
 
-    return monitor
+    return [monitor]
 
 def init_trainer(cfg):
     if cfg.model.use_checkpoint:
@@ -71,7 +71,7 @@ def init_trainer(cfg):
         num_sanity_val_steps=cfg.train.num_sanity_val_steps, # validate on all val data before training 
         log_every_n_steps=cfg.train.log_every_n_steps,
         check_val_every_n_epoch=cfg.train.check_val_every_n_epoch,
-        callbacks=[monitor], # comment when debug
+        callbacks=callbacks, # comment when debug
         logger=logger,
         profiler="simple",
         resume_from_checkpoint=checkpoint
@@ -89,10 +89,13 @@ def init_model(cfg):
         model.load_from_checkpoint(checkpoint)
         
     if cfg.model.pretrained_module:
-        for i, module_name in enumerate(cfg.model.pretrained_module):
-            module = getattr(model, module_name)
-            ckp = torch.load(cfg.model.pretrained_module_path[i])
-            module.load_state_dict(ckp)
+        print("=> loading pretrained module from {} ...".format(cfg.model.pretrained_module_path))
+        # for i, module_name in enumerate(cfg.model.pretrained_module):
+        model_dict = model.state_dict()
+        ckp = torch.load(cfg.model.pretrained_module_path)
+        pretrained_module_dict = {k: v for k, v in ckp.items() if k.startswith(tuple(cfg.model.pretrained_module))}
+        model_dict.update(pretrained_module_dict)
+        model.load_state_dict(model_dict)
     
     if cfg.model.freeze_backbone:
         for param in model.backbone.parameters():
@@ -110,13 +113,13 @@ if __name__ == '__main__':
     cfg = load_conf(args)
 
     print("=> initializing data...")
-    dataset, dataloader = init_data(cfg)
+    datasets, dataloaders = init_data(cfg)
 
     print("=> initializing logger...")
     logger = init_logger(cfg)
     
     print("=> initializing monitor...")
-    monitor = init_monitor(cfg)
+    callbacks = init_callbacks(cfg)
 
     print("=> initializing trainer...")
     trainer = init_trainer(cfg)
@@ -125,4 +128,4 @@ if __name__ == '__main__':
     pointgroup = init_model(cfg)
 
     print("=> start training...")
-    trainer.fit(model=pointgroup, train_dataloader=dataloader["train"], val_dataloaders=dataloader["val"])
+    trainer.fit(model=pointgroup, train_dataloader=dataloaders["train"], val_dataloaders=dataloaders["val"])
