@@ -1,14 +1,10 @@
-ROOT_PATH: /local-scratch/qiruiw/research/pointgroup-minkowski #TODO
+ROOT_PATH: /home/qiruiw/projects/def-angelx/qiruiw/pointgroup-minkowski #TODO
 DATA_PATH: ${ROOT_PATH}/data
 OUTPUT_PATH: ${ROOT_PATH}/output
 
 SCANNETV2_PATH:
-  raw_scans: /datasets/released/scannet/public/v2/scans
-  extracted_scans: /local-scratch/qiruiw/dataset/scannet/scans
-
   dir: ${DATA_PATH}/scannet
-  splited_scans: /local-scratch/qiruiw/dataset/scannet/splited_scans #TODO
-  splited_data: ${SCANNETV2_PATH.dir}/splited_data #TODO
+  splited_data: ${SCANNETV2_PATH.dir}/splited_data 
   splited_gt: ${SCANNETV2_PATH.dir}/splited_gt
   meta_data: ${SCANNETV2_PATH.dir}/meta_data
 

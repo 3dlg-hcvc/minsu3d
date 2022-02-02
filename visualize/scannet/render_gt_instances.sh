@@ -1,11 +1,11 @@
 #!/bin/bash
 
-data_dir="/project/3dlg-hcvc/dense-scanrefer/scannet/sem_seg/DETECTOR"
+data_dir="/project/3dlg-hcvc/dense-scanrefer/scannet/rgb_instance/gt"
 stk_dir="/local-scratch/qiruiw/research/stk-motifs"
 script="$stk_dir/ssc/render-file.js"
 config_dir="$stk_dir/ssc/config"
 config_file="/project/3dlg-hcvc/dense-scanrefer/www/scannet/render_turntable.json"
-output_dir="/project/3dlg-hcvc/dense-scanrefer/www/scannet/sem_seg/DETECTOR"
+output_dir="/project/3dlg-hcvc/dense-scanrefer/www/scannet/inst_seg/gt_inst"
 scene_ids="/local-scratch/qiruiw/research/dense-scanrefer/data/scannet/meta_data/scannetv2_val.txt"
 split="val"
 n=16

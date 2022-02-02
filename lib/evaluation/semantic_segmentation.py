@@ -99,7 +99,7 @@ def evaluate_semantic(cfg):
     CLASS_NAME = getattr(import_module(cfg.evaluation.model_utils_module), cfg.evaluation.gt_class_name)[1:]
     CLASS_IDX = np.array(getattr(import_module(cfg.evaluation.model_utils_module), cfg.evaluation.gt_class_idx))[1:]
     
-    pred_path = os.path.join(cfg.LOG_PATH, cfg.general.dataset, cfg.general.model, 'test', cfg.evaluation.use_model, 'splited_pred', cfg.data.split, 'semantic')
+    pred_path = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.evaluation.use_model, "test", cfg.data.split, 'semantic')
     pred_files = sorted(glob(os.path.join(pred_path, '*.txt')))
     
     gt_path = os.path.join(cfg.DATA_PATH, cfg.general.dataset, 'splited_gt', cfg.data.split)

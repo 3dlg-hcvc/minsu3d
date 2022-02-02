@@ -4,6 +4,11 @@ data/scannet/splited_gt
 
 # log
 log/
+logs/
+
+# output
+output/
+outputs/
 
 # temp
 temp/
@@ -16,3 +21,4 @@ lib/pointgroup_ops/PG_OP*
 .DS_Store
 __pycache__
 .vscode
+env

@@ -9,16 +9,36 @@ sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
 # from lib.utils.bbox import get_3d_box_batch, get_aabb3d_iou_batch, get_3d_box
 
 
-def huber_loss(error, delta=1.0):
+def get_segmented_scores(scores, fg_thresh=1.0, bg_thresh=0.0):
     """
     Args:
-        error: Torch tensor (d1,d2,...,dk)
-    Returns:
-        loss: Torch tensor (d1,d2,...,dk)
-    x = error = pred - gt or dist(pred,gt)
-    0.5 * |x|^2                 if |x|<=d
-    0.5 * d^2 + d * (|x|-d)     if |x|>d
-    Ref: https://github.com/charlesq34/frustum-pointnets/blob/master/models/model_util.py
+        scores: (N), float, 0~1
+    
+    Returns: 
+        segmented_scores: (N), float 0~1, >fg_thresh: 1, <bg_thresh: 0, mid: linear
+    """
+    fg_mask = scores > fg_thresh
+    bg_mask = scores < bg_thresh
+    interval_mask = (fg_mask == 0) & (bg_mask == 0)
+
+    segmented_scores = (fg_mask > 0).float()
+    k = 1 / (fg_thresh - bg_thresh)
+    b = bg_thresh / (bg_thresh - fg_thresh)
+    segmented_scores[interval_mask] = scores[interval_mask] * k + b
+
+    return segmented_scores
+
+
+def huber_loss(error, delta=1.0):
+    """
+        Args:
+            error: Torch tensor (d1,d2,...,dk)
+        Returns:
+            loss: Torch tensor (d1,d2,...,dk)
+        x = error = pred - gt or dist(pred,gt)
+        0.5 * |x|^2                 if |x|<=d
+        0.5 * d^2 + d * (|x|-d)     if |x|>d
+        Ref: https://github.com/charlesq34/frustum-pointnets/blob/master/models/model_util.py
     """
     abs_error = torch.abs(error)
     #quadratic = torch.min(abs_error, torch.FloatTensor([delta]))
@@ -30,16 +50,16 @@ def huber_loss(error, delta=1.0):
 
 def nn_distance_batch(pc1, pc2, l1smooth=False, delta=1.0, l1=False):
     """
-    Input:
-        pc1: (B,N,C) torch tensor
-        pc2: (B,M,C) torch tensor
-        l1smooth: bool, whether to use l1smooth loss
-        delta: scalar, the delta used in l1smooth loss
-    Output:
-        dist1: (B,N) torch float32 tensor
-        idx1: (B,N) torch int64 tensor
-        dist2: (B,M) torch float32 tensor
-        idx2: (B,M) torch int64 tensor
+        Input:
+            pc1: (B,N,C) torch tensor
+            pc2: (B,M,C) torch tensor
+            l1smooth: bool, whether to use l1smooth loss
+            delta: scalar, the delta used in l1smooth loss
+        Output:
+            dist1: (B,N) torch float32 tensor
+            idx1: (B,N) torch int64 tensor
+            dist2: (B,M) torch float32 tensor
+            idx2: (B,M) torch int64 tensor
     """
     N = pc1.shape[1]
     M = pc2.shape[1]
@@ -60,16 +80,16 @@ def nn_distance_batch(pc1, pc2, l1smooth=False, delta=1.0, l1=False):
 
 def nn_distance_stack(pc1, pc2, l1smooth=False, delta=1.0, l1=False):
     """
-    Input:
-        pc1: (N,C) torch tensor
-        pc2: (M,C) torch tensor
-        l1smooth: bool, whether to use l1smooth loss
-        delta: scalar, the delta used in l1smooth loss
-    Output:
-        dist1: (N,) torch float32 tensor
-        idx1: (N,) torch int64 tensor
-        dist2: (M,) torch float32 tensor
-        idx2: (M,) torch int64 tensor
+        Input:
+            pc1: (N,C) torch tensor
+            pc2: (M,C) torch tensor
+            l1smooth: bool, whether to use l1smooth loss
+            delta: scalar, the delta used in l1smooth loss
+        Output:
+            dist1: (N,) torch float32 tensor
+            idx1: (N,) torch int64 tensor
+            dist2: (M,) torch float32 tensor
+            idx2: (M,) torch int64 tensor
     """
     N = pc1.shape[0]
     M = pc2.shape[0]
@@ -92,15 +112,15 @@ def nn_distance_stack(pc1, pc2, l1smooth=False, delta=1.0, l1=False):
 
 def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr):
     """ Compute 3D bounding box and semantic classification loss.
-    Args:
-        data_dict: dict (read-only)
-    Returns:
-        center_loss
-        heading_cls_loss
-        heading_reg_loss
-        size_cls_loss
-        size_reg_loss
-        sem_cls_loss
+        Args:
+            data_dict: dict (read-only)
+        Returns:
+            center_loss
+            heading_cls_loss
+            heading_reg_loss
+            size_cls_loss
+            size_reg_loss
+            sem_cls_loss
     """
 
     batch_size = len(data_dict["batch_offsets"]) - 1
@@ -109,7 +129,6 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
     num_class = 18
     
     pred_center, heading_scores, heading_residuals_normalized, heading_residuals, size_scores, size_residuals_normalized, size_residuals, sem_cls_scores = loss_input['proposal_pred_bboxes']
-    proposal_offsets = loss_input['proposal_bbox_offsets']
     instance_offsets = data_dict['instance_offsets']
     
     center_loss = torch.tensor(0.).cuda()
@@ -120,7 +139,7 @@ def compute_box_and_sem_cls_loss(loss_input, data_dict, loss_dict, mean_size_arr
     sem_cls_loss = torch.tensor(0.).cuda()
 
     for b in range(batch_size):
-        pred_batch_start, pred_batch_end = proposal_offsets[b], proposal_offsets[b+1]
+        ### replace proposal_offsets with proposal_batchId TODO
         pred_num = pred_batch_end - pred_batch_start # N
         gt_batch_start, gt_batch_end = instance_offsets[b], instance_offsets[b+1]
         gt_num = gt_batch_end - gt_batch_start # M

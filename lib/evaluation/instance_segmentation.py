@@ -371,7 +371,7 @@ def evaluate_instance(cfg):
         NAME_TO_IDX[CLASS_NAME[i]] = CLASS_IDX[i]
         IDX_TO_NAME[CLASS_IDX[i]] = CLASS_NAME[i]
     
-    pred_path = os.path.join(cfg.LOG_PATH, cfg.general.dataset, cfg.general.model, 'test', cfg.evaluation.use_model, 'splited_pred', cfg.data.split, 'instance')
+    pred_path = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.evaluation.use_model, "test", cfg.data.split, "instance")
     pred_files = sorted(glob(os.path.join(pred_path, '*.txt')))
     pred_files = [p for p in pred_files if len(p.split('/')[-1].split('.')) <= 2]
     

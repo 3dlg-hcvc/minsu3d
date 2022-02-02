@@ -1,23 +1,37 @@
+import os
+import re
 import torch
+import functools
+import random
+
+import numpy as np
 import torch.nn as nn
 import MinkowskiEngine as ME
-import numpy as np
+import pytorch_lightning as pl
+
+from tqdm import tqdm
+from glob import glob
+from importlib import import_module
 
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.pointgroup_ops.functions import pointgroup_ops
+from lib.loss import SemSegLoss, PTOffsetLoss
+from lib.loss.utils import get_segmented_scores
+
 from model.common import ResidualBlock, VGGBlock, UBlock
-from lib.utils.bbox import get_3d_box_batch, get_aabb3d_iou_batch, get_3d_box
-
-import functools
 
 
-class PointGroup(nn.Module):
+class PointGroup(pl.LightningModule):
     def __init__(self, cfg):
         super().__init__()
+        self.save_hyperparameters()
+
         self.cfg = cfg
         self.DC = ScannetDatasetConfig(cfg)
 
-        in_channel = cfg.model.input_channel + cfg.model.use_coords * 3
+        self.task = cfg.general.task
+
+        in_channel = cfg.model.use_color * 3 + cfg.model.use_normal * 3 + cfg.model.use_coords * 3 + cfg.model.use_multiview * 128
         m = cfg.model.m
         D = 3
         classes = cfg.data.classes
@@ -26,19 +40,18 @@ class PointGroup(nn.Module):
         block_reps = cfg.model.block_reps
         block_residual = cfg.model.block_residual
         
+        self.freeze_backbone = cfg.model.freeze_backbone
         self.requires_gt_mask = cfg.data.requires_gt_mask
 
         self.cluster_radius = cfg.cluster.cluster_radius
         self.cluster_meanActive = cfg.cluster.cluster_meanActive
         self.cluster_shift_meanActive = cfg.cluster.cluster_shift_meanActive
         self.cluster_npoint_thre = cfg.cluster.cluster_npoint_thre
-        self.freeze_backbone = cfg.cluster.freeze_backbone
+        self.prepare_epochs = cfg.cluster.prepare_epochs
 
         self.score_scale = cfg.train.score_scale
         self.score_fullscale = cfg.train.score_fullscale
         self.mode = cfg.train.score_mode
-
-        self.prepare_epochs = cfg.cluster.prepare_epochs
 
         if block_residual:
             block = ResidualBlock
@@ -73,41 +86,19 @@ class PointGroup(nn.Module):
             ME.MinkowskiReLU(inplace=True)
         )
         
-        # self.proposal_mlp = nn.Sequential(
-        #     nn.Linear(m, 32),
-        #     nn.BatchNorm1d(32),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(32, 64),
-        #     nn.BatchNorm1d(64),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(64, 128)
-        # )
-        
-        if cfg.model.pred_bbox:
-            num_class = cfg.model.num_bbox_class
-            num_heading_bin = cfg.model.num_heading_bin
-            num_size_cluster = cfg.model.num_size_cluster
-            self.bbox_regressor = nn.Sequential(
-                nn.Linear(m, m, bias=False),
-                nn.BatchNorm1d(m),
-                nn.ReLU(inplace=True),
-                nn.Linear(m, m, bias=False),
-                nn.BatchNorm1d(m),
-                nn.ReLU(inplace=True),
-                nn.Linear(m, 3+num_heading_bin*2+num_size_cluster*4+num_class)
-            )
-        
         self.score_linear = nn.Linear(m, 1)
-        # self.score_linear = nn.Linear(128, 1)
+
+        self._init_random_seed()
+        self._init_criterion()
         
     
     @staticmethod
     def get_batch_offsets(batch_idxs, batch_size):
-        '''
+        """
         :param batch_idxs: (N), int
         :param batch_size: int
         :return: batch_offsets: (batch_size + 1)
-        '''
+        """
         batch_offsets = torch.zeros(batch_size + 1).int().cuda()
         for i in range(batch_size):
             batch_offsets[i + 1] = batch_offsets[i] + (batch_idxs == i).sum()
@@ -116,13 +107,13 @@ class PointGroup(nn.Module):
 
 
     def clusters_voxelization(self, clusters_idx, clusters_offset, feats, coords, fullscale, scale, mode):
-        '''
+        """
         :param clusters_idx: (SumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N, cpu
         :param clusters_offset: (nCluster + 1), int, cpu
         :param feats: (N, C), float, cuda
         :param coords: (N, 3), float, cuda
         :return:
-        '''
+        """
         c_idxs = clusters_idx[:, 1].cuda()
         clusters_feats = feats[c_idxs.long()]
         clusters_coords = coords[c_idxs.long()]
@@ -133,11 +124,6 @@ class PointGroup(nn.Module):
 
         clusters_coords_min = pointgroup_ops.sec_min(clusters_coords, clusters_offset.cuda())  # (nCluster, 3), float
         clusters_coords_max = pointgroup_ops.sec_max(clusters_coords, clusters_offset.cuda())  # (nCluster, 3), float
-
-        #### extract bbox info for each cluster
-        clusters_size = clusters_coords_max - clusters_coords_min # (nCluster, 3), float
-        clusters_center = (clusters_coords_max + clusters_coords_min) / 2 + clusters_coords_mean # (nCluster, 3), float
-        ####
 
         #### make sure the the range of scaled clusters are at most fullscale
         clusters_scale = 1 / ((clusters_coords_max - clusters_coords_min) / fullscale).max(1)[0] - 0.01  # (nCluster), float
@@ -168,98 +154,35 @@ class PointGroup(nn.Module):
 
         clusters_voxel_feats = ME.SparseTensor(features=clusters_voxel_feats, coordinates=clusters_voxel_coords.int().cuda())
 
-        return clusters_voxel_feats, clusters_p2v_map, (clusters_center, clusters_size)
-
-
-    def decode_bbox_prediction(self, encoded_bbox, ret):
-        """
-        decode the predicted parameters for the bounding boxes
-        """
-        # num_class = 18
-        num_heading_bin = 1
-        num_size_cluster = 18
-        # encoded_bbox = encoded_bbox.transpose(2,1).contiguous() # (batch_size, 1024, ..)
-        num_proposal = encoded_bbox.shape[0]
-
-        # objectness_scores = encoded_bbox[:,:,0:2]
-
-        base_xyz = ret['proposal_info'][0] # (num_proposal, 3)
-        center = base_xyz + encoded_bbox[:, :3] # (num_proposal, 3)
-
-        heading_scores = encoded_bbox[:, 3:3+num_heading_bin] # (num_proposal, 1)
-        heading_residuals_normalized = encoded_bbox[:, 3+num_heading_bin:3+num_heading_bin*2] # (num_proposal, 1)
-        
-        size_scores = encoded_bbox[:, 3+num_heading_bin*2:3+num_heading_bin*2+num_size_cluster]
-        size_residuals_normalized = encoded_bbox[:, 3+num_heading_bin*2+num_size_cluster:3+num_heading_bin*2+num_size_cluster*4].view([num_proposal, num_size_cluster, 3]) # (num_proposal, num_size_cluster, 3)
-        
-        sem_cls_scores = encoded_bbox[:, 3+num_heading_bin*2+num_size_cluster*4:] # num_proposalx18
-
-        # store
-        # data_dict['objectness_scores'] = objectness_scores
-        ret['center'] = center
-        ret['heading_scores'] = heading_scores # Bxnum_proposalxnum_heading_bin
-        ret['heading_residuals_normalized'] = heading_residuals_normalized # Bxnum_proposalxnum_heading_bin (should be -1 to 1)
-        ret['heading_residuals'] = heading_residuals_normalized * (np.pi/num_heading_bin) # (num_proposal, num_heading_bin)
-        ret['size_scores'] = size_scores
-        ret['size_residuals_normalized'] = size_residuals_normalized
-        ret['size_residuals'] = size_residuals_normalized * torch.from_numpy(self.DC.mean_size_arr.astype(np.float32)).cuda().unsqueeze(0)
-        ret['sem_cls_scores'] = sem_cls_scores
-
-        return ret
+        return clusters_voxel_feats, clusters_p2v_map
     
-    
-    def convert_stack_to_batch(self, data, ret):
-        batch_size = len(data["batch_offsets"]) - 1
-        max_num_proposal = self.cfg.model.max_num_proposal
-        ret["proposal_feats_batched"] = torch.zeros(batch_size, max_num_proposal, self.cfg.model.m)
-        ret["proposal_bbox_batched"] = torch.zeros(batch_size, max_num_proposal, 8, 3)
-        ret["proposal_center_batched"] = torch.zeros(batch_size, max_num_proposal, 3)
-        ret["proposal_sem_cls_batched"] = torch.zeros(batch_size, max_num_proposal)
-        ret["proposal_scores_batched"] = torch.zeros(batch_size, max_num_proposal)
-        ret["proposal_batch_mask"] = torch.zeros(batch_size, max_num_proposal)
-        
-        proposal_bbox = ret["proposal_crop_bbox"].detach().cpu().numpy()
-        proposal_bbox = torch.from_numpy(get_3d_box_batch(proposal_bbox[:, :3], proposal_bbox[:, 3:6], proposal_bbox[:, 6])) # (nProposals, 8, 3)
-        
-        for b in range(batch_size):
-            proposal_batch_idx = torch.nonzero(ret["proposals_batchId"] == b).squeeze(-1)
-            pred_num = len(proposal_batch_idx)
-            pred_num = pred_num if pred_num < max_num_proposal else max_num_proposal
-            ret["proposal_feats_batched"][b, :pred_num, :] = ret["proposal_feats"][proposal_batch_idx]
-            ret["proposal_bbox_batched"][b, :pred_num, :, :] = proposal_bbox[proposal_batch_idx]
-            ret["proposal_center_batched"][b, :pred_num, :] = ret["proposal_crop_bbox"][proposal_batch_idx, :3]
-            ret["proposal_sem_cls_batched"][b, :pred_num] = ret["proposal_crop_bbox"][proposal_batch_idx, 7]
-            ret["proposal_scores_batched"][b, :pred_num] = ret["proposal_objectness_scores"][proposal_batch_idx]
-            ret["proposal_batch_mask"][b, :pred_num] = 1
 
-
-    def forward(self, data):
-        ret = {}
-        batch_size = len(data["batch_offsets"]) - 1
-        x = ME.SparseTensor(features=data['voxel_feats'], coordinates=data['voxel_locs'].int())
+    def forward(self, data_dict):
+        batch_size = len(data_dict["batch_offsets"]) - 1
+        x = ME.SparseTensor(features=data_dict["voxel_feats"], coordinates=data_dict["voxel_locs"].int())
 
         #### backbone
         out = self.backbone(x)
-        pt_feats = out.features[data['p2v_map'].long()] # (N, m)
+        pt_feats = out.features[data_dict["p2v_map"].long()] # (N, m)
 
         #### semantic segmentation
         semantic_scores = self.sem_seg(pt_feats)   # (N, nClass), float
         semantic_preds = semantic_scores.max(1)[1]    # (N), long, {0, 1, ..., classes}
-        ret['semantic_scores'] = semantic_scores
+        data_dict["semantic_scores"] = semantic_scores
 
         #### offsets
         pt_offsets = self.offset_net(pt_feats) # (N, 3), float32
-        ret['pt_offsets'] = pt_offsets
+        data_dict["pt_offsets"] = pt_offsets
 
-        if data['epoch'] > self.prepare_epochs or self.freeze_backbone:
+        if self.current_epoch > self.prepare_epochs or self.freeze_backbone:
             #### get prooposal clusters
-            batch_idxs = data['locs_scaled'][:, 0].int()
+            batch_idxs = data_dict["locs_scaled"][:, 0].int()
             
             if not self.requires_gt_mask:
-                object_idxs = torch.nonzero(semantic_preds > 0, as_tuple=False).view(-1)
+                object_idxs = torch.nonzero(semantic_preds > 1, as_tuple=False).view(-1) # exclude predicted wall and floor ???
                 batch_idxs_ = batch_idxs[object_idxs]
                 batch_offsets_ = self.get_batch_offsets(batch_idxs_, batch_size)
-                coords_ = data['locs'][object_idxs]
+                coords_ = data_dict["locs"][object_idxs]
                 pt_offsets_ = pt_offsets[object_idxs]
 
                 semantic_preds_cpu = semantic_preds[object_idxs].int().cpu()
@@ -275,67 +198,152 @@ class PointGroup(nn.Module):
                 idx, start_len = pointgroup_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_, self.cluster_radius, self.cluster_meanActive)
                 proposals_idx, proposals_offset = pointgroup_ops.bfs_cluster(semantic_preds_cpu, idx.cpu(), start_len.cpu(), self.cluster_npoint_thre)
                 proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
-                proposals_batchId_all = batch_idxs[proposals_idx[:, 1].long()].int()
                 # proposals_idx: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
                 # proposals_offset: (nProposal + 1), int
-                # proposals_batchId_all: (sumNPoint,) batch id
 
                 proposals_idx_shift[:, 0] += (proposals_offset.size(0) - 1)
                 proposals_offset_shift += proposals_offset[-1]
                 proposals_idx = torch.cat((proposals_idx, proposals_idx_shift), dim=0)
                 proposals_offset = torch.cat((proposals_offset, proposals_offset_shift[1:]))
-                proposals_batchId_all = torch.cat((proposals_batchId_all, proposals_batchId_shift_all[1:])) # (sumNPoint,)
                 # proposals_idx = proposals_idx_shift
                 # proposals_offset = proposals_offset_shift
-                # proposals_batchId_all = proposals_batchId_shift_all
             else:
-                proposals_idx = data["gt_proposals_idx"]
-                proposals_offset = data["gt_proposals_offset"]
-                proposals_batchId_all = batch_idxs[proposals_idx[:, 1].long()].int() # (sumNPoint,)
+                proposals_idx = data_dict["gt_proposals_idx"].cpu()
+                proposals_offset = data_dict["gt_proposals_offset"].cpu()
 
             #### proposals voxelization again
-            proposals_voxel_feats, proposals_p2v_map, (proposals_center, proposals_size) = self.clusters_voxelization(proposals_idx, proposals_offset, pt_feats, data['locs'], self.score_fullscale, self.score_scale, self.mode)
+            proposals_voxel_feats, proposals_p2v_map = self.clusters_voxelization(proposals_idx, proposals_offset, pt_feats, data_dict["locs"], self.score_fullscale, self.score_scale, self.mode)
             # proposals_voxel_feats: (M, C) M: voxels
             # proposals_p2v_map: point2voxel map (sumNPoint,)
-            # proposals_center / proposals_size: (nProposals, 3)
 
             #### score
             score_feats = self.score_net(proposals_voxel_feats)
             pt_score_feats = score_feats.features[proposals_p2v_map.long()] # (sumNPoint, C)
             proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
-            # proposals_score_feats = self.proposal_mlp(proposals_score_feats) # (nProposal, 128)
             scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
-            ret['proposal_scores'] = (scores, proposals_idx, proposals_offset)
+            data_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
+            
+        return data_dict
+                
 
-            ############ extract batch related features and bbox #############
-            num_proposals = proposals_offset.shape[0] - 1
+    def _init_random_seed(self):
+        print("=> setting random seed...")
+        if self.cfg.general.manual_seed:
+            random.seed(self.cfg.general.manual_seed)
+            np.random.seed(self.cfg.general.manual_seed)
+            torch.manual_seed(self.cfg.general.manual_seed)
+            torch.cuda.manual_seed_all(self.cfg.general.manual_seed)
             
-            proposals_npoint = torch.zeros(num_proposals).cuda()
-            for i in range(num_proposals):
-                proposals_npoint[i] = (proposals_idx[:, 0] == i).sum()
-            thres_mask = torch.logical_and(torch.sigmoid(scores.view(-1)) > self.cfg.test.TEST_SCORE_THRESH, proposals_npoint > self.cfg.test.TEST_NPOINT_THRESH) # (nProposal,)
-            ret['proposals_npoint'] = proposals_npoint
-            ret['proposal_thres_mask'] = thres_mask
-            
-            proposals_batchId = proposals_batchId_all[proposals_offset[:-1].long()] # (nProposal,)
-            proposals_batchId = proposals_batchId[thres_mask]
-            ret['proposals_batchId'] = proposals_batchId # (nProposal,)
-            ret['proposal_feats'] = proposals_score_feats[thres_mask]
-            ret['proposal_objectness_scores'] = torch.sigmoid(scores.view(-1))[thres_mask]
-            
-            if self.cfg.model.crop_bbox:
-                proposal_crop_bbox = torch.zeros(num_proposals, 9).cuda() # (nProposals, center+size+heading+label)
-                proposal_crop_bbox[:, :3] = proposals_center
-                proposal_crop_bbox[:, 3:6] = proposals_size
-                proposal_crop_bbox[:, 7] = semantic_preds[proposals_idx[proposals_offset[:-1].long(), 1].long()]
-                proposal_crop_bbox[:, 8] = torch.sigmoid(scores.view(-1))
-                proposal_crop_bbox = proposal_crop_bbox[thres_mask]
-                ret['proposal_crop_bbox'] = proposal_crop_bbox
+    
+    def _init_criterion(self):
+        self.sem_seg_criterion = SemSegLoss(self.cfg.data.ignore_label)
+        self.pt_offset_criterion = PTOffsetLoss()
+        self.score_criterion = nn.BCELoss()
 
-            if self.cfg.model.pred_bbox:
-                encoded_pred_bbox = self.bbox_regressor(proposals_score_feats) # (nProposal, 3+num_heading_bin*2+num_size_cluster*4+num_class)
-                encoded_pred_bbox = encoded_pred_bbox[thres_mask]
-                ret['proposal_info'] = (proposals_center[thres_mask], proposals_size[thres_mask])
-                ret = self.decode_bbox_prediction(encoded_pred_bbox, ret)
-            
-        return ret
+    
+    def configure_optimizers(self):
+        print("=> configure optimizer...")
+
+        optim_class_name = self.cfg.train.optim.classname
+        optim = getattr(torch.optim, optim_class_name)
+        if optim_class_name == "Adam":
+            optimizer = optim(filter(lambda p: p.requires_grad, self.parameters()), lr=self.cfg.train.optim.lr)
+        elif optim_class_name == "SGD":
+            optimizer = optim(filter(lambda p: p.requires_grad, self.parameters()), lr=self.cfg.train.optim.lr, momentum=self.cfg.train.optim.momentum, weight_decay=self.cfg.train.optim.weight_decay)
+        else:
+            raise NotImplemented
+
+        return [optimizer]
+        
+        
+    def _loss(self, data_dict):
+        N = data_dict["sem_labels"].shape[0]
+        """semantic loss"""
+        # semantic_scores: (N, nClass), float32, cuda
+        # semantic_labels: (N), long, cuda
+        semantic_loss = self.sem_seg_criterion(data_dict["semantic_scores"], data_dict["sem_labels"])
+        data_dict["semantic_loss"] = (semantic_loss, N)
+
+        """offset loss"""
+        pt_offsets, coords, instance_info, instance_ids = data_dict["pt_offsets"], data_dict["locs"], data_dict["instance_info"], data_dict["instance_ids"]
+        # pt_offsets: (N, 3), float, cuda
+        # coords: (N, 3), float32
+        # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
+        # instance_ids: (N), long
+        gt_offsets = instance_info[:, 0:3] - coords   # (N, 3)
+        valid = (instance_ids != self.cfg.data.ignore_label).float()
+        offset_norm_loss, offset_dir_loss = self.pt_offset_criterion(pt_offsets, gt_offsets, valid_mask=valid)
+        data_dict["offset_norm_loss"] = (offset_norm_loss, valid.sum())
+        data_dict["offset_dir_loss"] = (offset_dir_loss, valid.sum())
+
+        if self.current_epoch > self.cfg.cluster.prepare_epochs:
+            """score loss"""
+            scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
+            instance_pointnum = data_dict["instance_num_point"]
+            # scores: (nProposal, 1), float32
+            # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+            # proposals_offset: (nProposal + 1), int, cpu
+            # instance_pointnum: (total_nInst), int
+            ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_ids, instance_pointnum) # (nProposal, nInstance), float
+            gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
+            gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
+            score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
+            data_dict["score_loss"] = (score_loss, gt_ious.shape[0])
+
+        """total loss"""
+        loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + self.cfg.train.loss_weight[2] * offset_dir_loss
+        if self.current_epoch > self.cfg.cluster.prepare_epochs:
+            loss += (self.cfg.train.loss_weight[3] * score_loss)
+        data_dict["total_loss"] = (loss, N)
+
+        return data_dict
+        
+        
+    def _feed(self, data_dict):
+        if self.cfg.model.use_coords:
+            data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), 1)
+
+        data_dict["voxel_feats"] = pointgroup_ops.voxelization(data_dict["feats"], data_dict["v2p_map"], self.cfg.data.mode)  # (M, C), float, cuda
+
+        data_dict = self.forward(data_dict)
+        
+        return data_dict
+
+        
+    def training_step(self, data_dict, idx):
+        torch.cuda.empty_cache()
+
+        ##### prepare input and forward
+        data_dict = self._feed(data_dict)
+        data_dict = self._loss(data_dict)
+        loss = data_dict["total_loss"][0]
+
+        in_prog_bar = ["total_loss"]
+        for key, value in data_dict.items():
+            if "loss" in key:
+                self.log("train/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=True, on_epoch=True, sync_dist=True)
+
+        return loss
+
+
+    def validation_step(self, data_dict, idx):
+        torch.cuda.empty_cache()
+
+        ##### prepare input and forward
+        data_dict = self._feed(data_dict)
+        data_dict = self._loss(data_dict)
+
+        in_prog_bar = ["total_loss"]
+        for key, value in data_dict.items():
+            if "loss" in key:
+                self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True, sync_dist=True)
+                
+        return data_dict
+
+    
+    def test_step(self, data_dict, idx):
+        torch.cuda.empty_cache()
+        
+        data_dict = self._feed(data_dict)
+        
+        return data_dict

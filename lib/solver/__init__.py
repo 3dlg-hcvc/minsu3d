@@ -1,1 +1,0 @@
-from .pointgroup import PointGroupSolver

@@ -2,21 +2,38 @@
 Generate instance groundtruth .txt files (for evaluation)
 '''
 
-import numpy as np
 import glob
 import torch
 import os
+import argparse
+
+import numpy as np
+
+from tqdm import tqdm
+from omegaconf import OmegaConf
 
 semantic_label_idxs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39]
 semantic_label_names = ['wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table', 'door', 'window', 'bookshelf', 'picture', 'counter', 'desk', 'curtain', 'refrigerator', 'shower curtain', 'toilet', 'sink', 'bathtub', 'otherfurniture']
 
 
 if __name__ == '__main__':
-    split = 'val'
-    files = sorted(glob.glob(f'splited_data/{split}/scene*.pth'))
-    rooms = [torch.load(i) for i in files]
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-s', '--split', help='data split (train / val / test)', default='val')
+    parser.add_argument('-c', '--cfg', help='scannet configuration YAML file', default='../../conf/path.yaml')
+    opt = parser.parse_args()
 
-    os.makedirs(f'splited_gt/{split}', exist_ok=True)
+    cfg = OmegaConf.load(opt.cfg)
+    cfg.split = opt.split
+    
+    root = os.path.join(cfg.SCANNETV2_PATH.splited_data, cfg.split)
+    files = sorted(glob.glob(os.path.join(root, "scene*.pth")))
+
+    print("loading scans files...")
+    rooms = []
+    for file in tqdm(files):
+        rooms.append(torch.load(file))
+
+    os.makedirs(os.path.join(cfg.SCANNETV2_PATH.splited_gt, cfg.split), exist_ok=True)
 
     for i in range(len(rooms)):
         instance_ids = rooms[i]["instance_ids"]
@@ -45,7 +62,7 @@ if __name__ == '__main__':
             instance_ids_new[instance_mask] = semantic_label * 1000 + inst_id + 1
             # instance_ids_new[instance_mask] += inst_id + 1
 
-        np.savetxt(f'splited_gt/{split}/{scene_name}.txt', instance_ids_new, fmt='%d')
+        np.savetxt(os.path.join(cfg.SCANNETV2_PATH.splited_gt, cfg.split, "{}.txt".format(scene_name)), instance_ids_new, fmt='%d')
 
 
 

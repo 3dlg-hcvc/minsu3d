@@ -75,11 +75,11 @@ def read_agg_file(agg_file):
                 # print('ignore wall, floor or ceiling')
                 continue
             else:
-                objectId2segs[objectId] = segs
+                objectId2segs[objectId] = segs.copy()
                 if label in label2segs:
-                    label2segs[label].extend(segs)
+                    label2segs[label].extend(segs.copy())
                 else:
-                    label2segs[label] = segs
+                    label2segs[label] = segs.copy()
                 # objectId += 1
 
     if agg_file.split('/')[-2] == 'scene0217_00':
@@ -136,11 +136,11 @@ def get_instance_bboxes(mesh, instance_ids, objectId2labelId):
 
 
 def export(scene, cfg):
-    mesh_file = os.path.join(cfg.SCANNETV2_PATH.splited_scans, cfg.split, scene, scene + '_vh_clean_2.ply')
-    label_file = os.path.join(cfg.SCANNETV2_PATH.splited_scans, cfg.split, scene, scene + '_vh_clean_2.labels.ply')
-    agg_file = os.path.join(cfg.SCANNETV2_PATH.splited_scans, cfg.split, scene, scene + '_vh_clean.aggregation.json')
-    seg_file = os.path.join(cfg.SCANNETV2_PATH.splited_scans, cfg.split, scene, scene + '_vh_clean_2.0.010000.segs.json')
-    meta_file = os.path.join(cfg.SCANNETV2_PATH.splited_scans, cfg.split, scene, scene + '.txt')
+    mesh_file = os.path.join(cfg.SCANNETV2_PATH.raw_scans, scene, scene + '_vh_clean_2.ply')
+    label_file = os.path.join(cfg.SCANNETV2_PATH.raw_scans, scene, scene + '_vh_clean_2.labels.ply')
+    agg_file = os.path.join(cfg.SCANNETV2_PATH.raw_scans, scene, scene + '.aggregation.json')
+    seg_file = os.path.join(cfg.SCANNETV2_PATH.raw_scans, scene, scene + '_vh_clean_2.0.010000.segs.json')
+    meta_file = os.path.join(cfg.SCANNETV2_PATH.raw_scans, scene, scene + '.txt')
 
     # read mesh_file
     mesh = read_mesh_file(mesh_file) #（num_verts, 9) xyz+rgb+normal
