@@ -48,6 +48,24 @@ $ cd ../..
 $ pip install -r requirements.txt
 ```
 
+### ComputeCanada (Cedar)
+```shell
+$ module load StdEnv/2020 python/3.8
+$ virtualenv --no-download env
+$ source env/bin/activate
+$ pip install torch==1.7.0 torchvision==0.8.1 --no-index
+$ pip install MinkowskiEngine==0.5.2 --no-index # torch==1.10.0
+$ pip install -r requirements_cc.txt
+```
+```
+$ salloc --time=1:0:0 --gres=gpu:p100:1 --nodes=1 --ntasks=4 --mem=32G --account=rrg-msavva
+$ module load StdEnv/2020 gcc/9.3.0 cuda/10.2 sparsehash/2.0.4
+$ source env/bin/activate
+$ cd lib/pointgroup_ops
+$ python setup.py develop
+```
+
+
 ## Inference on your own dataset
 1. Prepare your data like `data/scannet/prepare_scannet.py`. Only the `mesh (xyz+rgb)` is necessary.
 2. Prepare your dataset and dataloader like `lib/dataset/scannet.py`. Only the test branch is necessary, including 'locs', 'locs_scaled' and 'feats' keys. 'id' and 'scene_id' are optional.
