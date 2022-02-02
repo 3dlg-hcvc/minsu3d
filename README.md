@@ -54,7 +54,7 @@ $ module load StdEnv/2020 python/3.8
 $ virtualenv --no-download env
 $ source env/bin/activate
 $ pip install torch==1.7.0 torchvision==0.8.1 --no-index
-$ pip install MinkowskiEngine==0.5.2 --no-index # torch==1.10.0
+$ pip install MinkowskiEngine==0.5.2 --no-index 
 $ pip install -r requirements_cc.txt
 ```
 ```

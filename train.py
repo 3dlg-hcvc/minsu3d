@@ -67,6 +67,7 @@ def init_trainer(cfg):
     trainer = pl.Trainer(
         gpus=-1, # use all available GPUs 
         strategy='ddp', # use multiple GPUs on the same machine
+        num_nodes=args.num_nodes,
         max_epochs=cfg.train.epochs, 
         num_sanity_val_steps=cfg.train.num_sanity_val_steps, # validate on all val data before training 
         log_every_n_steps=cfg.train.log_every_n_steps,
@@ -107,6 +108,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml', help='path to config file')
     parser.add_argument('-e', '--experiment', type=str, default='', help='specify experiment')
+    parser.add_argument('-n', '--num_nodes', type=str, default=1, help='specify num of gpu nodes')
     args = parser.parse_args()
 
     print("=> loading configurations...")
