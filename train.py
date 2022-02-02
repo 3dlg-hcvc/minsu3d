@@ -17,6 +17,7 @@ def load_conf(args):
     cfg = OmegaConf.merge(base_cfg, cfg)
     
     cfg.general.task = 'train'
+    cfg.general.experiment = args.experiment
 
     root = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.general.experiment, cfg.general.task)
     os.makedirs(root, exist_ok=True)
