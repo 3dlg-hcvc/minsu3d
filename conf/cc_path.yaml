@@ -14,9 +14,4 @@ SCANNETV2_PATH:
   test_list: ${SCANNETV2_PATH.meta_data}/scannetv2_test.txt
   combine_file: ${SCANNETV2_PATH.meta_data}/scannetv2-labels.combined.tsv
 
-  frames: ${SCANNETV2_PATH.dir}/frames_square
-  enet_weights: ${SCANNETV2_PATH.dir}/scannetv2_enet.pth
-  enet_features: ${SCANNETV2_PATH.dir}/enet_features
-  multiview_features: ${SCANNETV2_PATH.dir}/enet_feats_maxpool.hdf5
-
 split:
