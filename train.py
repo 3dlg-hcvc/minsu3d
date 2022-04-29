@@ -131,4 +131,4 @@ if __name__ == '__main__':
     pointgroup = init_model(cfg)
 
     print("=> start training...")
-    trainer.fit(model=pointgroup, train_dataloader=dataloaders["train"], val_dataloaders=dataloaders["val"])
+    trainer.fit(model=pointgroup, train_dataloaders=dataloaders["train"], val_dataloaders=dataloaders["val"])
