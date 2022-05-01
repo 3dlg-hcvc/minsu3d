@@ -21,4 +21,5 @@ lib/pointgroup_ops/PG_OP*
 .DS_Store
 __pycache__
 .vscode
+.idea
 env
