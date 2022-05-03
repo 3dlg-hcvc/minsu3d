@@ -71,7 +71,7 @@ class ScanNet(Dataset):
     def _augment(self, xyz, return_mat=False):
         m = np.eye(3)
         if self.cfg.data.transform.jitter:
-            m *= jitter()
+            m = np.matmul(m, jitter())
         if self.cfg.data.transform.flip:
             flip_m = flip(0, random=True)
             m *= flip_m  
