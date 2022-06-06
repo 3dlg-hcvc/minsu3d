@@ -2,8 +2,7 @@ import os
 import argparse
 from omegaconf import OmegaConf
 from importlib import import_module
-
-import torch
+import pytorch_lightning as pl
 
 
 def load_conf(args):
@@ -39,21 +38,39 @@ def init_data(cfg):
 
     return dataset, dataloader
 
+# def init_model(cfg):
+#     MODEL = getattr(import_module(cfg.model.module), cfg.model.classname)
+#     model = MODEL(cfg)
+
+#     # checkpoint_path = "/project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar"
+#     checkpoint_path = "/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/DETECTOR_F/detector.pth"
+#     # checkpoint_path = os.path.join(cfg.general.root, checkpoint_name)
+#     # model.load_from_checkpoint(checkpoint_path, cfg)
+
+#     checkpoint = torch.load(checkpoint_path)
+#     model.load_state_dict(checkpoint)
+
+#     model.cuda()
+#     model.eval()
+
+#     return model
+
+# TODO: refactor
+def init_trainer(cfg):
+    trainer = pl.Trainer(
+        gpus=-1,  # use all available GPUs
+        strategy='ddp',  # use multiple GPUs on the same machine
+        num_nodes=args.num_nodes,
+        profiler="simple",
+    )
+    return trainer
+
+
 def init_model(cfg):
     MODEL = getattr(import_module(cfg.model.module), cfg.model.classname)
     model = MODEL(cfg)
-
-    # checkpoint_path = "/project/3dlg-hcvc/pointgroup-minkowski/pointgroup.tar"
-    checkpoint_path = "/local-scratch/qiruiw/research/pointgroup-minkowski/output/scannet/pointgroup/DETECTOR_F/detector.pth"
-    # checkpoint_path = os.path.join(cfg.general.root, checkpoint_name)
-    # model.load_from_checkpoint(checkpoint_path, cfg)
-
-    checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint)
-
-    model.cuda()
-    model.eval()
-
+    print("=> loading pretrained checkpoint from {} ...".format(cfg.pretrain))
+    model.load_from_checkpoint(cfg.pretrain)
     return model
 
 
@@ -70,14 +87,20 @@ if __name__ == '__main__':
     print("=> initializing data...")
     dataset, dataloader = init_data(cfg)
 
-    print("=> initializing model...")
-    model = init_model(cfg)
+    print("=> initializing trainer...")
+    trainer = init_trainer(cfg)
 
-    if args.task == 'test':
-        model.inference(dataloader[args.split])
-    elif args.task == 'gt_feats':
-        if args.split == 'train':
-            epoch = 200
-        else:
-            epoch = 1
-        model.generate_gt_features(dataloader[args.split], cfg.data.split, epoch)
+    print("=> initializing model...")
+    pointgroup = init_model(cfg)
+
+    print("=> start inferencing...")
+    trainer.predict(model=pointgroup, dataloaders=dataloader["val"], ckpt_path=cfg.pretrain)
+
+    # if args.task == 'test':
+    #     model.inference(dataloader[args.split])
+    # elif args.task == 'gt_feats':
+    #     if args.split == 'train':
+    #         epoch = 200
+    #     else:
+    #         epoch = 1
+    #     model.generate_gt_features(dataloader[args.split], cfg.data.split, epoch)

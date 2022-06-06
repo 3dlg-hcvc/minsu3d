@@ -10,6 +10,7 @@ from pytorch_lightning.callbacks import Callback
 from lib.utils.eval import get_nms_instances
 
 
+# TODO: unused callbakc class, can be removed
 class ParsePredictionCallback(Callback):
     
     def __init__(self, save_preds=True):
