@@ -28,6 +28,7 @@ if `conda install google-sparsehash -c bioconda` doesn’t work for installing p
 
 2. Include the library manually to help find header files (Please see details in [issue](https://github.com/3dlg-hcvc/pointgroup-minkowski/issues/1))
    ```
+   conda activate pointgroup
    export CPATH=$CONDA_PREFIX/include:$CPATH
    export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
    ```
