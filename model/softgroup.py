@@ -223,7 +223,17 @@ class SoftGroup(pl.LightningModule):
                 rand_quantize=True,
                 **self.instance_voxel_cfg)
 
-            data_dict["instance_batch_idxs"], data_dict["cls_scores"], data_dict["iou_scores"], data_dict["mask_scores"] = self.forward_instance(inst_feats, inst_map)
+            feats = self.tiny_unet(inst_feats)
+
+            # predict mask scores
+            mask_scores = self.mask_scoring_branch(feats.features)
+            data_dict["mask_scores"] = mask_scores[inst_map.long()]
+            data_dict["instance_batch_idxs"] = feats.indices[:, 0][inst_map.long()]
+
+            # predict instance cls and iou scores
+            feats = self.global_pool(feats)
+            data_dict["cls_scores"] = self.classification_branch(feats)
+            data_dict["iou_scores"] = self.iou_score(feats)
 
         return data_dict
 
