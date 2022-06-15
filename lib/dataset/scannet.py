@@ -103,13 +103,13 @@ class ScanNet(Dataset):
         instance_info = np.zeros(
             (xyz.shape[0], 12), dtype=np.float32
         )  # (n, 12), float, (meanx, meany, meanz, cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
-
+        instance_cls = []
         for k, i_ in enumerate(unique_instance_ids, -1):
             if i_ < 0: continue
             
             inst_i_idx = np.where(instance_ids == i_)
 
-            ### instance_info
+            # instance_info
             xyz_i = xyz[inst_i_idx]
             min_xyz_i = xyz_i.min(0)
             max_xyz_i = xyz_i.max(0)
@@ -122,10 +122,14 @@ class ScanNet(Dataset):
             instance_info_i[:, 9:12] = max_xyz_i
             instance_info[inst_i_idx] = instance_info_i
 
-            ### instance_num_point
+            # instance_num_point
             instance_num_point.append(inst_i_idx[0].size)
+
+            # semantic label
+            cls_idx = inst_i_idx[0][0]
+            instance_cls.append(sem_labels[cls_idx])
             
-        return num_instance, instance_info, instance_num_point
+        return num_instance, instance_info, instance_num_point, instance_cls
         
     def _generate_gt_clusters(self, points, instance_ids):
         gt_proposals_idx = []
@@ -203,7 +207,7 @@ class ScanNet(Dataset):
                 # instance_ids = instance_ids[valid_idxs]
                 instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
             
-            num_instance, instance_info, instance_num_point = self._getInstanceInfo(points_augment, instance_ids.astype(np.int32))
+            num_instance, instance_info, instance_num_point, instance_semantic_cls = self._getInstanceInfo(points_augment, instance_ids.astype(np.int32), sem_labels)
                 
             if self.requires_gt_mask:
                 gt_proposals_idx, gt_proposals_offset, _, _ = self._generate_gt_clusters(points, instance_ids)
@@ -213,9 +217,10 @@ class ScanNet(Dataset):
             data["feats"] = feats.astype(np.float32)  # (N, 3)
             data["sem_labels"] = sem_labels.astype(np.int32)  # (N,)
             data["instance_ids"] = instance_ids.astype(np.int32)  # (N,) 0~total_nInst, -1
-            data["num_instance"] = np.array(num_instance).astype(np.int32)  # int
+            data["num_instance"] = np.array(num_instance, dtype=np.int32)  # int
             data["instance_info"] = instance_info.astype(np.float32)  # (N, 12)
-            data["instance_num_point"] = np.array(instance_num_point).astype(np.int32)  # (num_instance,)
+            data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)  # (num_instance,)
+            data["instance_semantic_cls"] = np.array(instance_semantic_cls, dtype=np.int32)
             if self.requires_gt_mask:
                 data['gt_proposals_idx'] = gt_proposals_idx
                 data['gt_proposals_offset'] = gt_proposals_offset
@@ -239,7 +244,7 @@ def scannet_loader(cfg):
         batch_size = batch.__len__()
         data = {}
         for key in batch[0].keys():
-            if key in ['locs', 'locs_scaled', 'feats', 'sem_labels', 'instance_ids', 'num_instance', 'instance_info', 'instance_num_point', 'gt_proposals_idx', 'gt_proposals_offset']:
+            if key in ['locs', 'locs_scaled', 'feats', 'sem_labels', 'instance_ids', 'num_instance', 'instance_info', 'instance_num_point', "instance_semantic_cls", 'gt_proposals_idx', 'gt_proposals_offset']:
                 continue
             if isinstance(batch[0][key], tuple):
                 coords, feats = list(zip(*[sample[key] for sample in batch]))
@@ -274,7 +279,7 @@ def scannet_loader(cfg):
         instance_offsets = [0]
         total_num_inst = 0
         total_points = 0
-        
+        instance_cls = []  # (total_nInst), long
         gt_proposals_idx = []
         gt_proposals_offset = []
 
@@ -313,6 +318,9 @@ def scannet_loader(cfg):
                 instance_num_point.append(torch.from_numpy(b["instance_num_point"]))
                 instance_offsets.append(instance_offsets[-1] + b["num_instance"].item())
 
+                instance_cls.extend(b["instance_semantic_cls"])
+
+
         data["locs"] = torch.cat(locs, 0).to(torch.float32)  # float (N, 3)
         data["locs_scaled"] = torch.cat(locs_scaled, 0)  # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
         data["feats"] = torch.cat(feats, 0)  #.to(torch.float32)            # float (N, C)
@@ -327,7 +335,7 @@ def scannet_loader(cfg):
             data["instance_info"] = torch.cat(instance_info, 0).to(torch.float32)  # float (total_nInst, 12)
             data["instance_num_point"] = torch.cat(instance_num_point, 0).int()  # (total_nInst)
             data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (B+1)
-
+            data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.int)  # long (total_nInst)
         ### voxelize
         data["voxel_locs"], data["p2v_map"], data["v2p_map"] = pointgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), 4) # mode=4 TODO: the naming p2v is wrong! should be v2p
 

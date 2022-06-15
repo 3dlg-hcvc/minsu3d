@@ -8,7 +8,7 @@ import MinkowskiEngine as ME
 import pytorch_lightning as pl
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.softgroup_ops.functions import softgroup_ops
-from lib.loss import SemSegLoss, PTOffsetLoss
+from lib.loss import *
 from lib.loss.utils import get_segmented_scores
 from lib.utils.eval import get_nms_instances
 from model.common import ResidualBlock, VGGBlock, UBlock
@@ -215,6 +215,9 @@ class SoftGroup(pl.LightningModule):
                 proposals_idx = proposals_idx[:proposals_offset[-1]]
                 assert proposals_idx.shape[0] == proposals_offset[-1]
 
+            data_dict["proposals_idx"] = proposals_idx
+            data_dict["proposals_offset"] = proposals_offset
+
             inst_feats, inst_map = self.clusters_voxelization(
                 proposals_idx,
                 proposals_offset,
@@ -248,7 +251,8 @@ class SoftGroup(pl.LightningModule):
     def _init_criterion(self):
         self.sem_seg_criterion = SemSegLoss(self.cfg.data.ignore_label)
         self.pt_offset_criterion = PTOffsetLoss()
-        self.score_criterion = nn.BCELoss()
+        self.classification_criterion = ClassificationLoss()
+        # self.score_criterion = nn.BCELoss()
 
     def configure_optimizers(self):
         print("=> configure optimizer...")
@@ -274,32 +278,51 @@ class SoftGroup(pl.LightningModule):
         data_dict["semantic_loss"] = (semantic_loss, N)
 
         """offset loss"""
-        pt_offsets, coords, instance_info, instance_ids = data_dict["pt_offsets"], data_dict["locs"], data_dict[
-            "instance_info"], data_dict["instance_ids"]
         # pt_offsets: (N, 3), float, cuda
         # coords: (N, 3), float32
         # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
         # instance_ids: (N), long
-        gt_offsets = instance_info[:, 0:3] - coords  # (N, 3)
-        valid = (instance_ids != self.cfg.data.ignore_label).float()
-        offset_norm_loss, offset_dir_loss = self.pt_offset_criterion(pt_offsets, gt_offsets, valid_mask=valid)
+        gt_offsets = data_dict["instance_info"][:, 0:3] - data_dict["locs"]  # (N, 3)
+        valid = (data_dict["instance_ids"] != self.cfg.data.ignore_label).float()
+        offset_norm_loss, offset_dir_loss = self.pt_offset_criterion(data_dict["pt_offsets"], gt_offsets, valid_mask=valid)
         data_dict["offset_norm_loss"] = (offset_norm_loss, valid.sum())
         data_dict["offset_dir_loss"] = (offset_dir_loss, valid.sum())
 
         if self.current_epoch > self.cfg.cluster.prepare_epochs:
-            """score loss"""
-            scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
-            instance_pointnum = data_dict["instance_num_point"]
-            # scores: (nProposal, 1), float32
-            # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset: (nProposal + 1), int, cpu
-            # instance_pointnum: (total_nInst), int
-            ious = softgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_ids,
-                                          instance_pointnum)  # (nProposal, nInstance), float
-            gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
-            gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
-            score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
-            data_dict["score_loss"] = (score_loss, gt_ious.shape[0])
+            proposals_idx = data_dict["proposals_idx"][:, 1].cuda()
+            proposals_offset = data_dict["proposals_offset"].cuda()
+
+            # calculate iou of clustered instance
+            ious_on_cluster = softgroup_ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset, data_dict["instance_ids"], data_dict["instance_num_point"])
+
+            # filter out background instances
+            fg_inds = (instance_cls != self.ignore_label)
+            fg_instance_cls = instance_cls[fg_inds]
+            fg_ious_on_cluster = ious_on_cluster[:, fg_inds]
+
+            # overlap > thr on fg instances are positive samples
+            max_iou, gt_inds = fg_ious_on_cluster.max(1)
+            pos_inds = max_iou >= self.train_cfg.pos_iou_thr
+            pos_gt_inds = gt_inds[pos_inds]
+
+            # compute cls loss. follow detection convention: 0 -> K - 1 are fg, K is bg
+            labels = fg_instance_cls.new_full((fg_ious_on_cluster.size(0),), self.instance_classes)
+            labels[pos_inds] = fg_instance_cls[pos_gt_inds]
+
+
+            # """score loss"""
+            # scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
+            # instance_pointnum = data_dict["instance_num_point"]
+            # # scores: (nProposal, 1), float32
+            # # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+            # # proposals_offset: (nProposal + 1), int, cpu
+            # # instance_pointnum: (total_nInst), int
+            # ious = softgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), data_dict["instance_ids"],
+            #                               instance_pointnum)  # (nProposal, nInstance), float
+            # gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
+            # gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
+            # score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
+            # data_dict["score_loss"] = (score_loss, gt_ious.shape[0])
 
         """total loss"""
         loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + \
