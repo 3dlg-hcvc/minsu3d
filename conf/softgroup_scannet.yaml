@@ -76,16 +76,27 @@ model:
   freeze_backbone: False
   prepare_epochs: 128
 
-  grouping:
-    ### point grouping
-    score_threshold: 0.2
+  grouping_cfg:
+    score_thr: 0.2
     radius: 0.04
     mean_active: 300
     class_numpoint_mean: [ -1., -1., 3917., 12056., 2303.,
                            8331., 3948., 3166., 5629., 11719.,
                            1003., 3317., 4912., 10221., 3889.,
                            4136., 2120., 945., 3967., 2589. ]
-    npoint_threshold: 0.05
+    npoint_thr: 0.05  # absolute if class_numpoint == -1, relative if class_numpoint != -1
+    ignore_classes: [ 0, 1 ]
+  instance_voxel_cfg:
+    scale: 50
+    spatial_shape: 20
+  train_cfg:
+    max_proposal_num: 200
+    pos_iou_thr: 0.5
+  test_cfg:
+    x4_split: False
+    cls_score_thr: 0.001
+    mask_score_thr: -0.5
+    min_npoint: 100
 
 
 train:

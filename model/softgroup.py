@@ -7,7 +7,7 @@ import torch.nn as nn
 import MinkowskiEngine as ME
 import pytorch_lightning as pl
 from data.scannet.model_util_scannet import ScannetDatasetConfig
-from lib.pointgroup_ops.functions import pointgroup_ops
+from lib.softgroup_ops.functions import softgroup_ops
 from lib.loss import SemSegLoss, PTOffsetLoss
 from lib.loss.utils import get_segmented_scores
 from lib.utils.eval import get_nms_instances
@@ -116,64 +116,42 @@ class SoftGroup(pl.LightningModule):
         assert batch_offsets[-1] == batch_idxs.shape[0]
         return batch_offsets
 
-    def clusters_voxelization(self, clusters_idx, clusters_offset, feats, coords, fullscale, scale, mode):
-        """
-        :param clusters_idx: (SumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N, cpu
-        :param clusters_offset: (nCluster + 1), int, cpu
-        :param feats: (N, C), float, cuda
-        :param coords: (N, 3), float, cuda
-        :return:
-        """
+
+    def clusters_voxelization(self, clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, rand_quantize=False):
+        batch_idx = clusters_idx[:, 0].cuda().long()
         c_idxs = clusters_idx[:, 1].cuda()
-        clusters_feats = feats[c_idxs.long()]
-        clusters_coords = coords[c_idxs.long()]
+        feats = feats[c_idxs.long()]
+        coords = coords[c_idxs.long()]
 
-        clusters_coords_mean = pointgroup_ops.sec_mean(clusters_coords, clusters_offset.cuda())  # (nCluster, 3), float
-        clusters_coords_mean_all = torch.index_select(clusters_coords_mean, 0,
-                                                      clusters_idx[:, 0].cuda().long())  # (sumNPoint, 3), float
-        clusters_coords -= clusters_coords_mean_all
+        coords_min = softgroup_ops.sec_min(coords, clusters_offset.cuda())
+        coords_max = softgroup_ops.sec_max(coords, clusters_offset.cuda())
 
-        clusters_coords_min = pointgroup_ops.sec_min(clusters_coords, clusters_offset.cuda())  # (nCluster, 3), float
-        clusters_coords_max = pointgroup_ops.sec_max(clusters_coords, clusters_offset.cuda())  # (nCluster, 3), float
-
-        #### make sure the the range of scaled clusters are at most fullscale
-        clusters_scale = 1 / ((clusters_coords_max - clusters_coords_min) / fullscale).max(1)[
-            0] - 0.01  # (nCluster), float
+        # 0.01 to ensure voxel_coords < spatial_shape
+        clusters_scale = 1 / ((coords_max - coords_min) / spatial_shape).max(1)[0] - 0.01
         clusters_scale = torch.clamp(clusters_scale, min=None, max=scale)
 
-        min_xyz = clusters_coords_min * clusters_scale.unsqueeze(-1)  # (nCluster, 3), float
-        max_xyz = clusters_coords_max * clusters_scale.unsqueeze(-1)
+        coords_min = coords_min * clusters_scale[:, None]
+        coords_max = coords_max * clusters_scale[:, None]
+        clusters_scale = clusters_scale[batch_idx]
+        coords = coords * clusters_scale[:, None]
 
-        clusters_scale = torch.index_select(clusters_scale, 0, clusters_idx[:, 0].cuda().long())
+        if rand_quantize:
+            # after this, coords.long() will have some randomness
+            range = coords_max - coords_min
+            coords_min -= torch.clamp(spatial_shape - range - 0.001, min=0) * torch.rand(3).cuda()
+            coords_min -= torch.clamp(spatial_shape - range + 0.001, max=0) * torch.rand(3).cuda()
+        coords_min = coords_min[batch_idx]
+        coords -= coords_min
+        assert coords.shape.numel() == ((coords >= 0) * (coords < spatial_shape)).sum()
+        coords = coords.long()
+        coords = torch.cat([clusters_idx[:, 0].view(-1, 1).long(), coords.cpu()], 1)
 
-        clusters_coords = clusters_coords * clusters_scale.unsqueeze(-1)
+        out_coords, inp_map, out_map = softgroup_ops.voxelization_idx(coords, int(clusters_idx[-1, 0]) + 1)
+        out_feats = softgroup_ops.voxelization(feats, out_map.cuda())
 
-        range = max_xyz - min_xyz
-        offset = - min_xyz + torch.clamp(fullscale - range - 0.001, min=0) * torch.rand(3).cuda() + torch.clamp(
-            fullscale - range + 0.001, max=0) * torch.rand(3).cuda()
-        offset = torch.index_select(offset, 0, clusters_idx[:, 0].cuda().long())
-        clusters_coords += offset
-        assert clusters_coords.shape.numel() == ((clusters_coords >= 0) * (clusters_coords < fullscale)).sum()
+        voxelization_feats = ME.SparseTensor(features=out_feats, coordinates=out_coords.int().cuda())
+        return voxelization_feats, inp_map
 
-        clusters_coords = clusters_coords.long()
-        clusters_coords = torch.cat([clusters_idx[:, 0].view(-1, 1).long(), clusters_coords.cpu()],
-                                    1)  # (sumNPoint, 1 + 3)
-
-        clusters_voxel_coords, clusters_p2v_map, clusters_v2p_map = pointgroup_ops.voxelization_idx(clusters_coords,
-                                                                                                    int(clusters_idx[
-                                                                                                            -1, 0]) + 1,
-                                                                                                    mode)
-        # clusters_voxel_coords: M * (1 + 3) long
-        # clusters_p2v_map: sumNPoint int, in M
-        # clusters_v2p_map: M * (maxActive + 1) int, in N
-
-        clusters_voxel_feats = pointgroup_ops.voxelization(clusters_feats, clusters_v2p_map.cuda(),
-                                                           mode)  # (M, C), float, cuda
-
-        clusters_voxel_feats = ME.SparseTensor(features=clusters_voxel_feats,
-                                               coordinates=clusters_voxel_coords.int().cuda())
-
-        return clusters_voxel_feats, clusters_p2v_map
 
     def forward(self, data_dict):
         batch_size = len(data_dict["batch_offsets"]) - 1
@@ -184,7 +162,7 @@ class SoftGroup(pl.LightningModule):
         x = ME.SparseTensor(features=data_dict["voxel_feats"], coordinates=data_dict["voxel_locs"].int())
 
         out = self.backbone(x)
-        pt_feats = out.features[data_dict["p2v_map"].long()]  # (N, m)
+        pt_feats = out.features[data_dict["p2v_map"].long()]  # (N, m) TODO: the naming p2v is wrong! should be v2p
         semantic_scores = self.semantic_branch(pt_feats)  # (N, nClass), float
         data_dict["semantic_scores"] = semantic_scores
         pt_offsets = self.offset_branch(pt_feats)  # (N, 3), float32
@@ -195,80 +173,57 @@ class SoftGroup(pl.LightningModule):
                 Top-down Refinement Block
             """
             semantic_scores = semantic_scores.softmax(dim=-1)
+            batch_idxs = data_dict["locs_scaled"][:, 0].int()
 
             # hyperparameters from config
-            grouping_radius = self.hparams.cfg.model.grouping.grouping_radius
-            grouping_mean_active = self.hparams.cfg.model.grouping.mean_active
-            grouping_num_point_threshold = self.hparams.cfg.model.grouping.npoint_threshold
+            grouping_radius = self.hparams.cfg.model.grouping_cfg.radius
+            grouping_mean_active = self.hparams.cfg.model.grouping_cfg.mean_active
+            grouping_num_point_threshold = self.hparams.cfg.model.grouping_cfg.npoint_thr
 
-            class_num_point_mean = torch.tensor(self.hparams.cfg.model.grouping.class_numpoint_mean, dtype=torch.float32)
-
+            class_num_point_mean = torch.tensor(self.hparams.cfg.model.grouping_cfg.class_numpoint_mean, dtype=torch.float32)
+            proposals_offset_list = []
+            proposals_idx_list = []
 
             for class_id in range(self.hparams.cfg.data.classes):
                 if class_id in self.hparams.cfg.data.ignore_classes:
                     continue
                 scores = semantic_scores[:, class_id].contiguous()
-                object_idxs = (scores > self.hparams.score_thr).nonzero().view(-1)
-                if object_idxs.size(0) < self.test_cfg.min_npoint:
+                object_idxs = (scores > self.hparams.cfg.model.grouping_cfg.score_thr).nonzero().view(-1)
+                if object_idxs.size(0) < self.hparams.cfg.model.test_cfg.min_npoint:
                     continue
+                batch_idxs_ = batch_idxs[object_idxs]
+                batch_offsets_ = self.get_batch_offsets(batch_idxs_, batch_size)
+                coords_ = data_dict["locs"][object_idxs]
+                pt_offsets_ = pt_offsets[object_idxs]
+                idx, start_len = softgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, grouping_radius, grouping_mean_active)
+                proposals_idx, proposals_offset = softgroup_ops.bfs_cluster(class_num_point_mean, idx.cpu(), start_len.cpu(), grouping_num_point_threshold, class_id)
+                proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
 
-            # #### get prooposal clusters
-            # batch_idxs = data_dict["locs_scaled"][:, 0].int()
-            #
-            # if not self.requires_gt_mask:
-            #     object_idxs = torch.nonzero(semantic_preds > 1, as_tuple=False).view(-1)  # exclude predicted wall and floor
-            #     batch_idxs_ = batch_idxs[object_idxs]
-            #     batch_offsets_ = self.get_batch_offsets(batch_idxs_, batch_size)
-            #     coords_ = data_dict["locs"][object_idxs]
-            #     pt_offsets_ = pt_offsets[object_idxs]
-            #
-            #     semantic_preds_cpu = semantic_preds[object_idxs].int().cpu()
-            #
-            #     idx_shift, start_len_shift = pointgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_,
-            #                                                                   batch_offsets_, self.cluster_radius,
-            #                                                                   self.cluster_shift_meanActive)
-            #     proposals_idx_shift, proposals_offset_shift = pointgroup_ops.bfs_cluster(semantic_preds_cpu,
-            #                                                                              idx_shift.cpu(),
-            #                                                                              start_len_shift.cpu(),
-            #                                                                              self.cluster_npoint_thre)
-            #     proposals_idx_shift[:, 1] = object_idxs[proposals_idx_shift[:, 1].long()].int()
-            #     proposals_batchId_shift_all = batch_idxs[proposals_idx_shift[:, 1].long()].int()
-            #     # proposals_idx_shift: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            #     # proposals_offset_shift: (nProposal + 1), int
-            #     # proposals_batchId_shift_all: (sumNPoint,) batch id
-            #
-            #     idx, start_len = pointgroup_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_,
-            #                                                       self.cluster_radius, self.cluster_meanActive)
-            #     proposals_idx, proposals_offset = pointgroup_ops.bfs_cluster(semantic_preds_cpu, idx.cpu(),
-            #                                                                  start_len.cpu(), self.cluster_npoint_thre)
-            #     proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
-            #     # proposals_idx: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            #     # proposals_offset: (nProposal + 1), int
-            #
-            #     proposals_idx_shift[:, 0] += (proposals_offset.size(0) - 1)
-            #     proposals_offset_shift += proposals_offset[-1]
-            #     proposals_idx = torch.cat((proposals_idx, proposals_idx_shift), dim=0)
-            #     proposals_offset = torch.cat((proposals_offset, proposals_offset_shift[1:]))
-            #     # proposals_idx = proposals_idx_shift
-            #     # proposals_offset = proposals_offset_shift
-            # else:
-            #     proposals_idx = data_dict["gt_proposals_idx"].cpu()
-            #     proposals_offset = data_dict["gt_proposals_offset"].cpu()
-            #
-            # #### proposals voxelization again
-            # proposals_voxel_feats, proposals_p2v_map = self.clusters_voxelization(proposals_idx, proposals_offset,
-            #                                                                       pt_feats, data_dict["locs"],
-            #                                                                       self.score_fullscale,
-            #                                                                       self.score_scale, self.mode)
-            # # proposals_voxel_feats: (M, C) M: voxels
-            # # proposals_p2v_map: point2voxel map (sumNPoint,)
-            #
-            # #### score
-            # score_feats = self.score_net(proposals_voxel_feats)
-            # pt_score_feats = score_feats.features[proposals_p2v_map.long()]  # (sumNPoint, C)
-            # proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
-            # scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
-            # data_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
+                # merge proposals
+                if len(proposals_offset_list) > 0:
+                    proposals_idx[:, 0] += sum([x.size(0) for x in proposals_offset_list]) - 1
+                    proposals_offset += proposals_offset_list[-1][-1]
+                    proposals_offset = proposals_offset[1:]
+                if proposals_idx.size(0) > 0:
+                    proposals_idx_list.append(proposals_idx)
+                    proposals_offset_list.append(proposals_offset)
+            proposals_idx = torch.cat(proposals_idx_list, dim=0)
+            proposals_offset = torch.cat(proposals_offset_list)
+
+            if proposals_offset.shape[0] > self.hparams.cfg.model.train_cfg.max_proposal_num:
+                proposals_offset = proposals_offset[:self.hparams.cfg.model.train_cfg.max_proposal_num + 1]
+                proposals_idx = proposals_idx[:proposals_offset[-1]]
+                assert proposals_idx.shape[0] == proposals_offset[-1]
+
+            inst_feats, inst_map = self.clusters_voxelization(
+                proposals_idx,
+                proposals_offset,
+                pt_feats,
+                data_dict["locs"],
+                rand_quantize=True,
+                **self.instance_voxel_cfg)
+
+            data_dict["instance_batch_idxs"], data_dict["cls_scores"], data_dict["iou_scores"], data_dict["mask_scores"] = self.forward_instance(inst_feats, inst_map)
 
         return data_dict
 
@@ -329,7 +284,7 @@ class SoftGroup(pl.LightningModule):
             # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
             # proposals_offset: (nProposal + 1), int, cpu
             # instance_pointnum: (total_nInst), int
-            ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_ids,
+            ious = softgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_ids,
                                           instance_pointnum)  # (nProposal, nInstance), float
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
             gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
@@ -349,7 +304,7 @@ class SoftGroup(pl.LightningModule):
         if self.cfg.model.use_coords:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), 1)
 
-        data_dict["voxel_feats"] = pointgroup_ops.voxelization(data_dict["feats"], data_dict["v2p_map"],
+        data_dict["voxel_feats"] = softgroup_ops.voxelization(data_dict["feats"], data_dict["v2p_map"],
                                                                self.cfg.data.mode)  # (M, C), float, cuda
 
         data_dict = self.forward(data_dict)

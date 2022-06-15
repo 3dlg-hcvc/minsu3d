@@ -1,12 +1,7 @@
 import os
 import sys
-import time
-import h5py 
 from tqdm import tqdm
-
 import numpy as np
-import multiprocessing as mp
-
 import torch
 from torch.utils.data import Dataset, DataLoader
 from MinkowskiEngine.utils import sparse_collate, batched_coordinates
@@ -334,7 +329,7 @@ def scannet_loader(cfg):
             data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (B+1)
 
         ### voxelize
-        data["voxel_locs"], data["p2v_map"], data["v2p_map"] = pointgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), 4) # mode=4
+        data["voxel_locs"], data["p2v_map"], data["v2p_map"] = pointgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), 4) # mode=4 TODO: the naming p2v is wrong! should be v2p
 
         return data
 
