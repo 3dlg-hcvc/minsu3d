@@ -358,7 +358,7 @@ class SoftGroup(pl.LightningModule):
         data_dict = self.forward(data_dict)
         return data_dict
 
-    def training_step(self, data_dict):
+    def training_step(self, data_dict, idx):
         torch.cuda.empty_cache()
 
         ##### prepare input and forward
@@ -374,7 +374,7 @@ class SoftGroup(pl.LightningModule):
 
         return loss
 
-    def validation_step(self, data_dict):
+    def validation_step(self, data_dict, idx):
         torch.cuda.empty_cache()
 
         # prepare input and forward
@@ -389,14 +389,14 @@ class SoftGroup(pl.LightningModule):
 
         return data_dict
 
-    def test_step(self, data_dict):
+    def test_step(self, data_dict, idx):
         torch.cuda.empty_cache()
 
         data_dict = self._feed(data_dict)
 
         return data_dict
 
-    def predict_step(self, data_dict):
+    def predict_step(self, data_dict, idx):
         torch.cuda.empty_cache()
         data_dict = self._feed(data_dict)
         self.parse_semantic_predictions(data_dict)
