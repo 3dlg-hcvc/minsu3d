@@ -241,6 +241,19 @@ class SoftGroup(pl.LightningModule):
 
         return data_dict
 
+    def global_pool(self, x, expand=False):
+        indices = x.indices[:, 0]
+        batch_counts = torch.bincount(indices)
+        batch_offset = torch.cumsum(batch_counts, dim=0)
+        pad = batch_offset.new_full((1, ), 0)
+        batch_offset = torch.cat([pad, batch_offset]).int()
+        x_pool = softgroup_ops.global_avg_pool(x.features, batch_offset)
+        if not expand:
+            return x_pool
+        x_pool_expand = x_pool[indices.long()]
+        x.features = torch.cat((x.features, x_pool_expand), dim=1)
+        return x
+
     def _init_random_seed(self):
         print("=> setting random seed...")
         if self.cfg.general.manual_seed:
@@ -279,11 +292,12 @@ class SoftGroup(pl.LightningModule):
         # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
         # instance_ids: (N), long
         gt_offsets = data_dict["instance_info"][:, 0:3] - data_dict["locs"]  # (N, 3)
-        valid = (data_dict["instance_ids"] != self.cfg.data.ignore_label).float()
+        valid = data_dict["instance_ids"] != self.cfg.data.ignore_label
         pt_offset_criterion = PTOffsetLoss()
         offset_norm_loss, offset_dir_loss = pt_offset_criterion(data_dict["pt_offsets"], gt_offsets, valid_mask=valid)
-        data_dict["offset_norm_loss"] = (offset_norm_loss, valid.sum())
-        data_dict["offset_dir_loss"] = (offset_dir_loss, valid.sum())
+        valid_count = valid.count_nonzero()
+        data_dict["offset_norm_loss"] = (offset_norm_loss, valid_count)
+        data_dict["offset_dir_loss"] = (offset_dir_loss, valid_count)
 
         loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + \
                self.cfg.train.loss_weight[2] * offset_dir_loss
@@ -336,11 +350,11 @@ class SoftGroup(pl.LightningModule):
             fg_ious = ious[:, fg_inds]
             gt_ious, _ = fg_ious.max(1)
             slice_inds = torch.arange(0, labels.size(0), dtype=torch.long, device=labels.device)
-            iou_score_weight = (labels < self.instance_classes).float()
+            iou_score_weight = labels < self.instance_classes
             iou_score_slice = data_dict["iou_scores"][slice_inds, labels]
             iou_scoring_criterion = IouScoringLoss(reduction="none")
             iou_scoring_loss = iou_scoring_criterion(iou_score_slice, gt_ious)
-            iou_scoring_loss = (iou_scoring_loss * iou_score_weight).sum() / (iou_score_weight.sum() + 1)
+            iou_scoring_loss = iou_scoring_loss[iou_score_weight].sum() / (iou_score_weight.count_nonzero() + 1)
 
             loss += + self.cfg.train.loss_weight[3] * classification_loss + self.cfg.train.loss_weight[
                 4] * mask_scoring_loss + self.cfg.train.loss_weight[5] * iou_scoring_loss

@@ -1,5 +1,6 @@
 import torch
 import pytorch_lightning as pl
+import torch.nn.functional as F
 
 
 class PTOffsetLoss(pl.LightningModule):
@@ -7,7 +8,7 @@ class PTOffsetLoss(pl.LightningModule):
     def __init__(self):
         super(PTOffsetLoss, self).__init__()
 
-    def forward(self, pred_offsets, gt_offsets, valid_mask=None):
+    def forward(self, pred_offsets, gt_offsets, valid_mask):
         """Point-wise offset prediction losses in norm and direction
 
         Args:
@@ -18,20 +19,20 @@ class PTOffsetLoss(pl.LightningModule):
         Returns:
             torch.Tensor: [description]
         """
-        pt_diff = pred_offsets - gt_offsets   # (N, 3)
-        pt_dist = torch.sum(torch.abs(pt_diff), dim=-1)   # (N)
+        if valid_mask.count_nonzero() == 0:
+            # for invalid points, don't calculate loss
+            return 0, 0
 
-        gt_offsets_norm = torch.norm(gt_offsets, p=2, dim=1)   # (N), float
-        gt_offsets_ = gt_offsets / (gt_offsets_norm.unsqueeze(-1) + 1e-8)
-        pt_offsets_norm = torch.norm(pred_offsets, p=2, dim=1)
-        pt_offsets_ = pred_offsets / (pt_offsets_norm.unsqueeze(-1) + 1e-8)
-        direction_diff = - (gt_offsets_ * pt_offsets_).sum(-1)   # (N)
+        valid_pred_offsets = pred_offsets[valid_mask]
+        valid_gt_offsets = gt_offsets[valid_mask]
+        pt_diff = valid_pred_offsets - valid_gt_offsets  # (N, 3)
+        pt_dist = torch.sum(torch.abs(pt_diff), dim=-1)  # (N)
 
-        if valid_mask is not None:
-            offset_norm_loss = torch.sum(pt_dist * valid_mask) / (torch.sum(valid_mask) + 1e-6)
-            offset_direction_loss = torch.sum(direction_diff * valid_mask) / (torch.sum(valid_mask) + 1e-6)
-        else:
-            offset_norm_loss = torch.mean(pt_dist)
-            offset_direction_loss = torch.mean(direction_diff)
+        normalized_gt_offsets = F.normalize(valid_gt_offsets, p=2, dim=1, eps=torch.finfo(valid_gt_offsets.dtype).eps)
+        normalized_pt_offsets = F.normalize(valid_pred_offsets, p=2, dim=1, eps=torch.finfo(valid_gt_offsets.dtype).eps)
+        direction_diff = - (normalized_gt_offsets * normalized_pt_offsets).sum(-1)  # (N)
+
+        offset_norm_loss = torch.mean(pt_dist)
+        offset_direction_loss = torch.mean(direction_diff)
 
         return offset_norm_loss, offset_direction_loss
