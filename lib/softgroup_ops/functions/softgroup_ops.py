@@ -30,7 +30,7 @@ class GetMaskIoUOnCluster(Function):
         assert instance_labels.is_contiguous() and instance_labels.is_cuda
         assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
 
-        ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset, instance_labels,
+        SG_OP.get_mask_iou_on_cluster(proposals_idx, proposals_offset, instance_labels,
                                     instance_pointnum, proposals_iou, nInstance, nProposal)
 
         return proposals_iou
@@ -71,7 +71,7 @@ class GetMaskIoUOnPred(Function):
         assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
         assert mask_scores_sigmoid.is_contiguous() and mask_scores_sigmoid.is_cuda
 
-        ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, instance_labels,
+        SG_OP.get_mask_iou_on_pred(proposals_idx, proposals_offset, instance_labels,
                                  instance_pointnum, proposals_iou, nInstance, nProposal,
                                  mask_scores_sigmoid)
 
@@ -112,7 +112,7 @@ class GetMaskLabel(Function):
         assert instance_labels.is_contiguous() and instance_labels.is_cuda
         assert instance_cls.is_contiguous() and instance_cls.is_cuda
 
-        ops.get_mask_label(proposals_idx, proposals_offset, instance_labels, instance_cls,
+        SG_OP.get_mask_label(proposals_idx, proposals_offset, instance_labels, instance_cls,
                            proposals_iou, nInstance, nProposal, iou_thr, mask_label)
 
         return mask_label
@@ -146,7 +146,7 @@ class Voxelization_Idx(Function):
         input_map = torch.IntTensor(N).zero_()
         output_map = input_map.new()
 
-        ops.voxelize_idx(coords, output_coords, input_map, output_map, batchsize, mode)
+        SG_OP.voxelize_idx(coords, output_coords, input_map, output_map, batchsize, mode)
         return output_coords, input_map, output_map
 
     @staticmethod
@@ -177,7 +177,7 @@ class Voxelization(Function):
 
         ctx.for_backwards = (map_rule, mode, maxActive, N)
 
-        ops.voxelize_fp(feats, output_feats, map_rule, mode, M, maxActive, C)
+        SG_OP.voxelize_fp(feats, output_feats, map_rule, mode, M, maxActive, C)
         return output_feats
 
     @staticmethod
@@ -187,7 +187,7 @@ class Voxelization(Function):
 
         d_feats = torch.cuda.FloatTensor(N, C).zero_()
 
-        ops.voxelize_bp(d_output_feats.contiguous(), d_feats, map_rule, mode, M, maxActive, C)
+        SG_OP.voxelize_bp(d_output_feats.contiguous(), d_feats, map_rule, mode, M, maxActive, C)
         return d_feats, None, None
 
 
@@ -218,7 +218,7 @@ class BallQueryBatchP(Function):
         while True:
             idx = torch.cuda.IntTensor(n * meanActive).zero_()
             start_len = torch.cuda.IntTensor(n, 2).zero_()
-            nActive = ops.ballquery_batch_p(coords, batch_idxs, batch_offsets, idx, start_len, n,
+            nActive = SG_OP.ballquery_batch_p(coords, batch_idxs, batch_offsets, idx, start_len, n,
                                             meanActive, radius)
             if nActive <= n * meanActive:
                 break
@@ -255,7 +255,7 @@ class BFSCluster(Function):
         cluster_idxs = ball_query_idxs.new()
         cluster_offsets = ball_query_idxs.new()
 
-        ops.bfs_cluster(cluster_numpoint_mean, ball_query_idxs, start_len, cluster_idxs,
+        SG_OP.bfs_cluster(cluster_numpoint_mean, ball_query_idxs, start_len, cluster_idxs,
                         cluster_offsets, N, threshold, class_id)
 
         return cluster_idxs, cluster_offsets
@@ -286,7 +286,7 @@ class GlobalAvgPool(Function):
 
         output_feats = torch.cuda.FloatTensor(nProposal, C).zero_()
 
-        ops.global_avg_pool_fp(feats, proposals_offset, output_feats, nProposal, C)
+        SG_OP.global_avg_pool_fp(feats, proposals_offset, output_feats, nProposal, C)
 
         ctx.for_backwards = (proposals_offset, sumNPoint)
 
@@ -300,7 +300,7 @@ class GlobalAvgPool(Function):
 
         d_feats = torch.cuda.FloatTensor(sumNPoint, C).zero_()
 
-        ops.global_avg_pool_bp(d_feats, proposals_offset, d_output_feats.contiguous(), nProposal, C)
+        SG_OP.global_avg_pool_bp(d_feats, proposals_offset, d_output_feats.contiguous(), nProposal, C)
 
         return d_feats, None
 
@@ -326,7 +326,7 @@ class SecMean(Function):
 
         out = torch.cuda.FloatTensor(nProposal, C).zero_()
 
-        ops.sec_mean(inp, offsets, out, nProposal, C)
+        SG_OP.sec_mean(inp, offsets, out, nProposal, C)
 
         return out
 
@@ -356,7 +356,7 @@ class SecMin(Function):
 
         out = torch.cuda.FloatTensor(nProposal, C).zero_()
 
-        ops.sec_min(inp, offsets, out, nProposal, C)
+        SG_OP.sec_min(inp, offsets, out, nProposal, C)
 
         return out
 
@@ -386,7 +386,7 @@ class SecMax(Function):
 
         out = torch.cuda.FloatTensor(nProposal, C).zero_()
 
-        ops.sec_max(inp, offsets, out, nProposal, C)
+        SG_OP.sec_max(inp, offsets, out, nProposal, C)
 
         return out
 

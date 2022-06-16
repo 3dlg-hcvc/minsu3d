@@ -32,9 +32,9 @@ class SoftGroup(pl.LightningModule):
         self.freeze_backbone = cfg.model.freeze_backbone
         self.requires_gt_mask = cfg.data.requires_gt_mask
 
-        self.grouping_radius = cfg.model.grouping.grouping_radius
-        self.grouping_meanActive = cfg.model.grouping.mean_active
-        self.grouping_npoint_threshold = cfg.model.grouping.npoint_threshold
+        self.grouping_radius = cfg.model.grouping_cfg.radius
+        self.grouping_meanActive = cfg.model.grouping_cfg.mean_active
+        self.grouping_npoint_threshold = cfg.model.grouping_cfg.npoint_thr
 
         self.prepare_epochs = cfg.model.prepare_epochs
 
@@ -288,7 +288,7 @@ class SoftGroup(pl.LightningModule):
         loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + \
                self.cfg.train.loss_weight[2] * offset_dir_loss
 
-        if self.current_epoch > self.cfg.cluster.prepare_epochs:
+        if self.current_epoch > self.prepare_epochs:
             proposals_idx = data_dict["proposals_idx"][:, 1].cuda()
             proposals_offset = data_dict["proposals_offset"].cuda()
 
@@ -400,7 +400,7 @@ class SoftGroup(pl.LightningModule):
         torch.cuda.empty_cache()
         data_dict = self._feed(data_dict)
         self.parse_semantic_predictions(data_dict)
-        if self.current_epoch > self.cfg.cluster.prepare_epochs:
+        if self.current_epoch > self.prepare_epochs:
             self.parse_instance_predictions(data_dict)
 
     # TODO: move to somewhere else
