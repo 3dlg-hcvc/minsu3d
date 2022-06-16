@@ -1,4 +1,4 @@
-ROOT_PATH: /localhome/yza440/Research/pointgroup-minkowski #TODO
+ROOT_PATH: /localscratch/yza440/pointgroup-minkowski #TODO
 DATA_PATH: ${ROOT_PATH}/data
 OUTPUT_PATH: ${ROOT_PATH}/output
 

@@ -100,8 +100,8 @@ model:
 
 
 train:
-  epochs: 384 # 480
-  num_sanity_val_steps: 10
+  epochs: 512 # 480
+  num_sanity_val_steps: 20
   log_every_n_steps: 10
   check_val_every_n_epoch: 2
   save_checkpoint_every_n_epochs: 8
@@ -144,7 +144,7 @@ evaluation:
   gt_class_idx: NYU20_CLASS_IDX
 
   task:
-  use_model: DETECTOR_F #DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
+  use_model: #DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
 
   detection:
     per_class_proposal: True
