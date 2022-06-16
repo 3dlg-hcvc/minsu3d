@@ -100,7 +100,6 @@ class SoftGroup(pl.LightningModule):
         self.iou_score = nn.Linear(m, semantic_classes + 1)
 
         self._init_random_seed()
-        self._init_criterion()
 
     @staticmethod
     def get_batch_offsets(batch_idxs, batch_size):

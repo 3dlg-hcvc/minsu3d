@@ -2,10 +2,10 @@ general:
   task: # train, test, eval
   manual_seed: 123
   dataset: scannet
-  model: pointgroup
-  config: conf/pointgroup_scannet.yaml
+  model: softgroup
+  config: conf/softgroup_scannet.yaml
   output_root: output/
-  experiment: refactor # TODO
+  experiment: test # TODO
   monitor: total_loss
 
 
@@ -44,9 +44,9 @@ data:
 
 
 model:
-  name: pointgroup
+  name: softgroup
   module: model
-  classname: PointGroup
+  classname: SoftGroup
   
   # input_channel: 131 # multiview + normals
   m: 16 # 16 or 32
@@ -115,7 +115,7 @@ train:
   step_epoch: 480 #384
   multiplier: 0.5
   save_freq: 16  # also eval_freq
-  loss_weight: [1.0, 1.0, 1.0, 1.0, 1.0] # semantic_loss, offset_norm_loss, offset_dir_loss, score_loss, bbox_loss (if applies)
+  loss_weight: [1, 1, 1, 1, 1, 1] # semantic_loss, offset_norm_loss, offset_dir_loss, score_loss, bbox_loss (if applies)
 
   fg_thresh: 0.75
   bg_thresh: 0.25
@@ -123,13 +123,10 @@ train:
   score_scale: 50 # the minimal voxel size is 2cm
   score_fullscale: 14
   score_mode: 4 # mean
-
-
-
   
 
 test:
-  use_exp: DETECTOR_F #DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
+  use_exp: #DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
 
   test_epoch: 384
   test_seed: 567
