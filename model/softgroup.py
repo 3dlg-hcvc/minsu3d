@@ -9,7 +9,6 @@ import pytorch_lightning as pl
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.softgroup_ops.functions import softgroup_ops
 from lib.loss import *
-from lib.loss.utils import get_segmented_scores
 from lib.utils.eval import get_nms_instances
 from model.common import ResidualBlock, VGGBlock, UBlock
 
@@ -343,20 +342,6 @@ class SoftGroup(pl.LightningModule):
             iou_scoring_criterion = IouScoringLoss(reduction="none")
             iou_scoring_loss = iou_scoring_criterion(iou_score_slice, gt_ious)
             iou_scoring_loss = (iou_scoring_loss * iou_score_weight).sum() / (iou_score_weight.sum() + 1)
-
-            # """score loss"""
-            # scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
-            # instance_pointnum = data_dict["instance_num_point"]
-            # # scores: (nProposal, 1), float32
-            # # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # # proposals_offset: (nProposal + 1), int, cpu
-            # # instance_pointnum: (total_nInst), int
-            # ious = softgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), data_dict["instance_ids"],
-            #                               instance_pointnum)  # (nProposal, nInstance), float
-            # gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
-            # gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
-            # score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
-            # data_dict["score_loss"] = (score_loss, gt_ious.shape[0])
 
             loss += + self.cfg.train.loss_weight[3] * classification_loss + self.cfg.train.loss_weight[
                 4] * mask_scoring_loss + self.cfg.train.loss_weight[5] * iou_scoring_loss

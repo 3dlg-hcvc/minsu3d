@@ -63,7 +63,6 @@ class Logger:
             self.logger.addHandler(self.ch) 
 
         self.logger.info('************************ Start Logging ************************')
-        
 
     def _init_tb_writer(self):
         self.tb_writer = SummaryWriter(self.log_path)
@@ -93,7 +92,6 @@ class Logger:
         
     def tb_add_scalar(self, name, val, epoch):
         self.tb_writer.add_scalar(name, val, epoch)
-    
 
 
 class AverageMeter():

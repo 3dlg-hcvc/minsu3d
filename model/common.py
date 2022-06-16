@@ -144,12 +144,10 @@ class SparseConvEncoder(nn.Module):
             ResidualBlock(128, 128, 3),
         )
 
-
     def forward(self, x):
         x = self.stem(x)
         x = self.stage1(x)
         x = self.stage2(x)
         x = self.stage3(x)
         x = self.stage4(x)
-
         return x
