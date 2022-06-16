@@ -56,8 +56,9 @@ def init_callbacks(cfg):
         monitor="val/{}".format(cfg.general.monitor),
         mode="min",
         dirpath=cfg.general.root,
-        filename="pointgroup.xyz.rgb-{epoch}",
-        save_top_k=20,
+        filename="pointgroup-{epoch}",
+        save_top_k=-1,
+        every_n_epochs=16,
         save_last=True
     )
 
