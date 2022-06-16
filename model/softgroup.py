@@ -116,8 +116,8 @@ class SoftGroup(pl.LightningModule):
         assert batch_offsets[-1] == batch_idxs.shape[0]
         return batch_offsets
 
-
-    def clusters_voxelization(self, clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, rand_quantize=False):
+    def clusters_voxelization(self, clusters_idx, clusters_offset, feats, coords, scale, spatial_shape,
+                              rand_quantize=False):
         batch_idx = clusters_idx[:, 0].cuda().long()
         c_idxs = clusters_idx[:, 1].cuda()
         feats = feats[c_idxs.long()]
@@ -152,7 +152,6 @@ class SoftGroup(pl.LightningModule):
         voxelization_feats = ME.SparseTensor(features=out_feats, coordinates=out_coords.int().cuda())
         return voxelization_feats, inp_map
 
-
     def forward(self, data_dict):
         batch_size = len(data_dict["batch_offsets"]) - 1
 
@@ -180,7 +179,8 @@ class SoftGroup(pl.LightningModule):
             grouping_mean_active = self.hparams.cfg.model.grouping_cfg.mean_active
             grouping_num_point_threshold = self.hparams.cfg.model.grouping_cfg.npoint_thr
 
-            class_num_point_mean = torch.tensor(self.hparams.cfg.model.grouping_cfg.class_numpoint_mean, dtype=torch.float32)
+            class_num_point_mean = torch.tensor(self.hparams.cfg.model.grouping_cfg.class_numpoint_mean,
+                                                dtype=torch.float32)
             proposals_offset_list = []
             proposals_idx_list = []
 
@@ -195,8 +195,11 @@ class SoftGroup(pl.LightningModule):
                 batch_offsets_ = self.get_batch_offsets(batch_idxs_, batch_size)
                 coords_ = data_dict["locs"][object_idxs]
                 pt_offsets_ = pt_offsets[object_idxs]
-                idx, start_len = softgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, grouping_radius, grouping_mean_active)
-                proposals_idx, proposals_offset = softgroup_ops.bfs_cluster(class_num_point_mean, idx.cpu(), start_len.cpu(), grouping_num_point_threshold, class_id)
+                idx, start_len = softgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
+                                                                 grouping_radius, grouping_mean_active)
+                proposals_idx, proposals_offset = softgroup_ops.bfs_cluster(class_num_point_mean, idx.cpu(),
+                                                                            start_len.cpu(),
+                                                                            grouping_num_point_threshold, class_id)
                 proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
 
                 # merge proposals
@@ -248,12 +251,6 @@ class SoftGroup(pl.LightningModule):
             torch.manual_seed(self.cfg.general.manual_seed)
             torch.cuda.manual_seed_all(self.cfg.general.manual_seed)
 
-    def _init_criterion(self):
-        self.sem_seg_criterion = SemSegLoss(self.cfg.data.ignore_label)
-        self.pt_offset_criterion = PTOffsetLoss()
-        self.classification_criterion = ClassificationLoss()
-        # self.score_criterion = nn.BCELoss()
-
     def configure_optimizers(self):
         print("=> configure optimizer...")
 
@@ -274,7 +271,8 @@ class SoftGroup(pl.LightningModule):
         """semantic loss"""
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
-        semantic_loss = self.sem_seg_criterion(data_dict["semantic_scores"], data_dict["sem_labels"])
+        sem_seg_criterion = SemSegLoss(self.cfg.data.ignore_label)
+        semantic_loss = sem_seg_criterion(data_dict["semantic_scores"], data_dict["sem_labels"])
         data_dict["semantic_loss"] = (semantic_loss, N)
 
         """offset loss"""
@@ -284,20 +282,26 @@ class SoftGroup(pl.LightningModule):
         # instance_ids: (N), long
         gt_offsets = data_dict["instance_info"][:, 0:3] - data_dict["locs"]  # (N, 3)
         valid = (data_dict["instance_ids"] != self.cfg.data.ignore_label).float()
-        offset_norm_loss, offset_dir_loss = self.pt_offset_criterion(data_dict["pt_offsets"], gt_offsets, valid_mask=valid)
+        pt_offset_criterion = PTOffsetLoss()
+        offset_norm_loss, offset_dir_loss = pt_offset_criterion(data_dict["pt_offsets"], gt_offsets, valid_mask=valid)
         data_dict["offset_norm_loss"] = (offset_norm_loss, valid.sum())
         data_dict["offset_dir_loss"] = (offset_dir_loss, valid.sum())
+
+        loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + \
+               self.cfg.train.loss_weight[2] * offset_dir_loss
 
         if self.current_epoch > self.cfg.cluster.prepare_epochs:
             proposals_idx = data_dict["proposals_idx"][:, 1].cuda()
             proposals_offset = data_dict["proposals_offset"].cuda()
 
             # calculate iou of clustered instance
-            ious_on_cluster = softgroup_ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset, data_dict["instance_ids"], data_dict["instance_num_point"])
+            ious_on_cluster = softgroup_ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset,
+                                                                    data_dict["instance_ids"],
+                                                                    data_dict["instance_num_point"])
 
             # filter out background instances
-            fg_inds = (instance_cls != self.ignore_label)
-            fg_instance_cls = instance_cls[fg_inds]
+            fg_inds = (data_dict["instance_semantic_cls"] != self.ignore_label)
+            fg_instance_cls = data_dict["instance_semantic_cls"][fg_inds]
             fg_ious_on_cluster = ious_on_cluster[:, fg_inds]
 
             # overlap > thr on fg instances are positive samples
@@ -305,10 +309,40 @@ class SoftGroup(pl.LightningModule):
             pos_inds = max_iou >= self.train_cfg.pos_iou_thr
             pos_gt_inds = gt_inds[pos_inds]
 
-            # compute cls loss. follow detection convention: 0 -> K - 1 are fg, K is bg
+            """classification loss"""
+            # follow detection convention: 0 -> K - 1 are fg, K is bg
             labels = fg_instance_cls.new_full((fg_ious_on_cluster.size(0),), self.instance_classes)
             labels[pos_inds] = fg_instance_cls[pos_gt_inds]
+            classification_criterion = ClassificationLoss()
+            classification_loss = classification_criterion(data_dict["cls_scores"], labels)
+            data_dict["classification_loss"] = (classification_loss, )
 
+            """mask scoring loss"""
+            mask_cls_label = labels[data_dict["instance_batch_idxs"].long()]
+            slice_inds = torch.arange(0, mask_cls_label.size(0), dtype=torch.long, device=mask_cls_label.device)
+            mask_scores_sigmoid_slice = data_dict["mask_scores"].sigmoid()[slice_inds, mask_cls_label]
+            mask_label = softgroup_ops.get_mask_label(proposals_idx, proposals_offset, data_dict["instance_ids"],
+                                                      data_dict["instance_semantic_cls"],
+                                                      data_dict["instance_num_point"], ious_on_cluster,
+                                                      self.train_cfg.pos_iou_thr)
+            mask_label_weight = (mask_label != -1).float()
+            mask_label[mask_label == -1.] = 0.5  # any value is ok
+            mask_scoring_criterion = MaskScoringLoss(weight=mask_label_weight, reduction='sum')
+            mask_scoring_loss = mask_scoring_criterion(mask_scores_sigmoid_slice, mask_label)
+            mask_scoring_loss /= (mask_label_weight.sum() + 1)
+
+            """iou scoring loss"""
+            ious = softgroup_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
+                                                      data_dict["instance_num_point"],
+                                                      mask_scores_sigmoid_slice.detach())
+            fg_ious = ious[:, fg_inds]
+            gt_ious, _ = fg_ious.max(1)
+            slice_inds = torch.arange(0, labels.size(0), dtype=torch.long, device=labels.device)
+            iou_score_weight = (labels < self.instance_classes).float()
+            iou_score_slice = data_dict["iou_scores"][slice_inds, labels]
+            iou_scoring_criterion = IouScoringLoss(reduction="none")
+            iou_scoring_loss = iou_scoring_criterion(iou_score_slice, gt_ious)
+            iou_scoring_loss = (iou_scoring_loss * iou_score_weight).sum() / (iou_score_weight.sum() + 1)
 
             # """score loss"""
             # scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
@@ -324,13 +358,11 @@ class SoftGroup(pl.LightningModule):
             # score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             # data_dict["score_loss"] = (score_loss, gt_ious.shape[0])
 
-        """total loss"""
-        loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + \
-               self.cfg.train.loss_weight[2] * offset_dir_loss
-        if self.current_epoch > self.cfg.cluster.prepare_epochs:
-            loss += (self.cfg.train.loss_weight[3] * score_loss)
-        data_dict["total_loss"] = (loss, N)
+            loss += + self.cfg.train.loss_weight[3] * classification_loss + self.cfg.train.loss_weight[
+                4] * mask_scoring_loss + self.cfg.train.loss_weight[5] * iou_scoring_loss
 
+        """total loss"""
+        data_dict["total_loss"] = (loss, N)
         return data_dict
 
     def _feed(self, data_dict):
@@ -338,10 +370,8 @@ class SoftGroup(pl.LightningModule):
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), 1)
 
         data_dict["voxel_feats"] = softgroup_ops.voxelization(data_dict["feats"], data_dict["v2p_map"],
-                                                               self.cfg.data.mode)  # (M, C), float, cuda
-
+                                                              self.cfg.data.mode)  # (M, C), float, cuda
         data_dict = self.forward(data_dict)
-
         return data_dict
 
     def training_step(self, data_dict, idx):
@@ -363,7 +393,7 @@ class SoftGroup(pl.LightningModule):
     def validation_step(self, data_dict, idx):
         torch.cuda.empty_cache()
 
-        ##### prepare input and forward
+        # prepare input and forward
         data_dict = self._feed(data_dict)
         data_dict = self._loss(data_dict)
 
