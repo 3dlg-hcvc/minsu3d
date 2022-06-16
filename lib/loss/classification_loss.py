@@ -1,7 +1,8 @@
+import pytorch_lightning as pl
 import torch.nn as nn
 
 
-class ClassificationLoss(nn.Module):
+class ClassificationLoss(pl.LightningModule):
 
     def __init__(self):
         super(ClassificationLoss, self).__init__()

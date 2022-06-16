@@ -2,7 +2,6 @@ import os, sys
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 
 sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder

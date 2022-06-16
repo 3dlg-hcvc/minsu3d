@@ -1,9 +1,10 @@
 import torch.nn as nn
 import MinkowskiEngine as ME
 from collections import OrderedDict
+import pytorch_lightning as pl
 
 
-class BasicConvolutionBlock(nn.Module):
+class BasicConvolutionBlock(pl.LightningModule):
     
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1):
         super().__init__()
@@ -17,7 +18,7 @@ class BasicConvolutionBlock(nn.Module):
         return out
 
 
-class ResidualBlock(nn.Module):
+class ResidualBlock(pl.LightningModule):
 
     def __init__(self, in_channels, out_channels, dimension, norm_fn=None):
         super().__init__()
@@ -51,7 +52,7 @@ class ResidualBlock(nn.Module):
         return x
 
 
-class VGGBlock(nn.Module):
+class VGGBlock(pl.LightningModule):
 
     def __init__(self, in_channels, out_channels, dimension, norm_fn=None):
         super().__init__()
@@ -68,7 +69,7 @@ class VGGBlock(nn.Module):
         return self.conv_layers(x)
 
 
-class UBlock(nn.Module):
+class UBlock(pl.LightningModule):
     
     def __init__(self, nPlanes, norm_fn, block_reps, block):
 
@@ -116,7 +117,7 @@ class UBlock(nn.Module):
         return out
 
 
-class SparseConvEncoder(nn.Module):
+class SparseConvEncoder(pl.LightningModule):
     def __init__(self, input_dim):
         super().__init__()
 

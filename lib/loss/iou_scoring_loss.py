@@ -1,7 +1,8 @@
+import pytorch_lightning as pl
 import torch.nn as nn
 
 
-class IouScoringLoss(nn.Module):
+class IouScoringLoss(pl.LightningModule):
 
     def __init__(self, reduction):
         super(IouScoringLoss, self).__init__()

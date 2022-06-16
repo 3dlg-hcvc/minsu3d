@@ -1,14 +1,14 @@
 import torch
-import torch.nn as nn
+import pytorch_lightning as pl
 
 
-class PTOffsetLoss(nn.Module):
+class PTOffsetLoss(pl.LightningModule):
     
     def __init__(self):
         super(PTOffsetLoss, self).__init__()
-    
+
     def forward(self, pred_offsets, gt_offsets, valid_mask=None):
-        """Pointwise offset prediction losses in norm and direction
+        """Point-wise offset prediction losses in norm and direction
 
         Args:
             pred_offsets (torch.Tensor): predicted point offsets, (B, 3), float32, cuda
@@ -26,12 +26,12 @@ class PTOffsetLoss(nn.Module):
         pt_offsets_norm = torch.norm(pred_offsets, p=2, dim=1)
         pt_offsets_ = pred_offsets / (pt_offsets_norm.unsqueeze(-1) + 1e-8)
         direction_diff = - (gt_offsets_ * pt_offsets_).sum(-1)   # (N)
-        
+
         if valid_mask is not None:
             offset_norm_loss = torch.sum(pt_dist * valid_mask) / (torch.sum(valid_mask) + 1e-6)
-            offset_dir_loss = torch.sum(direction_diff * valid_mask) / (torch.sum(valid_mask) + 1e-6)
+            offset_direction_loss = torch.sum(direction_diff * valid_mask) / (torch.sum(valid_mask) + 1e-6)
         else:
             offset_norm_loss = torch.mean(pt_dist)
-            offset_dir_loss = torch.mean(direction_diff)
-        
-        return offset_norm_loss, offset_dir_loss
+            offset_direction_loss = torch.mean(direction_diff)
+
+        return offset_norm_loss, offset_direction_loss

@@ -1,7 +1,8 @@
+import pytorch_lightning as pl
 import torch.nn as nn
 
 
-class SemSegLoss(nn.Module):
+class SemSegLoss(pl.LightningModule):
     
     def __init__(self, ignore_label=None):
         super(SemSegLoss, self).__init__()
