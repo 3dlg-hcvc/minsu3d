@@ -12,7 +12,7 @@ $ cd pointgroup-minkowski
 $ conda create -n pointgroup python=3.8
 $ conda activate pointgroup
 $ module load LIB/CUDA/11.1 LIB/CUDNN/8.0.5-CUDA11.1
-$ conda install pytorch==1.8.0 torchvision==0.9.0 cudatoolkit=11.1 -c pytorch -c conda-forge
+$ conda install pytorch torchvision cudatoolkit=11.1 -c pytorch-lts -c nvidia
 $ conda install openblas-devel -c anaconda
 $ pip install -U git+https://github.com/NVIDIA/MinkowskiEngine -v --no-deps --install-option="--blas_include_dirs=${CONDA_PREFIX}/include" --install-option="--blas=openblas"
 $ conda install -c bioconda google-sparsehash
