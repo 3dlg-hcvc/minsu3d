@@ -22,6 +22,7 @@ data:
 
   classes: 20
   ignore_label: -1 # ignored classes
+  ignore_classes: [0, 1]
 
   scale: 50   # voxel_size = 1 / scale, scale 50(2cm)
   batch_size: 4
@@ -67,8 +68,7 @@ model:
   num_size_cluster: 18
   max_num_proposal: 128
 
-  use_checkpoint: #XYZ_MULTIVIEW_NORMAL
-  resume_epoch: #480
+  use_checkpoint: train #XYZ_MULTIVIEW_NORMAL
   pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
   pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]
   pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
@@ -103,7 +103,7 @@ train:
   epochs: 512 # 480
   num_sanity_val_steps: 20
   log_every_n_steps: 10
-  check_val_every_n_epoch: 2
+  check_val_every_n_epoch: 4
   save_checkpoint_every_n_epochs: 8
 
   optim: 
