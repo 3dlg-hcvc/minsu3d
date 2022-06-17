@@ -2,7 +2,6 @@ import os
 import torch
 import functools
 import random
-import numpy as np
 import torch.nn as nn
 import MinkowskiEngine as ME
 import pytorch_lightning as pl
@@ -11,6 +10,7 @@ from lib.softgroup_ops.functions import softgroup_ops
 from lib.loss import *
 from lib.utils.eval import get_nms_instances
 from model.common import ResidualBlock, VGGBlock, UBlock
+from lib.evaluation.common import *
 
 
 class SoftGroup(pl.LightningModule):
@@ -101,8 +101,7 @@ class SoftGroup(pl.LightningModule):
 
         self._init_random_seed()
 
-    @staticmethod
-    def get_batch_offsets(batch_idxs, batch_size):
+    def get_batch_offsets(self, batch_idxs, batch_size):
         """
         :param batch_idxs: (N), int
         :param batch_size: int
@@ -373,9 +372,9 @@ class SoftGroup(pl.LightningModule):
         return data_dict
 
     def training_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
-        ##### prepare input and forward
+        # prepare input and forward
         data_dict = self._feed(data_dict)
         data_dict = self._loss(data_dict)
         loss = data_dict["total_loss"][0]
@@ -383,13 +382,13 @@ class SoftGroup(pl.LightningModule):
         in_prog_bar = ["total_loss"]
         for key, value in data_dict.items():
             if "loss" in key:
-                self.log("train/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=True, on_epoch=True,
+                self.log("train/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True,
                          sync_dist=True)
 
         return loss
 
     def validation_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
         # prepare input and forward
         data_dict = self._feed(data_dict)
@@ -400,8 +399,22 @@ class SoftGroup(pl.LightningModule):
             if "loss" in key:
                 self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True,
                          sync_dist=True)
-
         return data_dict
+
+    def validation_step_end(self, data_dict):
+
+        # evaluate semantic predictions
+        semantic_predictions = data_dict["semantic_scores"].max(1)[1].cpu().numpy()
+        semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
+                                         ignore_label=self.hparams.cfg.data.ignore_label)
+        semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
+                                         ignore_label=self.hparams.cfg.data.ignore_label)
+        self.log("val_accuracy/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True)
+        self.log("val_accuracy/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True)
+
+        # evaluate instance predictions
+        # if self.current_epoch > self.hparams.cfg.model.prepare_epoch:
+
 
     def test_step(self, data_dict, idx):
         torch.cuda.empty_cache()

@@ -7,12 +7,9 @@ from torch.utils.data import Dataset, DataLoader
 from MinkowskiEngine.utils import sparse_collate, batched_coordinates
 
 sys.path.append("../")  # HACK add the lib folder
-from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.pointgroup_ops.functions import pointgroup_ops
 from lib.utils.pc import crop, random_sampling
-from lib.utils.bbox import get_3d_box_batch
 from lib.utils.transform import jitter, flip, rotz, elastic
-from data.scannet.model_util_scannet import rotate_aligned_boxes_along_axis
 
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 
@@ -130,7 +127,8 @@ class ScanNet(Dataset):
             instance_cls.append(sem_labels[cls_idx])
             
         return num_instance, instance_info, instance_num_point, instance_cls
-        
+
+
     def _generate_gt_clusters(self, points, instance_ids):
         gt_proposals_idx = []
         gt_proposals_offset = [0]
@@ -231,7 +229,7 @@ class ScanNet(Dataset):
             # offset
             points -= points.min(0)
 
-            data["locs"] = points_augment.astype(np.float32)  # (N, 3)
+            data["locs"] = points.astype(np.float32)  # (N, 3)
             data["locs_scaled"] = points.astype(np.float32)  # (N, 3)
             data["feats"] = feats.astype(np.float32)  # (N, 3)
 

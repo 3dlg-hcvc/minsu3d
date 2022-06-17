@@ -58,7 +58,7 @@ def init_callbacks(cfg):
         dirpath=cfg.general.root,
         filename="pointgroup-{epoch}",
         save_top_k=-1,
-        every_n_epochs=16,
+        every_n_epochs=cfg.train.save_checkpoint_every_n_epochs,
         save_last=True
     )
 
