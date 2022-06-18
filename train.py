@@ -123,8 +123,12 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--num_nodes', type=int, default=1, help='specify num of gpu nodes')
     args = parser.parse_args()
 
+
     print("=> loading configurations...")
     cfg = load_conf(args)
+
+    # fix the seed
+    pl.seed_everything(cfg.general.manual_seed, workers=True)
 
     print("=> initializing data...")
     datasets, dataloaders = init_data(cfg)

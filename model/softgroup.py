@@ -1,7 +1,6 @@
 import os
 import torch
 import functools
-import random
 import torch.nn as nn
 import MinkowskiEngine as ME
 import pytorch_lightning as pl
@@ -99,7 +98,6 @@ class SoftGroup(pl.LightningModule):
         # 5
         self.iou_score = nn.Linear(m, semantic_classes + 1)
 
-        self._init_random_seed()
 
     def get_batch_offsets(self, batch_idxs, batch_size):
         """
@@ -253,13 +251,6 @@ class SoftGroup(pl.LightningModule):
         x.features = torch.cat((x.features, x_pool_expand), dim=1)
         return x
 
-    def _init_random_seed(self):
-        print("=> setting random seed...")
-        if self.cfg.general.manual_seed:
-            random.seed(self.cfg.general.manual_seed)
-            np.random.seed(self.cfg.general.manual_seed)
-            torch.manual_seed(self.cfg.general.manual_seed)
-            torch.cuda.manual_seed_all(self.cfg.general.manual_seed)
 
     def configure_optimizers(self):
         print("=> configure optimizer...")
@@ -341,7 +332,7 @@ class SoftGroup(pl.LightningModule):
             mask_scoring_criterion = MaskScoringLoss(weight=mask_label_weight, reduction='sum')
             mask_scoring_loss = mask_scoring_criterion(mask_scores_sigmoid_slice, mask_label)
             mask_scoring_loss /= (mask_label_weight.sum() + 1)
-
+            data_dict["mask_scoring_loss"] = (mask_scoring_loss,)
             """iou scoring loss"""
             ious = softgroup_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
                                                       data_dict["instance_num_point"],
@@ -354,7 +345,7 @@ class SoftGroup(pl.LightningModule):
             iou_scoring_criterion = IouScoringLoss(reduction="none")
             iou_scoring_loss = iou_scoring_criterion(iou_score_slice, gt_ious)
             iou_scoring_loss = iou_scoring_loss[iou_score_weight].sum() / (iou_score_weight.count_nonzero() + 1)
-
+            data_dict["iou_scoring_loss"] = (iou_scoring_loss,)
             loss += + self.cfg.train.loss_weight[3] * classification_loss + self.cfg.train.loss_weight[
                 4] * mask_scoring_loss + self.cfg.train.loss_weight[5] * iou_scoring_loss
 
@@ -417,14 +408,14 @@ class SoftGroup(pl.LightningModule):
 
 
     def test_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
         data_dict = self._feed(data_dict)
 
         return data_dict
 
     def predict_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
         data_dict = self._feed(data_dict)
         self.parse_semantic_predictions(data_dict)
         if self.current_epoch > self.prepare_epochs:

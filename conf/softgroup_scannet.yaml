@@ -103,7 +103,7 @@ train:
   epochs: 512 # 480
   num_sanity_val_steps: 20
   log_every_n_steps: 10
-  check_val_every_n_epoch: 4
+  check_val_every_n_epoch: 8
   save_checkpoint_every_n_epochs: 8
 
   optim: 
@@ -112,7 +112,6 @@ train:
     momentum: 0.9 # SGD
     weight_decay: 0.0001 # SGD
   
-  step_epoch: 480 #384
   multiplier: 0.5
   save_freq: 16  # also eval_freq
   loss_weight: [1, 1, 1, 1, 1, 1] # semantic_loss, offset_norm_loss, offset_dir_loss, score_loss, bbox_loss (if applies)

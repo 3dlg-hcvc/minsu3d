@@ -1,17 +1,11 @@
 import os
-import re
 import torch
 import functools
-import random
 
 import numpy as np
 import torch.nn as nn
 import MinkowskiEngine as ME
 import pytorch_lightning as pl
-
-from tqdm import tqdm
-from glob import glob
-from importlib import import_module
 
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.pointgroup_ops.functions import pointgroup_ops
@@ -88,7 +82,6 @@ class PointGroup(pl.LightningModule):
         
         self.score_linear = nn.Linear(m, 1)
 
-        self._init_random_seed()
         self._init_criterion()
         
     
@@ -224,16 +217,6 @@ class PointGroup(pl.LightningModule):
             data_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
             
         return data_dict
-                
-
-    def _init_random_seed(self):
-        print("=> setting random seed...")
-        if self.cfg.general.manual_seed:
-            random.seed(self.cfg.general.manual_seed)
-            np.random.seed(self.cfg.general.manual_seed)
-            torch.manual_seed(self.cfg.general.manual_seed)
-            torch.cuda.manual_seed_all(self.cfg.general.manual_seed)
-            
     
     def _init_criterion(self):
         self.sem_seg_criterion = SemSegLoss(self.cfg.data.ignore_label)

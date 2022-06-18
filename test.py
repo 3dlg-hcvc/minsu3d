@@ -24,6 +24,7 @@ def load_conf(args):
 
     return cfg
 
+
 def init_data(cfg):
     DATA_MODULE = import_module(cfg.data.module)
     dataloader = getattr(DATA_MODULE, cfg.data.loader)
@@ -54,6 +55,7 @@ def init_data(cfg):
 #     model.eval()
 
 #     return model
+
 
 # TODO: refactor
 def init_trainer(cfg):
