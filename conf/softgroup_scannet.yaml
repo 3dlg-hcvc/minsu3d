@@ -107,6 +107,7 @@ train:
   log_every_n_steps: 10
   check_val_every_n_epoch: 8
   save_checkpoint_every_n_epochs: 8
+  clear_cache_every_n_epochs: 4
 
   optim: 
     classname: Adam # Adam or SGD

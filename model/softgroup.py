@@ -391,6 +391,10 @@ class SoftGroup(pl.LightningModule):
                          sync_dist=True)
         return data_dict
 
+    def training_epoch_end(self, outputs):
+        if self.current_epoch % self.hparams.cfg.train.clear_cache_every_n_epochs == 0:
+            torch.cuda.empty_cache()
+
     def validation_step_end(self, data_dict):
 
         # evaluate semantic predictions
@@ -403,7 +407,6 @@ class SoftGroup(pl.LightningModule):
         self.log("val_accuracy/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True)
 
     def validation_epoch_end(self, outputs):
-        torch.cuda.empty_cache()
         # evaluate instance predictions
         if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
             all_pred_insts = []
