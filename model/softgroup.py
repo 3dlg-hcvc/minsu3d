@@ -405,7 +405,7 @@ class SoftGroup(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         torch.cuda.empty_cache()
         # evaluate instance predictions
-        if self.current_epoch > self.hparams.cfg.model.prepare_epoch:
+        if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
             all_pred_insts = []
             all_gt_insts = []
             for batch in outputs:
@@ -428,7 +428,7 @@ class SoftGroup(pl.LightningModule):
         # semantic prediction
         semantic_predictions = data_dict["semantic_scores"].max(1)[1]
 
-        if self.current_epoch > self.hparams.cfg.model.prepare_epoch:
+        if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
             # instance prediction
             pred_instances = self.get_instances(data_dict["proposals_idx"], data_dict["semantic_scores"],
                                                 data_dict["cls_scores"], data_dict["iou_scores"],
