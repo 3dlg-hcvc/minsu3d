@@ -1,5 +1,5 @@
 import warnings
-from pytorch_lightning.plugins import DDPPlugin
+from pytorch_lightning.strategies import DDPStrategy
 warnings.filterwarnings('ignore')
 
 import os
@@ -42,7 +42,6 @@ def init_data(cfg):
 
     datasets, dataloaders = DATA_LOADER(cfg)
     print("=> loading dataset completed")
-
     return datasets, dataloaders
 
 
@@ -68,16 +67,15 @@ def init_callbacks(cfg):
 def init_trainer(cfg):
     trainer = pl.Trainer(
         gpus=-1,  # use all available GPUs
-        strategy='ddp',  # use multiple GPUs on the same machine
+        strategy=DDPStrategy(find_unused_parameters=True),
         num_nodes=args.num_nodes,
         max_epochs=cfg.train.epochs,
-        num_sanity_val_steps=cfg.train.num_sanity_val_steps,  # validate on all val data before training
+        num_sanity_val_steps=cfg.train.num_sanity_val_steps,
         log_every_n_steps=cfg.train.log_every_n_steps,
         check_val_every_n_epoch=cfg.train.check_val_every_n_epoch,
-        callbacks=callbacks,  # comment when debug
+        callbacks=callbacks,
         logger=logger,
-        profiler="simple",
-        plugins=DDPPlugin(find_unused_parameters=False),
+        profiler="simple"
     )
 
     return trainer
@@ -94,12 +92,6 @@ def init_ckpt(cfg):
 def init_model(cfg):
     MODEL = getattr(import_module(cfg.model.module), cfg.model.classname)
     model = MODEL(cfg)
-
-    if cfg.model.use_checkpoint:
-        print("=> loading pretrained checkpoint from {} ...".format(cfg.model.use_checkpoint))
-        checkpoint = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.model.use_checkpoint,
-                                  "last.ckpt")
-        model.load_from_checkpoint(checkpoint)
 
     if cfg.model.pretrained_module:
         print("=> loading pretrained module from {} ...".format(cfg.model.pretrained_module_path))

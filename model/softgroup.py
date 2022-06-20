@@ -5,11 +5,11 @@ import torch.nn as nn
 import MinkowskiEngine as ME
 import pytorch_lightning as pl
 from data.scannet.model_util_scannet import ScannetDatasetConfig
+from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode
 from lib.softgroup_ops.functions import softgroup_ops
 from lib.loss import *
-from lib.utils.eval import get_nms_instances
 from model.common import ResidualBlock, VGGBlock, UBlock
-from lib.evaluation.common import *
+from lib.evaluation.semantic_seg_helper import *
 
 
 class SoftGroup(pl.LightningModule):
@@ -105,7 +105,7 @@ class SoftGroup(pl.LightningModule):
         :param batch_size: int
         :return: batch_offsets: (batch_size + 1)
         """
-        batch_offsets = torch.zeros(batch_size + 1).int().cuda()
+        batch_offsets = torch.zeros(batch_size + 1, dtype=torch.int32, device=self.device)
         for i in range(batch_size):
             batch_offsets[i + 1] = batch_offsets[i] + (batch_idxs == i).sum()
         assert batch_offsets[-1] == batch_idxs.shape[0]
@@ -133,8 +133,8 @@ class SoftGroup(pl.LightningModule):
         if rand_quantize:
             # after this, coords.long() will have some randomness
             range = coords_max - coords_min
-            coords_min -= torch.clamp(spatial_shape - range - 0.001, min=0) * torch.rand(3).cuda()
-            coords_min -= torch.clamp(spatial_shape - range + 0.001, max=0) * torch.rand(3).cuda()
+            coords_min -= torch.clamp(spatial_shape - range - 0.001, min=0) * torch.rand(3, device=self.device)
+            coords_min -= torch.clamp(spatial_shape - range + 0.001, max=0) * torch.rand(3, device=self.device)
         coords_min = coords_min[batch_idx]
         coords -= coords_min
         assert coords.shape.numel() == ((coords >= 0) * (coords < spatial_shape)).sum()
@@ -252,7 +252,6 @@ class SoftGroup(pl.LightningModule):
         x.features = torch.cat((x.features, x_pool_expand), dim=1)
         return x
 
-
     def configure_optimizers(self):
         print("=> configure optimizer...")
 
@@ -365,7 +364,6 @@ class SoftGroup(pl.LightningModule):
         return data_dict
 
     def training_step(self, data_dict, idx):
-        # torch.cuda.empty_cache()
 
         # prepare input and forward
         data_dict = self._feed(data_dict)
@@ -381,7 +379,6 @@ class SoftGroup(pl.LightningModule):
         return loss
 
     def validation_step(self, data_dict, idx):
-        # torch.cuda.empty_cache()
 
         # prepare input and forward
         data_dict = self._feed(data_dict)
@@ -405,98 +402,94 @@ class SoftGroup(pl.LightningModule):
         self.log("val_accuracy/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True)
         self.log("val_accuracy/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True)
 
+    def validation_epoch_end(self, outputs):
         # evaluate instance predictions
-        # if self.current_epoch > self.hparams.cfg.model.prepare_epoch:
+        if self.current_epoch > self.hparams.cfg.model.prepare_epoch:
+            all_pred_insts = []
+            all_gt_insts = []
+            for batch in output:
+                pred_instances = self.get_instances(batch["proposals_idx"], batch["semantic_scores"],
+                                                    batch["cls_scores"], batch["iou_scores"],
+                                                    batch["mask_scores"])
+                gt_instances = self.get_gt_instances(batch["sem_labels"], batch["instance_ids"])
+                all_pred_insts.append(pred_instances)
+                all_gt_insts.append(gt_instances)
+            evaluator = ScanNetEval(self.hparams.cfg.data.class_names)
+            evaluation_result = evaluator.evaluate(all_pred_insts, all_gt_insts)
+            self.log("val_accuracy/AP", evaluation_result["all_ap"])
+            self.log("val_accuracy/AP_50", evaluation_result['all_ap_50%'])
+            self.log("val_accuracy/AP_25", evaluation_result["all_ap_25"])
 
-
-    def test_step(self, data_dict, idx):
-        # torch.cuda.empty_cache()
-
+    def predict_step(self, data_dict, idx):
+        # prepare input and forward
         data_dict = self._feed(data_dict)
+
+        # semantic prediction
+        semantic_predictions = data_dict["semantic_scores"].max(1)[1]
+
+        if self.current_epoch > self.hparams.cfg.model.prepare_epoch:
+            # instance prediction
+            pred_instances = self.get_instances(data_dict["proposals_idx"], data_dict["semantic_scores"],
+                                                data_dict["cls_scores"], data_dict["iou_scores"],
+                                                data_dict["mask_scores"])
 
         return data_dict
 
-    def predict_step(self, data_dict, idx):
-        # torch.cuda.empty_cache()
-        data_dict = self._feed(data_dict)
-        self.parse_semantic_predictions(data_dict)
-        if self.current_epoch > self.prepare_epochs:
-            self.parse_instance_predictions(data_dict)
+    def get_instances(self, proposals_idx, semantic_scores, cls_scores, iou_scores, mask_scores):
+        num_instances = cls_scores.size(0)
+        num_points = semantic_scores.size(0)
+        cls_scores = cls_scores.softmax(1)
+        cls_pred_list, score_pred_list, mask_pred_list = [], [], []
+        for i in range(self.hparams.cfg.data.ignore_classes):
+            cls_pred = cls_scores.new_full((num_instances, ), i + 1, dtype=torch.long)
+            cur_cls_scores = cls_scores[:, i]
+            cur_iou_scores = iou_scores[:, i]
+            cur_mask_scores = mask_scores[:, i]
+            score_pred = cur_cls_scores * cur_iou_scores.clamp(0, 1)
+            mask_pred = torch.zeros((num_instances, num_points), dtype=torch.int, device=self.device)
+            mask_inds = cur_mask_scores > self.hparams.cfg.model.test_cfg.mask_score_thr
+            cur_proposals_idx = proposals_idx[mask_inds].long()
+            mask_pred[cur_proposals_idx[:, 0], cur_proposals_idx[:, 1]] = 1
 
-    # TODO: move to somewhere else
-    def parse_semantic_predictions(self, data_dict):
-        # from data.scannet.model_util_scannet import NYU20_CLASS_IDX
-        # NYU20_CLASS_IDX = NYU20_CLASS_IDX[1:]  # for scannet
+            # filter low score instance
+            inds = cur_cls_scores > self.hparams.cfg.model.test_cfg.cls_score_thr
+            cls_pred = cls_pred[inds]
+            score_pred = score_pred[inds]
+            mask_pred = mask_pred[inds]
 
-        ##### (#1 semantic_pred, pt_offsets; #2 scores, proposals_pred)
-        semantic_scores = data_dict["semantic_scores"]  # (N, nClass) float32, cuda
-        semantic_pred_labels = semantic_scores.max(1)[1]  # (N) long, cuda
-        semantic_class_idx = torch.tensor(self.cfg.evaluation.semantic_gt_class_idx, dtype=torch.int).cuda()  # (nClass)
-        semantic_pred_class_idx = semantic_class_idx[semantic_pred_labels].cpu().numpy()
-        data_dict["semantic_pred_class_idx"] = semantic_pred_class_idx
+            # filter too small instances
+            npoint = mask_pred.sum(1)
+            inds = npoint >= self.hparams.cfg.model.test_cfg.min_npoint
+            cls_pred = cls_pred[inds]
+            score_pred = score_pred[inds]
+            mask_pred = mask_pred[inds]
+            cls_pred_list.append(cls_pred)
+            score_pred_list.append(score_pred)
+            mask_pred_list.append(mask_pred)
+        cls_pred = torch.cat(cls_pred_list).cpu().numpy()
+        score_pred = torch.cat(score_pred_list).cpu().numpy()
+        mask_pred = torch.cat(mask_pred_list).cpu().numpy()
 
-        ##### save predictions
-        scene_id = data_dict["scene_id"][0]
-        pred_path = os.path.join(self.cfg.general.root, self.cfg.data.split)
-        sem_pred_path = os.path.join(pred_path, "semantic")
-        os.makedirs(sem_pred_path, exist_ok=True)
-        sem_pred_file_path = os.path.join(sem_pred_path, f"{scene_id}.txt")
-        np.savetxt(sem_pred_file_path, semantic_pred_class_idx, fmt="%d")
+        instances = []
+        for i in range(cls_pred.shape[0]):
+            pred = {}
+            pred['label_id'] = cls_pred[i]
+            pred['conf'] = score_pred[i]
+            # rle encode mask to save memory
+            pred['pred_mask'] = rle_encode(mask_pred[i])
+            instances.append(pred)
+        return instances
 
-    def parse_instance_predictions(self, data_dict):
-        scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
-        proposals_score = torch.sigmoid(scores.view(-1))  # (nProposal,) float, cuda
-        # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-        # proposals_offset: (nProposal + 1), int, cpu
-
-        num_proposals = proposals_offset.shape[0] - 1
-        N = data_dict["semantic_scores"].shape[0]
-
-        proposals_mask = torch.zeros((num_proposals, N), dtype=torch.int).cuda()  # (nProposal, N), int, cuda
-        proposals_mask[proposals_idx[:, 0].long(), proposals_idx[:, 1].long()] = 1
-
-        ##### score threshold & min_npoint mask
-        proposals_npoint = proposals_mask.sum(1)
-        proposals_thres_mask = torch.logical_and(proposals_score > self.cfg.test.TEST_SCORE_THRESH,
-                                                 proposals_npoint > self.cfg.test.TEST_NPOINT_THRESH)
-
-        proposals_score = proposals_score[proposals_thres_mask]
-        proposals_mask = proposals_mask[proposals_thres_mask]
-
-        ##### instance masks non_max_suppression
-        if proposals_score.shape[0] == 0:
-            pick_idxs = np.empty(0)
-        else:
-            proposals_mask_f = proposals_mask.float()  # (nProposal, N), float, cuda
-            intersection = torch.mm(proposals_mask_f, proposals_mask_f.t())  # (nProposal, nProposal), float, cuda
-            proposals_npoint = proposals_mask_f.sum(1)  # (nProposal), float, cuda
-            proposals_np_repeat_h = proposals_npoint.unsqueeze(-1).repeat(1, proposals_npoint.shape[0])
-            proposals_np_repeat_v = proposals_npoint.unsqueeze(0).repeat(proposals_npoint.shape[0], 1)
-            cross_ious = intersection / (
-                    proposals_np_repeat_h + proposals_np_repeat_v - intersection)  # (nProposal, nProposal), float, cuda
-            pick_idxs = get_nms_instances(cross_ious.cpu().numpy(), proposals_score.cpu().numpy(),
-                                          self.cfg.test.TEST_NMS_THRESH)  # int, (nCluster,)
-
-        clusters_mask = proposals_mask[pick_idxs].cpu().numpy()  # int, (nCluster, N)
-        clusters_score = proposals_score[pick_idxs].cpu().numpy()  # float, (nCluster,)
-        nclusters = clusters_mask.shape[0]
-
-        assert "semantic_pred_class_idx" in data_dict, "make sure you parse semantic predictions at first"
-        scene_id = data_dict["scene_id"][0]
-        semantic_pred_class_idx = data_dict["semantic_pred_class_idx"]
-        pred_path = os.path.join(self.cfg.general.root, self.cfg.data.split)
-        inst_pred_path = os.path.join(pred_path, "instance")
-        inst_pred_masks_path = os.path.join(inst_pred_path, "predicted_masks")
-        # os.makedirs(inst_pred_path, exist_ok=True)
-        os.makedirs(inst_pred_masks_path, exist_ok=True)
-        cluster_ids = np.ones(shape=(N)) * -1  # id starts from 0
-        with open(os.path.join(inst_pred_path, f"{scene_id}.txt"), "w") as f:
-            for c_id in range(nclusters):
-                cluster_i = clusters_mask[c_id]  # (N)
-                cluster_ids[cluster_i == 1] = c_id
-                assert np.unique(semantic_pred_class_idx[cluster_i == 1]).size == 1
-                cluster_i_class_idx = semantic_pred_class_idx[cluster_i == 1][0]
-                score = clusters_score[c_id]
-                f.write(f"predicted_masks/{scene_id}_{c_id:03d}.txt {cluster_i_class_idx} {score:.4f}\n")
-                np.savetxt(os.path.join(inst_pred_masks_path, f"{scene_id}_{c_id:03d}.txt"), cluster_i, fmt="%d")
-        np.savetxt(os.path.join(inst_pred_path, f"{scene_id}.cluster_ids.txt"), cluster_ids, fmt="%d")
+    def get_gt_instances(self, semantic_labels, instance_labels):
+        """Get gt instances for evaluation."""
+        # convert to evaluation format 0: ignore, 1->N: valid
+        label_shift = len(self.hparams.cfg.data.ignore_classes)
+        semantic_labels = semantic_labels - label_shift + 1
+        semantic_labels[semantic_labels < 0] = 0
+        instance_labels += 1
+        ignore_inds = instance_labels < 0
+        # scannet encoding rule
+        gt_ins = semantic_labels * 1000 + instance_labels
+        gt_ins[ignore_inds] = 0
+        gt_ins = gt_ins.cpu().numpy()
+        return gt_ins

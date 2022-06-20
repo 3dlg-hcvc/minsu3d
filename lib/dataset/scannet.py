@@ -335,7 +335,7 @@ def scannet_loader(cfg):
             data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (B+1)
             data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.long)  # long (total_nInst)
         ### voxelize
-        data["voxel_locs"], data["p2v_map"], data["v2p_map"] = softgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), 4) # mode=4 TODO: the naming p2v is wrong! should be v2p
+        data["voxel_locs"], data["p2v_map"], data["v2p_map"] = softgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), 4)  # mode=4 TODO: the naming p2v is wrong! should be v2p
 
         return data
 

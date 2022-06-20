@@ -1,4 +1,4 @@
-from .semantic_segmentation import evaluate_semantic
-from .instance_segmentation import evaluate_instance
+from .semantic_segmentation_backup import evaluate_semantic
+from .instance_segmentation_backup import evaluate_instance
 from .object_detection import evaluate_detection
-from .common import *
+from .semantic_seg_helper import *
