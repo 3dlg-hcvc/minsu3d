@@ -403,11 +403,12 @@ class SoftGroup(pl.LightningModule):
         self.log("val_accuracy/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True)
 
     def validation_epoch_end(self, outputs):
+        torch.cuda.empty_cache()
         # evaluate instance predictions
         if self.current_epoch > self.hparams.cfg.model.prepare_epoch:
             all_pred_insts = []
             all_gt_insts = []
-            for batch in output:
+            for batch in outputs:
                 pred_instances = self.get_instances(batch["proposals_idx"], batch["semantic_scores"],
                                                     batch["cls_scores"], batch["iou_scores"],
                                                     batch["mask_scores"])
