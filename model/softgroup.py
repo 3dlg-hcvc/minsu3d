@@ -192,6 +192,7 @@ class SoftGroup(pl.LightningModule):
                 pt_offsets_ = pt_offsets[object_idxs]
                 idx, start_len = softgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
                                                                  grouping_radius, grouping_mean_active)
+
                 proposals_idx, proposals_offset = softgroup_ops.bfs_cluster(class_num_point_mean, idx.cpu(),
                                                                             start_len.cpu(),
                                                                             grouping_num_point_threshold, class_id)
@@ -222,14 +223,14 @@ class SoftGroup(pl.LightningModule):
                 pt_feats,
                 data_dict["locs"],
                 rand_quantize=True,
-                **self.instance_voxel_cfg)
+                **self.hparams.cfg.model.instance_voxel_cfg)
 
             feats = self.tiny_unet(inst_feats)
 
             # predict mask scores
             mask_scores = self.mask_scoring_branch(feats.features)
             data_dict["mask_scores"] = mask_scores[inst_map.long()]
-            data_dict["instance_batch_idxs"] = feats.indices[:, 0][inst_map.long()]
+            data_dict["instance_batch_idxs"] = feats.coordinates[:, 0][inst_map.long()]
 
             # predict instance cls and iou scores
             feats = self.global_pool(feats)
@@ -239,7 +240,7 @@ class SoftGroup(pl.LightningModule):
         return data_dict
 
     def global_pool(self, x, expand=False):
-        indices = x.indices[:, 0]
+        indices = x.coordinates[:, 0]
         batch_counts = torch.bincount(indices)
         batch_offset = torch.cumsum(batch_counts, dim=0)
         pad = batch_offset.new_full((1, ), 0)
@@ -302,18 +303,19 @@ class SoftGroup(pl.LightningModule):
                                                                     data_dict["instance_num_point"])
 
             # filter out background instances
-            fg_inds = (data_dict["instance_semantic_cls"] != self.ignore_label)
+            fg_inds = (data_dict["instance_semantic_cls"] != self.hparams.cfg.data.ignore_label)
             fg_instance_cls = data_dict["instance_semantic_cls"][fg_inds]
             fg_ious_on_cluster = ious_on_cluster[:, fg_inds]
 
             # overlap > thr on fg instances are positive samples
             max_iou, gt_inds = fg_ious_on_cluster.max(1)
-            pos_inds = max_iou >= self.train_cfg.pos_iou_thr
+            pos_inds = max_iou >= self.hparams.cfg.model.train_cfg.pos_iou_thr
             pos_gt_inds = gt_inds[pos_inds]
 
             """classification loss"""
+            valid_num_classes = self.hparams.cfg.data.classes - len(self.hparams.cfg.data.ignore_classes)
             # follow detection convention: 0 -> K - 1 are fg, K is bg
-            labels = fg_instance_cls.new_full((fg_ious_on_cluster.size(0),), self.instance_classes)
+            labels = fg_instance_cls.new_full((fg_ious_on_cluster.size(0),), valid_num_classes)
             labels[pos_inds] = fg_instance_cls[pos_gt_inds]
             classification_criterion = ClassificationLoss()
             classification_loss = classification_criterion(data_dict["cls_scores"], labels)
@@ -326,7 +328,7 @@ class SoftGroup(pl.LightningModule):
             mask_label = softgroup_ops.get_mask_label(proposals_idx, proposals_offset, data_dict["instance_ids"],
                                                       data_dict["instance_semantic_cls"],
                                                       data_dict["instance_num_point"], ious_on_cluster,
-                                                      self.train_cfg.pos_iou_thr)
+                                                      self.hparams.cfg.model.train_cfg.pos_iou_thr)
             mask_label_weight = (mask_label != -1).float()
             mask_label[mask_label == -1.] = 0.5  # any value is ok
             mask_scoring_criterion = MaskScoringLoss(weight=mask_label_weight, reduction='sum')
@@ -340,7 +342,7 @@ class SoftGroup(pl.LightningModule):
             fg_ious = ious[:, fg_inds]
             gt_ious, _ = fg_ious.max(1)
             slice_inds = torch.arange(0, labels.size(0), dtype=torch.long, device=labels.device)
-            iou_score_weight = labels < self.instance_classes
+            iou_score_weight = labels < valid_num_classes
             iou_score_slice = data_dict["iou_scores"][slice_inds, labels]
             iou_scoring_criterion = IouScoringLoss(reduction="none")
             iou_scoring_loss = iou_scoring_criterion(iou_score_slice, gt_ious)

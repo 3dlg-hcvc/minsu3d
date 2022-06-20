@@ -85,7 +85,7 @@ model:
                            1003., 3317., 4912., 10221., 3889.,
                            4136., 2120., 945., 3967., 2589. ]
     npoint_thr: 0.05  # absolute if class_numpoint == -1, relative if class_numpoint != -1
-    ignore_classes: [ 0, 1 ]
+
   instance_voxel_cfg:
     scale: 50
     spatial_shape: 20

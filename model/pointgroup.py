@@ -8,7 +8,7 @@ import MinkowskiEngine as ME
 import pytorch_lightning as pl
 
 from data.scannet.model_util_scannet import ScannetDatasetConfig
-from lib.pointgroup_ops.functions import pointgroup_ops
+from lib.softgroup_ops.functions import softgroup_ops
 from lib.loss import SemSegLoss, PTOffsetLoss
 from lib.loss.utils import get_segmented_scores
 from lib.utils.eval import get_nms_instances

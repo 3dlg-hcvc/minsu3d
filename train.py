@@ -1,5 +1,5 @@
 import warnings
-
+from pytorch_lightning.plugins import DDPPlugin
 warnings.filterwarnings('ignore')
 
 import os
@@ -66,13 +66,6 @@ def init_callbacks(cfg):
 
 
 def init_trainer(cfg):
-    if cfg.model.use_checkpoint:
-        print("=> configuring trainer with checkpoint from {} ...".format(cfg.model.use_checkpoint))
-        checkpoint = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.model.use_checkpoint,
-                                  "last.ckpt")
-    else:
-        checkpoint = None
-
     trainer = pl.Trainer(
         gpus=-1,  # use all available GPUs
         strategy='ddp',  # use multiple GPUs on the same machine
@@ -84,10 +77,18 @@ def init_trainer(cfg):
         callbacks=callbacks,  # comment when debug
         logger=logger,
         profiler="simple",
-        resume_from_checkpoint=checkpoint
+        plugins=DDPPlugin(find_unused_parameters=False),
     )
 
     return trainer
+
+
+def init_ckpt(cfg):
+    if cfg.model.use_checkpoint:
+        print("=> configuring trainer with checkpoint from {} ...".format(cfg.model.use_checkpoint))
+        return cfg.model.use_checkpoint
+    print("=> checkpoint path not specified ...")
+    return None
 
 
 def init_model(cfg):
@@ -123,7 +124,6 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--num_nodes', type=int, default=1, help='specify num of gpu nodes')
     args = parser.parse_args()
 
-
     print("=> loading configurations...")
     cfg = load_conf(args)
 
@@ -145,5 +145,8 @@ if __name__ == '__main__':
     print("=> initializing model...")
     pointgroup = init_model(cfg)
 
+    print("=> initializing checkpoint...")
+    ckpt_path = init_ckpt(cfg)
+
     print("=> start training...")
-    trainer.fit(model=pointgroup, train_dataloaders=dataloaders["train"], val_dataloaders=dataloaders["val"])
+    trainer.fit(model=pointgroup, train_dataloaders=dataloaders["train"], val_dataloaders=dataloaders["val"], ckpt_path=ckpt_path)
