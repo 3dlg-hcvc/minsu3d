@@ -8,7 +8,7 @@ from MinkowskiEngine.utils import sparse_collate, batched_coordinates
 
 sys.path.append("../")  # HACK add the lib folder
 from lib.softgroup_ops.functions import softgroup_ops
-from lib.utils.pc import crop, random_sampling
+from lib.utils.pc import crop
 from lib.utils.transform import jitter, flip, rotz, elastic
 
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
@@ -62,12 +62,12 @@ class ScanNet(Dataset):
 
     def _augment(self, xyz, return_mat=False):
         m = np.eye(3)
-        if self.cfg.data.transform.jitter:
+        if self.cfg.data.augmentation.jitter_xyz:
             m = np.matmul(m, jitter())
-        if self.cfg.data.transform.flip:
+        if self.cfg.data.augmentation.flip:
             flip_m = flip(0, random=True)
             m *= flip_m
-        if self.cfg.data.transform.rot:
+        if self.cfg.data.augmentation.rotation:
             t = np.random.rand() * 2 * np.pi
             rot_m = rotz(t)
             m = np.matmul(m, rot_m)  # rotation around z
@@ -186,15 +186,20 @@ class ScanNet(Dataset):
             points = points_augment * self.scale
 
             # elastic
-            if self.split == "train":
+            if self.split == "train" and self.cfg.data.augmentation.elastic:
                 points = elastic(points, 6 * self.scale // 50, 40 * self.scale / 50)
                 points = elastic(points, 20 * self.scale // 50, 160 * self.scale / 50)
+
+            # jitter rgb
+            if self.split == "train" and self.cfg.data.augmentation.jitter_rgb:
+                feats[0:3] += np.random.randn(3) * 0.1
+
 
             # offset
             points -= points.min(0)
 
             if self.split == "train":
-                ### crop
+                # crop
                 points, valid_idxs = crop(points, self.max_num_point, self.full_scale[1])
                 # points, valid_idxs = random_sampling(points, self.max_num_point, return_choices=True)
 
@@ -202,7 +207,6 @@ class ScanNet(Dataset):
                 points_augment = points_augment[valid_idxs]
                 feats = feats[valid_idxs]
                 sem_labels = sem_labels[valid_idxs]
-                # instance_ids = instance_ids[valid_idxs]
                 instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
 
             num_instance, instance_info, instance_num_point, instance_semantic_cls = self._getInstanceInfo(
