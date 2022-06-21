@@ -26,9 +26,9 @@ class ScanNet(Dataset):
         self.scale = cfg.data.scale
         self.max_num_point = cfg.data.max_num_point
         self.mode = cfg.data.mode
-        
+
         self.requires_gt_mask = cfg.data.requires_gt_mask
-        
+
         self.DATA_MAP = {
             "train": cfg.SCANNETV2_PATH.train_list,
             "val": cfg.SCANNETV2_PATH.val_list,
@@ -36,7 +36,7 @@ class ScanNet(Dataset):
         }
 
         self.multiview_data = {}
-        
+
         self._load()
 
     def _load(self):
@@ -66,7 +66,7 @@ class ScanNet(Dataset):
             m = np.matmul(m, jitter())
         if self.cfg.data.transform.flip:
             flip_m = flip(0, random=True)
-            m *= flip_m  
+            m *= flip_m
         if self.cfg.data.transform.rot:
             t = np.random.rand() * 2 * np.pi
             rot_m = rotz(t)
@@ -103,7 +103,7 @@ class ScanNet(Dataset):
         instance_cls = []
         for k, i_ in enumerate(unique_instance_ids, -1):
             if i_ < 0: continue
-            
+
             inst_i_idx = np.where(instance_ids == i_)
 
             # instance_info
@@ -125,9 +125,8 @@ class ScanNet(Dataset):
             # semantic label
             cls_idx = inst_i_idx[0][0]
             instance_cls.append(sem_labels[cls_idx])
-            
-        return num_instance, instance_info, instance_num_point, instance_cls
 
+        return num_instance, instance_info, instance_num_point, instance_cls
 
     def _generate_gt_clusters(self, points, instance_ids):
         gt_proposals_idx = []
@@ -135,11 +134,11 @@ class ScanNet(Dataset):
         unique_instance_ids = np.unique(instance_ids)
         num_instance = len(unique_instance_ids) - 1 if -1 in unique_instance_ids else len(unique_instance_ids)
         instance_bboxes = np.zeros((num_instance, 6))
-        
+
         object_ids = []
         for cid, i_ in enumerate(unique_instance_ids, -1):
-            if i_ < 0: continue
-            
+            if i_ < 0:
+                continue
             object_ids.append(i_)
             inst_i_idx = np.where(instance_ids == i_)[0]
             inst_i_points = points[inst_i_idx]
@@ -149,24 +148,25 @@ class ScanNet(Dataset):
             xmax = np.max(inst_i_points[:, 0])
             ymax = np.max(inst_i_points[:, 1])
             zmax = np.max(inst_i_points[:, 2])
-            bbox = np.array([(xmin+xmax)/2, (ymin+ymax)/2, (zmin+zmax)/2, xmax-xmin, ymax-ymin, zmax-zmin]) 
+            bbox = np.array(
+                [(xmin + xmax) / 2, (ymin + ymax) / 2, (zmin + zmax) / 2, xmax - xmin, ymax - ymin, zmax - zmin])
             instance_bboxes[cid, :] = bbox
-            
+
             proposals_idx_i = np.vstack((np.ones(len(inst_i_idx)) * cid, inst_i_idx)).transpose().astype(np.int32)
             gt_proposals_idx.append(proposals_idx_i)
             gt_proposals_offset.append(len(inst_i_idx) + gt_proposals_offset[-1])
-            
+
         gt_proposals_idx = np.concatenate(gt_proposals_idx, axis=0).astype(np.int32)
         gt_proposals_offset = np.array(gt_proposals_offset).astype(np.int32)
-        
+
         return gt_proposals_idx, gt_proposals_offset, object_ids, instance_bboxes
-    
+
     def __getitem__(self, id):
         scene_id = self.scene_names[id]
         scene = self.scenes[id]
 
         mesh = scene["aligned_mesh"]
-        
+
         points = mesh[:, :3]  # (N, 3)
         feats = mesh[:, 3:6]  # (N, 3) rgb
 
@@ -175,38 +175,39 @@ class ScanNet(Dataset):
         if self.split != "test":
             instance_ids = scene["instance_ids"]
             sem_labels = scene["sem_labels"]  # {0,1,...,19}, -1 as ignored (unannotated) class
-            
+
             # augment
             if self.split == "train":
                 points_augment = self._augment(points)
             else:
                 points_augment = points.copy()
-            
+
             # scale
             points = points_augment * self.scale
-            
+
             # elastic
             if self.split == "train":
                 points = elastic(points, 6 * self.scale // 50, 40 * self.scale / 50)
                 points = elastic(points, 20 * self.scale // 50, 160 * self.scale / 50)
-            
+
             # offset
             points -= points.min(0)
-            
+
             if self.split == "train":
                 ### crop
                 points, valid_idxs = crop(points, self.max_num_point, self.full_scale[1])
                 # points, valid_idxs = random_sampling(points, self.max_num_point, return_choices=True)
-                
+
                 points = points[valid_idxs]
                 points_augment = points_augment[valid_idxs]
                 feats = feats[valid_idxs]
                 sem_labels = sem_labels[valid_idxs]
                 # instance_ids = instance_ids[valid_idxs]
                 instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
-            
-            num_instance, instance_info, instance_num_point, instance_semantic_cls = self._getInstanceInfo(points_augment, instance_ids.astype(np.int32), sem_labels)
-                
+
+            num_instance, instance_info, instance_num_point, instance_semantic_cls = self._getInstanceInfo(
+                points_augment, instance_ids.astype(np.int32), sem_labels)
+
             if self.requires_gt_mask:
                 gt_proposals_idx, gt_proposals_offset, _, _ = self._generate_gt_clusters(points, instance_ids)
 
@@ -225,7 +226,7 @@ class ScanNet(Dataset):
         else:
             # scale
             points = points.copy() * self.scale
-            
+
             # offset
             points -= points.min(0)
 
@@ -234,15 +235,15 @@ class ScanNet(Dataset):
             data["feats"] = feats.astype(np.float32)  # (N, 3)
 
         return data
-    
+
 
 def scannet_loader(cfg):
-    
     def scannet_collate_fn(batch):
         batch_size = batch.__len__()
         data = {}
         for key in batch[0].keys():
-            if key in ['locs', 'locs_scaled', 'feats', 'sem_labels', 'instance_ids', 'num_instance', 'instance_info', 'instance_num_point', "instance_semantic_cls", 'gt_proposals_idx', 'gt_proposals_offset']:
+            if key in ['locs', 'locs_scaled', 'feats', 'sem_labels', 'instance_ids', 'num_instance', 'instance_info',
+                       'instance_num_point', "instance_semantic_cls", 'gt_proposals_idx', 'gt_proposals_offset']:
                 continue
             if isinstance(batch[0][key], tuple):
                 coords, feats = list(zip(*[sample[key] for sample in batch]))
@@ -251,14 +252,11 @@ def scannet_loader(cfg):
                 data[key] = (coords_b, feats_b)
             elif isinstance(batch[0][key], np.ndarray):
                 data[key] = torch.stack(
-                    [torch.from_numpy(sample[key]) for sample in batch],
-                    axis=0)
+                    [torch.from_numpy(sample[key]) for sample in batch])
             elif isinstance(batch[0][key], torch.Tensor):
-                data[key] = torch.stack([sample[key] for sample in batch],
-                                            axis=0)
+                data[key] = torch.stack([sample[key] for sample in batch])
             elif isinstance(batch[0][key], dict):
-                data[key] = sparse_collate(
-                    [sample[key] for sample in batch])
+                data[key] = sparse_collate([sample[key] for sample in batch])
             else:
                 data[key] = [sample[key] for sample in batch]
         return data
@@ -288,10 +286,10 @@ def scannet_loader(cfg):
                     torch.LongTensor(b["locs_scaled"].shape[0], 1).fill_(i),
                     torch.from_numpy(b["locs_scaled"]).long()
                 ], 1))
-            
+
             feats.append(torch.from_numpy(b["feats"]))
             batch_offsets.append(batch_offsets[-1] + b["locs_scaled"].shape[0])
-            
+
             if cfg.general.task != "test":
                 if cfg.data.requires_gt_mask:
                     gt_proposals_idx_i = b["gt_proposals_idx"]
@@ -309,7 +307,7 @@ def scannet_loader(cfg):
                 total_num_inst += b["num_instance"].item()
                 total_points += len(instance_ids_i)
                 instance_ids.append(torch.from_numpy(instance_ids_i))
-                
+
                 sem_labels.append(torch.from_numpy(b["sem_labels"]))
 
                 instance_info.append(torch.from_numpy(b["instance_info"]))
@@ -318,12 +316,11 @@ def scannet_loader(cfg):
 
                 instance_cls.extend(b["instance_semantic_cls"])
 
-
         data["locs"] = torch.cat(locs, 0).to(torch.float32)  # float (N, 3)
         data["locs_scaled"] = torch.cat(locs_scaled, 0)  # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
-        data["feats"] = torch.cat(feats, 0)  #.to(torch.float32)            # float (N, C)
+        data["feats"] = torch.cat(feats, 0)  # .to(torch.float32)            # float (N, C)
         data["batch_offsets"] = torch.tensor(batch_offsets, dtype=torch.int)  # int (B+1)
-        
+
         if cfg.general.task != "test":
             if cfg.data.requires_gt_mask:
                 data["gt_proposals_idx"] = torch.cat(gt_proposals_idx, 0).to(torch.int32)
@@ -335,7 +332,9 @@ def scannet_loader(cfg):
             data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (B+1)
             data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.long)  # long (total_nInst)
         ### voxelize
-        data["voxel_locs"], data["p2v_map"], data["v2p_map"] = softgroup_ops.voxelization_idx(data["locs_scaled"], len(batch), 4)  # mode=4 TODO: the naming p2v is wrong! should be v2p
+        data["voxel_locs"], data["p2v_map"], data["v2p_map"] = softgroup_ops.voxelization_idx(data["locs_scaled"],
+                                                                                              len(batch),
+                                                                                              4)  # mode=4 TODO: the naming p2v is wrong! should be v2p
 
         return data
 
@@ -348,11 +347,11 @@ def scannet_loader(cfg):
 
     dataloaders = {
         split:
-        DataLoader(datasets[split],
-                    batch_size=cfg.data.batch_size,
-                    shuffle=True if split == "train" else False,
-                    pin_memory=True,
-                    collate_fn=sparse_collate_fn) 
+            DataLoader(datasets[split],
+                       batch_size=cfg.data.batch_size,
+                       shuffle=True if split == "train" else False,
+                       pin_memory=True,
+                       collate_fn=sparse_collate_fn)
         for split in splits
     }
 

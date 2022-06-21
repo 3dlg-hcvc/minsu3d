@@ -6,7 +6,7 @@ general:
   config: conf/softgroup_scannet.yaml
   output_root: output/
   experiment: test # TODO
-  monitor: total_loss
+  monitor: val_accuracy/AP_50
 
 
 data:
@@ -106,7 +106,7 @@ train:
   num_sanity_val_steps: 20
   log_every_n_steps: 10
   check_val_every_n_epoch: 8
-  save_checkpoint_every_n_epochs: 8
+  save_checkpoint_every_n_epochs: 8  # negative number n means to save the best n models
   clear_cache_every_n_epochs: 4
 
   optim: 
@@ -116,7 +116,6 @@ train:
     weight_decay: 0.0001 # SGD
   
   multiplier: 0.5
-  save_freq: 16  # also eval_freq
   loss_weight: [1, 1, 1, 1, 1, 1] # semantic_loss, offset_norm_loss, offset_dir_loss, score_loss, bbox_loss (if applies)
 
   fg_thresh: 0.75

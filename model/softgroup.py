@@ -403,8 +403,8 @@ class SoftGroup(pl.LightningModule):
                                          ignore_label=self.hparams.cfg.data.ignore_label)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
                                          ignore_label=self.hparams.cfg.data.ignore_label)
-        self.log("val_accuracy/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True)
-        self.log("val_accuracy/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True)
+        self.log("val_accuracy/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("val_accuracy/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True)
 
     def validation_epoch_end(self, outputs):
         # evaluate instance predictions
@@ -420,9 +420,16 @@ class SoftGroup(pl.LightningModule):
                 all_gt_insts.append(gt_instances)
             evaluator = ScanNetEval(self.hparams.cfg.data.class_names)
             evaluation_result = evaluator.evaluate(all_pred_insts, all_gt_insts)
-            self.log("val_accuracy/AP", evaluation_result["all_ap"])
-            self.log("val_accuracy/AP_50", evaluation_result['all_ap_50%'])
-            self.log("val_accuracy/AP_25", evaluation_result["all_ap_25"])
+            self.log("val_accuracy/AP", evaluation_result["all_ap"], sync_dist=True)
+            self.log("val_accuracy/AP_50", evaluation_result['all_ap_50%'], sync_dist=True)
+            self.log("val_accuracy/AP_25", evaluation_result["all_ap_25"], sync_dist=True)
+
+    def test_step(self, data_dict, idx):
+
+        # prepare input and forward
+        data_dict = self._feed(data_dict)
+
+        return data_dict
 
     def predict_step(self, data_dict, idx):
         # prepare input and forward
@@ -437,6 +444,7 @@ class SoftGroup(pl.LightningModule):
                                                 data_dict["cls_scores"], data_dict["iou_scores"],
                                                 data_dict["mask_scores"])
 
+        # save predictions
         return data_dict
 
     def get_instances(self, proposals_idx, semantic_scores, cls_scores, iou_scores, mask_scores):
