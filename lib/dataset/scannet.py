@@ -192,7 +192,7 @@ class ScanNet(Dataset):
 
             # jitter rgb
             if self.split == "train" and self.cfg.data.augmentation.jitter_rgb:
-                feats[0:3] += np.randn(3) * 0.1
+                feats[0:3] += np.random.randn(3) * 0.1
 
 
             # offset
