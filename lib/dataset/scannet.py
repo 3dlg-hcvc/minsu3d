@@ -316,7 +316,7 @@ def scannet_loader(cfg):
 
                 instance_cls.extend(b["instance_semantic_cls"])
 
-        data["locs"] = torch.cat(locs, 0).to(torch.float32)  # float (N, 3)
+        data["locs"] = torch.cat(locs, 0)  # float (N, 3)
         data["locs_scaled"] = torch.cat(locs_scaled, 0)  # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
         data["feats"] = torch.cat(feats, 0)  # .to(torch.float32)            # float (N, C)
         data["batch_offsets"] = torch.tensor(batch_offsets, dtype=torch.int)  # int (B+1)
