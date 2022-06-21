@@ -24,6 +24,7 @@ class SoftGroup(pl.LightningModule):
         m = cfg.model.m
         D = 3
         semantic_classes = cfg.data.classes
+        self.instance_classes = semantic_classes - len(cfg.data.ignore_classes)
         blocks = cfg.model.blocks
         block_reps = cfg.model.block_reps
         block_residual = cfg.model.block_residual
@@ -86,17 +87,17 @@ class SoftGroup(pl.LightningModule):
         )
 
         # 4.1 classification branch
-        self.classification_branch = nn.Linear(m, semantic_classes + 1)
+        self.classification_branch = nn.Linear(m, self.instance_classes + 1)
 
         # 4.2 mask scoring branch
         self.mask_scoring_branch = nn.Sequential(
             nn.Linear(m, m),
             nn.ReLU(inplace=True),
-            nn.Linear(m, semantic_classes + 1)
+            nn.Linear(m, self.instance_classes + 1)
         )
 
         # 5
-        self.iou_score = nn.Linear(m, semantic_classes + 1)
+        self.iou_score = nn.Linear(m, self.instance_classes + 1)
 
 
     def get_batch_offsets(self, batch_idxs, batch_size):
@@ -312,9 +313,9 @@ class SoftGroup(pl.LightningModule):
             pos_gt_inds = gt_inds[pos_inds]
 
             """classification loss"""
-            valid_num_classes = self.hparams.cfg.data.classes - len(self.hparams.cfg.data.ignore_classes)
+
             # follow detection convention: 0 -> K - 1 are fg, K is bg
-            labels = fg_instance_cls.new_full((fg_ious_on_cluster.size(0),), valid_num_classes)
+            labels = fg_instance_cls.new_full((fg_ious_on_cluster.size(0),), self.instance_classes)
             labels[pos_inds] = fg_instance_cls[pos_gt_inds]
             classification_criterion = ClassificationLoss()
             classification_loss = classification_criterion(data_dict["cls_scores"], labels)
@@ -341,7 +342,7 @@ class SoftGroup(pl.LightningModule):
             fg_ious = ious[:, fg_inds]
             gt_ious, _ = fg_ious.max(1)
             slice_inds = torch.arange(0, labels.size(0), dtype=torch.long, device=labels.device)
-            iou_score_weight = labels < valid_num_classes
+            iou_score_weight = labels < self.instance_classes
             iou_score_slice = data_dict["iou_scores"][slice_inds, labels]
             iou_scoring_criterion = IouScoringLoss(reduction="none")
             iou_scoring_loss = iou_scoring_criterion(iou_score_slice, gt_ious)
@@ -452,7 +453,7 @@ class SoftGroup(pl.LightningModule):
         num_points = semantic_scores.size(0)
         cls_scores = cls_scores.softmax(1)
         cls_pred_list, score_pred_list, mask_pred_list = [], [], []
-        for i in range(self.hparams.cfg.data.ignore_classes):
+        for i in range(self.instance_classes):
             cls_pred = cls_scores.new_full((num_instances, ), i + 1, dtype=torch.long)
             cur_cls_scores = cls_scores[:, i]
             cur_iou_scores = iou_scores[:, i]
