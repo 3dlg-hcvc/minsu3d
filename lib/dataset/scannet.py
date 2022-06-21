@@ -327,8 +327,8 @@ def scannet_loader(cfg):
                 data["gt_proposals_offset"] = torch.cat(gt_proposals_offset, 0).to(torch.int32)
             data["sem_labels"] = torch.cat(sem_labels, 0).long()  # long (N,)
             data["instance_ids"] = torch.cat(instance_ids, 0).long()  # long, (N,)
-            data["instance_info"] = torch.cat(instance_info, 0).to(torch.float32)  # float (total_nInst, 12)
-            data["instance_num_point"] = torch.cat(instance_num_point, 0).int()  # (total_nInst)
+            data["instance_info"] = torch.cat(instance_info, 0)  # float (total_nInst, 12)
+            data["instance_num_point"] = torch.cat(instance_num_point, 0)  # (total_nInst)
             data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (B+1)
             data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.long)  # long (total_nInst)
         ### voxelize
