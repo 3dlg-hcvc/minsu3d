@@ -60,20 +60,20 @@ def init_callbacks(cfg):
         # save the best k checkpoints
         save_top_k = cfg.train.save_checkpoint_every_n_epochs * -1
         every_n_epochs = None
-        mode = "max"
-        monitor = cfg.general.monitor
+        monitor = cfg.train.monitor
     else:
         # save checkpoints every n epochs
         save_top_k = -1
         every_n_epochs = cfg.train.save_checkpoint_every_n_epochs
-        mode = None
         monitor = None
+
+    ckpt_base_name = f"{cfg.general.model}-{cfg.general.dataset}"
 
     monitor = pl.callbacks.ModelCheckpoint(
         monitor=monitor,
-        mode=mode,
+        mode="max",
         dirpath=cfg.general.root,
-        filename=f"{cfg.general.model}-{cfg.general.dataset}" + "-{epoch}",
+        filename=ckpt_base_name + "-{epoch}",
         save_top_k=save_top_k,
         every_n_epochs=every_n_epochs,
         save_last=True

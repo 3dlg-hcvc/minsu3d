@@ -1,19 +1,13 @@
 general:
-  task: # train, test, eval
   manual_seed: 123
   dataset: scannet
   model: softgroup
-  config: conf/softgroup_scannet.yaml
   output_root: output/
-  experiment: test # TODO
-  monitor: val_accuracy/AP_50
-
 
 data:
   module: lib.dataset
   dataset: ScanNet
   loader: scannet_loader
-  
   data_root: dataset
   file_suffix: .pth
 
@@ -43,8 +37,6 @@ data:
   requires_bbox: True
   requires_gt_mask: False
   requires_gt_feats: False
-
-  exclude_keys: ['gt_proposals_idx', 'gt_proposals_offset']
 
 
 model:
@@ -108,6 +100,7 @@ train:
   check_val_every_n_epoch: 8
   save_checkpoint_every_n_epochs: 8  # negative number n means to save the best n models
   clear_cache_every_n_epochs: 4
+  monitor: val_accuracy/AP_50
 
   optim: 
     classname: Adam # Adam or SGD
