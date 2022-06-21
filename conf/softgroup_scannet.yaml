@@ -29,10 +29,12 @@ data:
   max_num_instance: 128
   mode: 4 # 4=mean
 
-  transform:
-    jitter: True #True
-    flip: True #True
-    rot: True #True
+  augmentation:
+    jitter_xyz: True
+    flip: True
+    rotation: True
+    elastic: True
+    jitter_rgb: True
     
   requires_bbox: True
   requires_gt_mask: False
