@@ -11,8 +11,6 @@ from lib.softgroup_ops.functions import softgroup_ops
 from lib.utils.pc import crop
 from lib.utils.transform import jitter, flip, rotz, elastic
 
-MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
-
 
 class ScanNet(Dataset):
 
@@ -54,8 +52,7 @@ class ScanNet(Dataset):
         for scene_data in self.scenes:
             mesh = scene_data["aligned_mesh"]
             mesh[:, :3] -= mesh[:, :3].mean(0)
-            mesh[:, 3:6] = (mesh[:, 3:6] - MEAN_COLOR_RGB) / 256.0
-            # mesh[:, 3:6] = mesh[:, 3:6] / 127.5 - 1
+            mesh[:, 3:6] = mesh[:, 3:6] / 127.5 - 1
 
     def __len__(self):
         return len(self.scenes)

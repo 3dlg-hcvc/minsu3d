@@ -63,11 +63,12 @@ def read_label_file(label_file):
 def read_agg_file(agg_file):
     objectId2segs = {}
     label2segs = {}
+    objectId = 0
     with open(agg_file) as json_data:
         data = json.load(json_data)
-        # objectId = 0
+
         for group in data['segGroups']:
-            objectId = group['objectId'] # starts from 0
+            # objectId = group['objectId'] # starts from 0
             label = group['label']
             segs = group['segments']
             if label in ['wall', 'floor', 'ceiling']:
@@ -75,18 +76,19 @@ def read_agg_file(agg_file):
                 continue
             else:
                 objectId2segs[objectId] = segs
+                objectId += 1
                 if label in label2segs:
                     label2segs[label].extend(segs)
                 else:
                     label2segs[label] = segs.copy()
                 # objectId += 1
 
-    if agg_file.split('/')[-2] == 'scene0217_00':
-        objectIds = sorted(objectId2segs.keys())
-        # if objectId2segs[0] == objectId2segs[objectIds[len(objectId2segs)//2]]:
-        print('HACK scene0217_00')
-        objectId2segs = {objectId: objectId2segs[objectId] for objectId in objectIds[:len(objectId2segs)//2]}
-
+    # if agg_file.split('/')[-2] == 'scene0217_00':
+    #     objectIds = sorted(objectId2segs.keys())
+    #     # if objectId2segs[0] == objectId2segs[objectIds[len(objectId2segs)//2]]:
+    #     print(objectId2segs)
+    #     objectId2segs = {objectId: objectId2segs[objectId] for objectId in objectIds[:len(objectId2segs)//2]}
+    #     print(objectId2segs)
     return objectId2segs, label2segs
 
 
