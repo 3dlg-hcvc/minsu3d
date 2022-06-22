@@ -46,7 +46,7 @@ def init_data(cfg):
 
 
 def init_logger(cfg):
-    logger = pl.loggers.TensorBoardLogger(cfg.general.root, name="logs", default_hp_metric=False)
+    logger = pl.loggers.TensorBoardLogger(cfg.general.root, name="logs", default_hp_metric=False, version=0)
     return logger
 
 
