@@ -121,7 +121,7 @@ class ScanNet(Dataset):
 
             # semantic label
             cls_idx = inst_i_idx[0][0]
-            instance_cls.append(sem_labels[cls_idx])
+            instance_cls.append(sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[cls_idx] != self.cfg.data.ignore_label else sem_labels[cls_idx])
 
         return num_instance, instance_info, instance_num_point, instance_cls
 

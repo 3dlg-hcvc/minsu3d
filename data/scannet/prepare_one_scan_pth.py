@@ -83,12 +83,10 @@ def read_agg_file(agg_file):
                     label2segs[label] = segs.copy()
                 # objectId += 1
 
-    # if agg_file.split('/')[-2] == 'scene0217_00':
-    #     objectIds = sorted(objectId2segs.keys())
-    #     # if objectId2segs[0] == objectId2segs[objectIds[len(objectId2segs)//2]]:
-    #     print(objectId2segs)
-    #     objectId2segs = {objectId: objectId2segs[objectId] for objectId in objectIds[:len(objectId2segs)//2]}
-    #     print(objectId2segs)
+    if agg_file.split('/')[-2] == 'scene0217_00':
+        objectIds = sorted(objectId2segs.keys())
+        # if objectId2segs[0] == objectId2segs[objectIds[len(objectId2segs)//2]]:
+        objectId2segs = {objectId: objectId2segs[objectId] for objectId in objectIds[:len(objectId2segs)//2]}
     return objectId2segs, label2segs
 
 
