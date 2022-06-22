@@ -197,7 +197,18 @@ class ScanNet(Dataset):
 
             if self.split == "train":
                 # crop
-                points, valid_idxs = crop(points, self.max_num_point, self.full_scale[1])
+                # HACK, in case there are few points left
+                max_tries = 10
+                valid_idxs_count = 0
+                while max_tries > 0:
+                    points_tmp, valid_idxs = crop(points, self.max_num_point, self.full_scale[1])
+                    valid_idxs_count = np.count_nonzero(valid_idxs)
+                    if valid_idxs_count >= 5000:
+                        points = points_tmp
+                        break
+                    max_tries -= 1
+                if valid_idxs_count < 5000:
+                    raise Exception("Over-cropped!")
                 # points, valid_idxs = random_sampling(points, self.max_num_point, return_choices=True)
 
                 points = points[valid_idxs]

@@ -19,8 +19,8 @@ def evaluate_semantic_miou(pred, gt, ignore_label):
     valid_gt = gt[valid_idx]
     iou_list = []
     for i in np.unique(valid_gt):
-        intersection = ((valid_gt == i) & (valid_pred == i)).sum()
-        union = ((valid_gt == i) | (valid_pred == i)).sum()
+        intersection = np.count_nonzero(((valid_gt == i) & (valid_pred == i)))
+        union = np.count_nonzero(((valid_gt == i) | (valid_pred == i)))
         iou = intersection / union * 100
         iou_list.append(iou)
     mean_iou = np.mean(iou_list)
@@ -33,5 +33,5 @@ def evaluate_offset_mae(pred, gt, gt_instance_list, ignore_label):
     pos_inds = gt_instance != ignore_label
     gt = gt[pos_inds]
     pred = pred[pos_inds]
-    mae = np.abs(gt - pred).sum() / pos_inds.sum()
+    mae = np.abs(gt - pred).sum() / np.count_nonzero(pos_inds)
     return mae
