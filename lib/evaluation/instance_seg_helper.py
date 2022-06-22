@@ -4,6 +4,7 @@
 import multiprocessing as mp
 from copy import deepcopy
 import numpy as np
+import uuid
 
 
 def get_instances(ids, class_ids, class_labels, id2label):
@@ -75,7 +76,7 @@ class Instance(object):
         return int(instance_id // 1000)
 
     def get_instance_verts(self, mesh_vert_instances, instance_id):
-        return (mesh_vert_instances == instance_id).count_nonzero()
+        return np.count_nonzero(mesh_vert_instances == instance_id)
 
     def to_dict(self):
         dict = {}
@@ -353,7 +354,7 @@ class ScanNetEval(object):
                 continue  # skip if empty
 
             pred_instance = {}
-            pred_instance['filename'] = '{}_{}'.format(pred['scan_id'], num_pred_instances)  # dummy
+            pred_instance['filename'] = uuid.uuid1()  # dummy
             pred_instance['pred_id'] = num_pred_instances
             pred_instance['label_id'] = label_id if self.use_label else None
             pred_instance['vert_count'] = num
@@ -397,19 +398,15 @@ class ScanNetEval(object):
                     for each point:
                         gt_id = class_id * 1000 + instance_id
         """
-        pool = mp.Pool()
-        results = pool.starmap(self.assign_instances_for_scan, zip(pred_list, gt_list))
-        pool.close()
-        pool.join()
-
-        self.assign_instances_for_scan()
-
+        assert len(pred_list) == len(gt_list)
         matches = {}
-        for i, (gt2pred, pred2gt) in enumerate(results):
+        for i in range(len(pred_list)):
+            gt2pred, pred2gt = self.assign_instances_for_scan(pred_list[i], gt_list[i])
             matches_key = f'gt_{i}'
             matches[matches_key] = {}
             matches[matches_key]['gt'] = gt2pred
             matches[matches_key]['pred'] = pred2gt
         ap_scores, rc_scores = self.evaluate_matches(matches)
         avgs = self.compute_averages(ap_scores, rc_scores)
+
         return avgs

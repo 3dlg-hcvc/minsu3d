@@ -423,7 +423,7 @@ class SoftGroup(pl.LightningModule):
             evaluation_result = evaluator.evaluate(all_pred_insts, all_gt_insts)
             self.log("val_accuracy/AP", evaluation_result["all_ap"], sync_dist=True)
             self.log("val_accuracy/AP_50", evaluation_result['all_ap_50%'], sync_dist=True)
-            self.log("val_accuracy/AP_25", evaluation_result["all_ap_25"], sync_dist=True)
+            self.log("val_accuracy/AP_25", evaluation_result["all_ap_25%"], sync_dist=True)
 
     def test_step(self, data_dict, idx):
 
