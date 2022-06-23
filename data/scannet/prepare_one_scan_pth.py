@@ -13,6 +13,7 @@ DONOTCARE_CLASS_IDS = np.array([1, 2, 22])  # exclude wall, floor and ceiling
 
 LABEL_MAP_FILE = 'meta_data/scannetv2-labels.combined.tsv'
 
+OBJECT_MAPPING = scannet_utils.get_raw2scannetv2_label_map()
 
 # Map relevant classes to {0,1,...,19}, and ignored classes to -1
 remapper = np.full(shape=150, fill_value=-1, dtype=np.int32)
@@ -67,7 +68,7 @@ def read_agg_file(agg_file):
             # objectId = group['objectId'] # starts from 0
             label = group['label']
             segs = group['segments']
-            if scannet_utils.g_raw2scannetv2[label] not in ['wall', 'floor', 'ceiling']:
+            if OBJECT_MAPPING[label] not in ['wall', 'floor', 'ceiling']:
                 objectId2segs[objectId] = segs
                 objectId += 1
                 if label in label2segs:
