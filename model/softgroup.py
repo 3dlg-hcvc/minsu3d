@@ -325,10 +325,12 @@ class SoftGroup(pl.LightningModule):
             mask_cls_label = labels[data_dict["instance_batch_idxs"].long()]
             slice_inds = torch.arange(0, mask_cls_label.size(0), dtype=torch.long, device=mask_cls_label.device)
             mask_scores_sigmoid_slice = data_dict["mask_scores"].sigmoid()[slice_inds, mask_cls_label]
+
             mask_label = softgroup_ops.get_mask_label(proposals_idx, proposals_offset, data_dict["instance_ids"],
                                                       data_dict["instance_semantic_cls"],
                                                       data_dict["instance_num_point"], ious_on_cluster,
                                                       self.hparams.cfg.model.train_cfg.pos_iou_thr)
+
             mask_label_weight = (mask_label != -1).float()
             mask_label[mask_label == -1.] = 0.5  # any value is ok
             mask_scoring_criterion = MaskScoringLoss(weight=mask_label_weight, reduction='sum')

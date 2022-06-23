@@ -153,10 +153,10 @@ if __name__ == '__main__':
     trainer = init_trainer(cfg)
 
     print("=> initializing model...")
-    pointgroup = init_model(cfg)
+    model = init_model(cfg)
 
     print("=> initializing checkpoint...")
     ckpt_path = init_ckpt(cfg)
 
     print("=> start training...")
-    trainer.fit(model=pointgroup, train_dataloaders=dataloaders["train"], val_dataloaders=dataloaders["val"], ckpt_path=ckpt_path)
+    trainer.fit(model=model, train_dataloaders=dataloaders["train"], val_dataloaders=dataloaders["val"], ckpt_path=ckpt_path)
