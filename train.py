@@ -85,7 +85,7 @@ def init_callbacks(cfg):
 def init_trainer(cfg):
     trainer = pl.Trainer(
         gpus=-1,  # use all available GPUs
-        strategy=DDPStrategy(find_unused_parameters=True),
+        strategy=DDPStrategy(find_unused_parameters=False),
         num_nodes=args.num_nodes,
         max_epochs=cfg.train.epochs,
         num_sanity_val_steps=cfg.train.num_sanity_val_steps,
