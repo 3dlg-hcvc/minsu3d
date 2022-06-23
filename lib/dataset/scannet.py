@@ -85,7 +85,7 @@ class ScanNet(Dataset):
             j += 1
         return instance_ids
 
-    def _getInstanceInfo(self, xyz, instance_ids, sem_labels=None):
+    def _getInstanceInfo(self, xyz, instance_ids, sem_labels):
         """
         :param xyz: (n, 3)
         :param instance_ids: (n), int, (0~nInst-1, -1)
@@ -93,16 +93,15 @@ class ScanNet(Dataset):
         """
         instance_num_point = []  # (nInst), int
         unique_instance_ids = np.unique(instance_ids)
-        num_instance = len(unique_instance_ids) - 1 if -1 in unique_instance_ids else len(unique_instance_ids)
+        num_instance = np.count_nonzero(unique_instance_ids != self.cfg.data.ignore_label)
         instance_info = np.zeros(
             (xyz.shape[0], 12), dtype=np.float32
         )  # (n, 12), float, (meanx, meany, meanz, cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
         instance_cls = []
-        for k, i_ in enumerate(unique_instance_ids, -1):
-            if i_ < 0: continue
-
-            inst_i_idx = np.where(instance_ids == i_)
-
+        for i in unique_instance_ids:
+            if i == self.cfg.data.ignore_label:
+                continue
+            inst_i_idx = np.where(instance_ids == i)
             # instance_info
             xyz_i = xyz[inst_i_idx]
             min_xyz_i = xyz_i.min(0)
@@ -121,6 +120,7 @@ class ScanNet(Dataset):
 
             # semantic label
             cls_idx = inst_i_idx[0][0]
+            assert sem_labels[cls_idx] not in self.cfg.data.ignore_classes
             instance_cls.append(sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[cls_idx] != self.cfg.data.ignore_label else sem_labels[cls_idx])
 
         return num_instance, instance_info, instance_num_point, instance_cls
@@ -190,7 +190,6 @@ class ScanNet(Dataset):
             # jitter rgb
             if self.split == "train" and self.cfg.data.augmentation.jitter_rgb:
                 feats[0:3] += np.random.randn(3) * 0.1
-
 
             # offset
             points -= points.min(0)

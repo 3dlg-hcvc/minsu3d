@@ -12,7 +12,6 @@ from plyfile import PlyData
 DONOTCARE_CLASS_IDS = np.array([1, 2, 22])  # exclude wall, floor and ceiling
 
 LABEL_MAP_FILE = 'meta_data/scannetv2-labels.combined.tsv'
-MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 
 
 # Map relevant classes to {0,1,...,19}, and ignored classes to -1
@@ -26,8 +25,6 @@ for label, nyu40id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 
 
 def read_mesh_file(mesh_file):
     mesh = scannet_utils.read_mesh_vertices_rgb_normal(mesh_file)  # （num_verts, 9) xyz+rgb+normal
-    # mesh[:, 3:6] = mesh[:, 3:6] / 127.5 - 1 # substract rgb mean
-    # mesh[:, 3:6] = (mesh[:, 3:6] - MEAN_COLOR_RGB) / 256.0 #TODO: should move to dataset
     return mesh
 
 
@@ -70,10 +67,7 @@ def read_agg_file(agg_file):
             # objectId = group['objectId'] # starts from 0
             label = group['label']
             segs = group['segments']
-            if label in ['wall', 'floor', 'ceiling']:
-                # print('ignore wall, floor or ceiling')
-                continue
-            else:
+            if scannet_utils.g_raw2scannetv2[label] not in ['wall', 'floor', 'ceiling']:
                 objectId2segs[objectId] = segs
                 objectId += 1
                 if label in label2segs:
@@ -81,7 +75,6 @@ def read_agg_file(agg_file):
                 else:
                     label2segs[label] = segs.copy()
                 # objectId += 1
-
     if agg_file.split('/')[-2] == 'scene0217_00':
         objectIds = sorted(objectId2segs.keys())
         # if objectId2segs[0] == objectId2segs[objectIds[len(objectId2segs)//2]]:
@@ -104,14 +97,15 @@ def read_seg_file(seg_file):
 
 def get_instance_ids(objectId2segs, seg2verts, sem_labels):
     objectId2labelId = {}
-    instance_ids = np.full(shape=len(sem_labels), fill_value=-1,
-                           dtype=np.int32)  # -1: points are not assigned to any objects ( objectId starts from 0)
+    # -1: points are not assigned to any objects ( objectId starts from 0)
+    instance_ids = np.full(shape=len(sem_labels), fill_value=-1, dtype=np.int32)
     for objectId, segs in objectId2segs.items():
         for seg in segs:
             verts = seg2verts[seg]
             instance_ids[verts] = objectId
         if objectId not in objectId2labelId:
             objectId2labelId[objectId] = sem_labels[verts][0]
+
         # assert(len(np.unique(sem_labels[pointids])) == 1)
     return instance_ids, objectId2labelId
 
