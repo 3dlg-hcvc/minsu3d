@@ -156,7 +156,7 @@ class PointGroup(pl.LightningModule):
 
         #### backbone
         out = self.backbone(x)
-        pt_feats = out.features[data_dict["p2v_map"].long()] # (N, m)
+        pt_feats = out.features[data_dict["v2p_map"].long()] # (N, m)
 
         #### semantic segmentation
         semantic_scores = self.sem_seg(pt_feats)   # (N, nClass), float
@@ -286,7 +286,7 @@ class PointGroup(pl.LightningModule):
         if self.cfg.model.use_coords:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), 1)
 
-        data_dict["voxel_feats"] = pointgroup_ops.voxelization(data_dict["feats"], data_dict["v2p_map"], self.cfg.data.mode)  # (M, C), float, cuda
+        data_dict["voxel_feats"] = pointgroup_ops.voxelization(data_dict["feats"], data_dict["p2v_map"], self.cfg.data.mode)  # (M, C), float, cuda
 
         data_dict = self.forward(data_dict)
         

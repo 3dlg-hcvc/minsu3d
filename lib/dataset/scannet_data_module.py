@@ -8,7 +8,7 @@ import torch
 
 
 class ScanNetDataModule(pl.LightningDataModule):
-    def __int__(self, cfg):
+    def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
 
@@ -57,7 +57,7 @@ def scannet_collate_fn(batch):
             data[key] = sparse_collate([sample[key] for sample in batch])
         else:
             data[key] = [sample[key] for sample in batch]
-    print("???????????????????????????????????????????????????")
+
     return data
 
 
@@ -132,8 +132,8 @@ def sparse_collate_fn(batch):
         data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int)  # int (B+1)
         data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.long)  # long (total_nInst)
     ### voxelize
-    data["voxel_locs"], data["p2v_map"], data["v2p_map"] = softgroup_ops.voxelization_idx(data["locs_scaled"],
+    data["voxel_locs"], data["v2p_map"], data["p2v_map"] = softgroup_ops.voxelization_idx(data["locs_scaled"],
                                                                                           len(batch),
-                                                                                          4)  # mode=4 TODO: the naming p2v is wrong! should be v2p
+                                                                                          4)
 
     return data

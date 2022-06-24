@@ -153,7 +153,7 @@ class SoftGroup(pl.LightningModule):
         x = ME.SparseTensor(features=data_dict["voxel_feats"], coordinates=data_dict["voxel_locs"].int())
 
         out = self.backbone(x)
-        pt_feats = out.features[data_dict["p2v_map"].long()]  # (N, m) TODO: the naming p2v is wrong! should be v2p
+        pt_feats = out.features[data_dict["v2p_map"].long()]  # (N, m) TODO: the naming p2v is wrong! should be v2p
         semantic_scores = self.semantic_branch(pt_feats)  # (N, nClass), float
         output_dict["semantic_scores"] = semantic_scores
         pt_offsets = self.offset_branch(pt_feats)  # (N, 3), float32
@@ -356,7 +356,7 @@ class SoftGroup(pl.LightningModule):
         if self.cfg.model.use_coords:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), 1)
 
-        data_dict["voxel_feats"] = softgroup_ops.voxelization(data_dict["feats"], data_dict["v2p_map"],
+        data_dict["voxel_feats"] = softgroup_ops.voxelization(data_dict["feats"], data_dict["p2v_map"],
                                                               self.cfg.data.mode)  # (M, C), float, cuda
         data_dict = self._forward(data_dict)
         return data_dict
