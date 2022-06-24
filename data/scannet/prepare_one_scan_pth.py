@@ -22,15 +22,12 @@ for label, nyu40id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 
     remapper[nyu40id] = label
 
 
-# IGNORE_CLASS_IDS = np.array([0, 1]) # wall and floor after remapping
-
-
 def read_mesh_file(mesh_file, axis_align_matrix):
     mesh = o3d.io.read_triangle_mesh(mesh_file)
     if axis_align_matrix is not None:
         # align the mesh
         mesh.transform(axis_align_matrix)
-    return np.asarray(mesh.vertices), np.asarray(mesh.vertex_colors), np.asarray(mesh.vertex_normals)
+    return np.asarray(mesh.vertices), np.rint(np.asarray(mesh.vertex_colors) * 255).astype(np.uint8), np.asarray(mesh.vertex_normals)
 
 
 def read_axis_align_matrix(meta_file):

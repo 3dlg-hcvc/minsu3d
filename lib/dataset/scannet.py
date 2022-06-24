@@ -39,22 +39,21 @@ class ScanNet(Dataset):
 
     def _load_from_disk(self):
         with open(self.DATA_MAP[self.split]) as f:
-            self.scene_names = [line.rstrip() for line in f]
+            self.scene_names = [line.strip() for line in f]
 
-        self.scenes = [
-            torch.load(os.path.join(self.root, self.split, d + self.file_suffix))
-            for d in tqdm(self.scene_names)
-        ]
+        self.scenes = []
 
-        for scene_data in self.scenes:
-            mesh = scene_data["aligned_mesh"]
-            mesh[:, :3] -= mesh[:, :3].mean(0)
-            mesh[:, 3:6] = mesh[:, 3:6] / 127.5 - 1
+        for scene_name in tqdm(self.scene_names):
+            scene_path = os.path.join(self.root, self.split, scene_name + self.file_suffix)
+            scene = torch.load(scene_path)
+            scene["xyz"] -= scene["xyz"].mean(axis=0)
+            scene["rgb"] = scene["rgb"] / 127.5 - 1
+            self.scenes.append(scene)
 
     def __len__(self):
         return len(self.scenes)
 
-    def _augment(self, xyz, return_mat=False):
+    def _augment(self, xyz):
         m = np.eye(3)
         if self.cfg.data.augmentation.jitter_xyz:
             m = np.matmul(m, jitter())
@@ -65,10 +64,7 @@ class ScanNet(Dataset):
             t = np.random.rand() * 2 * np.pi
             rot_m = rotz(t)
             m = np.matmul(m, rot_m)  # rotation around z
-        if return_mat:
-            return np.matmul(xyz, m), m
-        else:
-            return np.matmul(xyz, m)
+        return np.matmul(xyz, m)
 
     def _croppedInstanceIds(self, instance_ids, valid_idxs):
         """
@@ -159,10 +155,8 @@ class ScanNet(Dataset):
         scene_id = self.scene_names[id]
         scene = self.scenes[id]
 
-        mesh = scene["aligned_mesh"]
-
-        points = mesh[:, :3]  # (N, 3)
-        feats = mesh[:, 3:6]  # (N, 3) rgb
+        points = scene["xyz"]  # (N, 3)
+        feats = scene["rgb"]  # (N, 3) rgb
 
         data = {"id": id, "scene_id": scene_id}
 
