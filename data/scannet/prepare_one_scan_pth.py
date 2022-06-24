@@ -45,41 +45,32 @@ def read_axis_align_matrix(meta_file):
     return axis_align_matrix
 
 
-def align_mesh_vertices(mesh, axis_align_matrix):
-    aligned_mesh = np.copy(mesh)
-    if axis_align_matrix is not None:
-        homo_ones = np.ones(shape=(mesh.shape[0], 1))
-        aligned_mesh[:, 0:3] = np.dot(np.concatenate([mesh[:, 0:3], homo_ones], 1), axis_align_matrix.transpose())[:,:3]
-    return aligned_mesh
-
-
 def read_label_file(label_file):
     plydata = PlyData.read(label_file)
-    sem_labels = np.array(plydata['vertex']['label'], dtype=np.uint32)  # nyu40
+    sem_labels = np.array(plydata['vertex']['label'], dtype=np.int32)  # nyu40
     return sem_labels
 
 
 def read_agg_file(agg_file):
-    objectId2segs = {}
+    object_id2segs = {}
     label2segs = {}
-    objectId = 0
+    object_id = 0
     with open(agg_file, 'r') as json_data:
         data = json.load(json_data)
         for group in data['segGroups']:
             label = group['label']
             segs = group['segments']
             if OBJECT_MAPPING[label] not in ['wall', 'floor', 'ceiling']:
-                objectId2segs[objectId] = segs
-                objectId += 1
+                object_id2segs[object_id] = segs
+                object_id += 1
                 if label in label2segs:
                     label2segs[label].extend(segs)
                 else:
                     label2segs[label] = segs.copy()
-                # objectId += 1
     if agg_file.split('/')[-2] == 'scene0217_00':
-        objectIds = sorted(objectId2segs.keys())
-        objectId2segs = {objectId: objectId2segs[objectId] for objectId in objectIds[:len(objectId2segs) // 2]}
-    return objectId2segs, label2segs
+        object_ids = sorted(object_id2segs.keys())
+        object_id2segs = {objectId: object_id2segs[objectId] for objectId in object_ids[:len(object_id2segs) // 2]}
+    return object_id2segs, label2segs
 
 
 def read_seg_file(seg_file):
@@ -96,18 +87,18 @@ def read_seg_file(seg_file):
 
 
 def get_instance_ids(objectId2segs, seg2verts, sem_labels):
-    objectId2labelId = {}
+    object_id2label_id = {}
     # -1: points are not assigned to any objects ( objectId starts from 0)
     instance_ids = np.full(shape=len(sem_labels), fill_value=-1, dtype=np.int32)
     for objectId, segs in objectId2segs.items():
         for seg in segs:
             verts = seg2verts[seg]
             instance_ids[verts] = objectId
-        if objectId not in objectId2labelId:
-            objectId2labelId[objectId] = sem_labels[verts][0]
+        if objectId not in object_id2label_id:
+            object_id2label_id[objectId] = sem_labels[verts][0]
 
         # assert(len(np.unique(sem_labels[pointids])) == 1)
-    return instance_ids, objectId2labelId
+    return instance_ids, object_id2label_id
 
 
 def get_instance_bboxes(xyz, instance_ids, object_id2label_id):
@@ -160,7 +151,7 @@ def export(scene, cfg):
     else:
         # use zero as placeholders for the test scene
         # print("use placeholders")
-        sem_labels = np.zeros(shape=num_verts, dtype=np.uint32)  # 0: unannotated
+        sem_labels = np.zeros(shape=num_verts, dtype=np.int32)  # 0: unannotated
         instance_ids = np.full(shape=num_verts, fill_value=-1, dtype=np.int32)  # -1: unannotated
         aligned_instance_bboxes = np.zeros((1, 8))
     sem_labels = remapper[sem_labels]
