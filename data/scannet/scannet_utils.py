@@ -4,7 +4,6 @@ Modified from: https://github.com/facebookresearch/votenet/blob/master/scannet/s
 
 import os
 import sys
-import json
 import csv
 import numpy as np
 

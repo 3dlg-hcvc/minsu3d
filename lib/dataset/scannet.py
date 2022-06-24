@@ -35,14 +35,11 @@ class ScanNet(Dataset):
 
         self.multiview_data = {}
 
-        self._load()
+        self._load_from_disk()
 
-    def _load(self):
+    def _load_from_disk(self):
         with open(self.DATA_MAP[self.split]) as f:
-            self.scene_names = [l.rstrip() for l in f]
-
-        if self.cfg.data.mini:
-            self.scene_names = self.scene_names[:self.cfg.data.mini]
+            self.scene_names = [line.rstrip() for line in f]
 
         self.scenes = [
             torch.load(os.path.join(self.root, self.split, d + self.file_suffix))
