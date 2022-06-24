@@ -11,7 +11,7 @@ from importlib import import_module
 import torch
 import pytorch_lightning as pl
 from lib.dataset.scannet_data_module import ScanNetDataModule
-
+from lib.callbacks import *
 
 def load_conf(args):
     base_cfg = OmegaConf.load('conf/path.yaml')
@@ -43,30 +43,10 @@ def init_callbacks(cfg):
         1. save the best k checkpoints (the criterion is AP_50)
         2. save checkpoints every n epochs
     """
-    if cfg.train.save_checkpoint_every_n_epochs < 0:
-        # save the best k checkpoints
-        save_top_k = cfg.train.save_checkpoint_every_n_epochs * -1
-        every_n_epochs = None
-        monitor = cfg.train.monitor
-    else:
-        # save checkpoints every n epochs
-        save_top_k = -1
-        every_n_epochs = cfg.train.save_checkpoint_every_n_epochs
-        monitor = None
+    checkpoint_monitor = init_checkpoint_monitor(cfg)
+    gpu_stats_monitor = init_gpu_stats_monitor()
 
-    ckpt_base_name = f"{cfg.general.model}-{cfg.general.dataset}"
-
-    monitor = pl.callbacks.ModelCheckpoint(
-        monitor=monitor,
-        mode="max",
-        dirpath=cfg.general.root,
-        filename=ckpt_base_name + "-{epoch}",
-        save_top_k=save_top_k,
-        every_n_epochs=every_n_epochs,
-        save_last=True
-    )
-
-    return [monitor]
+    return [checkpoint_monitor, gpu_stats_monitor]
 
 
 def init_trainer(cfg):

@@ -1,1 +1,2 @@
-from .inst_seg.pointgroup_callbacks import ParsePredictionCallback
+from .checkpoint_callback import init_checkpoint_monitor
+from .gpu_stats_callback import init_gpu_stats_monitor
