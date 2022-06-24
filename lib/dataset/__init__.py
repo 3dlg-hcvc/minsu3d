@@ -1,1 +1,1 @@
-from .scannet import ScanNet, scannet_loader
+from .scannet_data_module import ScanNetDataModule

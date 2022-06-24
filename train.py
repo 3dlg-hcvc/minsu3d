@@ -1,5 +1,5 @@
 import warnings
-from pytorch_lightning.strategies import DDPStrategy
+
 warnings.filterwarnings('ignore')
 
 import os
@@ -10,7 +10,7 @@ from importlib import import_module
 
 import torch
 import pytorch_lightning as pl
-
+from lib.dataset.scannet_data_module import ScanNetDataModule
 
 def load_conf(args):
     base_cfg = OmegaConf.load('conf/path.yaml')
@@ -29,20 +29,6 @@ def load_conf(args):
     OmegaConf.save(cfg, cfg_backup_path)
 
     return cfg
-
-
-def init_data(cfg):
-    DATA_MODULE = import_module(cfg.data.module)
-    DATA_LOADER = getattr(DATA_MODULE, cfg.data.loader)
-
-    if cfg.general.task == "train":
-        print("=> loading the train and val datasets...")
-    else:
-        print("=> loading the {} dataset...".format(cfg.data.split))
-
-    datasets, dataloaders = DATA_LOADER(cfg)
-    print("=> loading dataset completed")
-    return datasets, dataloaders
 
 
 def init_logger(cfg):
@@ -141,7 +127,7 @@ if __name__ == '__main__':
     pl.seed_everything(cfg.general.manual_seed, workers=True)
 
     print("=> initializing data...")
-    datasets, dataloaders = init_data(cfg)
+    data_module = ScanNetDataModule(cfg)
 
     print("=> initializing logger...")
     logger = init_logger(cfg)
@@ -155,8 +141,5 @@ if __name__ == '__main__':
     print("=> initializing model...")
     model = init_model(cfg)
 
-    print("=> initializing checkpoint...")
-    ckpt_path = init_ckpt(cfg)
-
     print("=> start training...")
-    trainer.fit(model=model, train_dataloaders=dataloaders["train"], val_dataloaders=dataloaders["val"], ckpt_path=ckpt_path)
+    trainer.fit(model=model, datamodule=data_module, ckpt_path=cfg.model.use_checkpoint)
