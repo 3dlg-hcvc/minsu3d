@@ -10,6 +10,7 @@ from lib.loss import *
 from model.common import ResidualBlock, VGGBlock, UBlock
 from lib.evaluation.semantic_seg_helper import *
 from model.backbone import Backbone
+from lib.optimizer import init_optimizer
 
 
 class SoftGroup(pl.LightningModule):
@@ -45,7 +46,7 @@ class SoftGroup(pl.LightningModule):
         sp_norm = functools.partial(ME.MinkowskiBatchNorm, eps=1e-4, momentum=0.1)
 
         """
-        Backbone Block
+            Backbone Block
         """
         self.backbone = Backbone(input_channel=input_channel,
                                  output_chanel=cfg.model.m,
@@ -54,7 +55,7 @@ class SoftGroup(pl.LightningModule):
                                  sem_classes=semantic_classes)
 
         """
-        Top-down Refinement Block
+            Top-down Refinement Block
         """
         # 3 tiny U-Net
         self.tiny_unet = nn.Sequential(
@@ -84,7 +85,7 @@ class SoftGroup(pl.LightningModule):
         """
         batch_offsets = torch.zeros(batch_size + 1, dtype=torch.int32, device=self.device)
         for i in range(batch_size):
-            batch_offsets[i + 1] = batch_offsets[i] + (batch_idxs == i).sum()
+            batch_offsets[i + 1] = batch_offsets[i] + torch.count_nonzero(batch_idxs == i)
         assert batch_offsets[-1] == batch_idxs.shape[0]
         return batch_offsets
 
@@ -225,18 +226,7 @@ class SoftGroup(pl.LightningModule):
 
     def configure_optimizers(self):
         print("=> configure optimizer...")
-        if self.cfg.train.optim.classname == "Adam":
-            optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.parameters()),
-                                         lr=self.cfg.train.optim.lr)
-        elif self.cfg.train.optim.classname == "SGD":
-            optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, self.parameters()),
-                                        lr=self.cfg.train.optim.lr,
-                                        momentum=self.cfg.train.optim.momentum,
-                                        weight_decay=self.cfg.train.optim.weight_decay)
-        else:
-            raise NotImplemented
-
-        return [optimizer]
+        return init_optimizer(**self.cfg.train.optim)
 
     def _loss(self, data_dict, output_dict):
         losses = {}
@@ -332,11 +322,10 @@ class SoftGroup(pl.LightningModule):
 
         data_dict["voxel_feats"] = softgroup_ops.voxelization(data_dict["feats"], data_dict["p2v_map"],
                                                               self.cfg.data.mode)  # (M, C), float, cuda
-        data_dict = self.forward(data_dict)
-        return data_dict
+        output_dict = self.forward(data_dict)
+        return output_dict
 
     def training_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)

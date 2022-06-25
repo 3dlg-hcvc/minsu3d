@@ -11,8 +11,11 @@ from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.softgroup_ops.functions import softgroup_ops
 from lib.loss import SemSegLoss, PTOffsetLoss
 from lib.loss.utils import get_segmented_scores
-from lib.utils.eval import get_nms_instances
+from lib.util.eval import get_nms_instances
 from model.common import ResidualBlock, VGGBlock, UBlock
+from model.backbone import Backbone
+from lib.optimizer import init_optimizer
+from lib.evaluation.semantic_seg_helper import *
 
 
 class PointGroup(pl.LightningModule):
@@ -25,14 +28,15 @@ class PointGroup(pl.LightningModule):
 
         self.task = cfg.general.task
 
-        in_channel = cfg.model.use_color * 3 + cfg.model.use_normal * 3 + cfg.model.use_coords * 3 + cfg.model.use_multiview * 128
-        m = cfg.model.m
-        D = 3
-        classes = cfg.data.classes
-        blocks = cfg.model.blocks
-        cluster_blocks = cfg.model.cluster_blocks
-        block_reps = cfg.model.block_reps
+        input_channel = cfg.model.use_color * 3 + cfg.model.use_normal * 3 + cfg.model.use_coords * 3 + cfg.model.use_multiview * 128
+        output_channel = cfg.model.m
+        semantic_classes = cfg.data.classes
+        self.instance_classes = semantic_classes - len(cfg.data.ignore_classes)
+
         block_residual = cfg.model.block_residual
+
+
+        cluster_blocks = cfg.model.cluster_blocks
         
         self.freeze_backbone = cfg.model.freeze_backbone
         self.requires_gt_mask = cfg.data.requires_gt_mask
@@ -52,49 +56,40 @@ class PointGroup(pl.LightningModule):
         else:
             block = VGGBlock
         sp_norm = functools.partial(ME.MinkowskiBatchNorm, eps=1e-4, momentum=0.1)
-        norm = functools.partial(nn.BatchNorm1d, eps=1e-4, momentum=0.1)
 
-        #### backbone
-        self.backbone = nn.Sequential(
-            ME.MinkowskiConvolution(in_channel, m, kernel_size=3, bias=False, dimension=D),
-            UBlock([m*c for c in blocks], sp_norm, block_reps, block),
-            sp_norm(m),
-            ME.MinkowskiReLU(inplace=True)
-        )
+        """
+            Backbone Block
+        """
+        self.backbone = Backbone(input_channel=input_channel,
+                                 output_chanel=cfg.model.m,
+                                 block_channels=cfg.model.blocks,
+                                 block_reps=cfg.model.block_reps,
+                                 sem_classes=semantic_classes)
 
-        #### semantic segmentation
-        self.sem_seg = nn.Linear(m, classes) # bias(default): True
-
-        #### offset
-        self.offset_net = nn.Sequential(
-            nn.Linear(m, m),
-            norm(m),
-            nn.ReLU(inplace=True),
-            nn.Linear(m, 3)
-        )
-
+        """
+            ScoreNet Block
+        """
         #### score
         self.score_net = nn.Sequential(
-            UBlock([m*c for c in cluster_blocks], sp_norm, 2, block),
-            sp_norm(m),
+            UBlock([output_channel*c for c in cluster_blocks], sp_norm, 2, block),
+            sp_norm(output_channel),
             ME.MinkowskiReLU(inplace=True)
         )
         
-        self.score_linear = nn.Linear(m, 1)
+        self.score_linear = nn.Linear(output_channel, 1)
 
         self._init_criterion()
         
-    
-    @staticmethod
-    def get_batch_offsets(batch_idxs, batch_size):
+
+    def get_batch_offsets(self, batch_idxs, batch_size):
         """
         :param batch_idxs: (N), int
         :param batch_size: int
         :return: batch_offsets: (batch_size + 1)
         """
-        batch_offsets = torch.zeros(batch_size + 1).int().cuda()
+        batch_offsets = torch.zeros(batch_size + 1, dtype=torch.int32, device=self.device)
         for i in range(batch_size):
-            batch_offsets[i + 1] = batch_offsets[i] + (batch_idxs == i).sum()
+            batch_offsets[i + 1] = batch_offsets[i] + torch.count_nonzero(batch_idxs == i)
         assert batch_offsets[-1] == batch_idxs.shape[0]
         return batch_offsets
 
@@ -152,31 +147,28 @@ class PointGroup(pl.LightningModule):
 
     def forward(self, data_dict):
         batch_size = len(data_dict["batch_offsets"]) - 1
-        x = ME.SparseTensor(features=data_dict["voxel_feats"], coordinates=data_dict["voxel_locs"].int())
+        output_dict = {}
 
-        #### backbone
-        out = self.backbone(x)
-        pt_feats = out.features[data_dict["v2p_map"].long()] # (N, m)
+        backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
+        output_dict.update(backbone_output_dict)
 
-        #### semantic segmentation
-        semantic_scores = self.sem_seg(pt_feats)   # (N, nClass), float
-        semantic_preds = semantic_scores.max(1)[1]    # (N), long, {0, 1, ..., classes}
-        data_dict["semantic_scores"] = semantic_scores
 
-        #### offsets
-        pt_offsets = self.offset_net(pt_feats) # (N, 3), float32
-        data_dict["pt_offsets"] = pt_offsets
-
-        if self.current_epoch > self.prepare_epochs or self.freeze_backbone:
-            #### get prooposal clusters
+        if self.current_epoch > self.hparams.cfg.model.prepare_epochs or self.freeze_backbone:
+            # get prooposal clusters
             batch_idxs = data_dict["locs_scaled"][:, 0].int()
-            
+            semantic_preds = output_dict["semantic_scores"].max(1)[1]
             if not self.requires_gt_mask:
-                object_idxs = torch.nonzero(semantic_preds > 1, as_tuple=False).view(-1) # exclude predicted wall and floor ???
+
+                # set mask
+                semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
+                for class_label in self.hparams.cfg.data.ignore_classes:
+                    semantic_preds_mask = semantic_preds_mask & (semantic_preds != class_label)
+                object_idxs = torch.nonzero(semantic_preds_mask).view(-1)  # exclude predicted wall and floor
+
                 batch_idxs_ = batch_idxs[object_idxs]
                 batch_offsets_ = self.get_batch_offsets(batch_idxs_, batch_size)
                 coords_ = data_dict["locs"][object_idxs]
-                pt_offsets_ = pt_offsets[object_idxs]
+                pt_offsets_ = output_dict["point_offsets"][object_idxs]
 
                 semantic_preds_cpu = semantic_preds[object_idxs].int().cpu()
 
@@ -204,83 +196,71 @@ class PointGroup(pl.LightningModule):
                 proposals_idx = data_dict["gt_proposals_idx"].cpu()
                 proposals_offset = data_dict["gt_proposals_offset"].cpu()
 
-            #### proposals voxelization again
-            proposals_voxel_feats, proposals_p2v_map = self.clusters_voxelization(proposals_idx, proposals_offset, pt_feats, data_dict["locs"], self.score_fullscale, self.score_scale, self.mode)
+            # proposals voxelization again
+            proposals_voxel_feats, proposals_p2v_map = self.clusters_voxelization(proposals_idx, proposals_offset, output_dict["point_offsets"], data_dict["locs"], self.score_fullscale, self.score_scale, self.mode)
             # proposals_voxel_feats: (M, C) M: voxels
             # proposals_p2v_map: point2voxel map (sumNPoint,)
 
-            #### score
+            ## score
             score_feats = self.score_net(proposals_voxel_feats)
             pt_score_feats = score_feats.features[proposals_p2v_map.long()] # (sumNPoint, C)
             proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
             scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
-            data_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
+            output_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
             
-        return data_dict
+        return output_dict
     
-    def _init_criterion(self):
-        self.sem_seg_criterion = SemSegLoss(self.cfg.data.ignore_label)
-        self.pt_offset_criterion = PTOffsetLoss()
-        self.score_criterion = nn.BCELoss()
+    # def _init_criterion(self):
+    #     self.sem_seg_criterion = SemSegLoss(self.cfg.data.ignore_label)
+    #     self.pt_offset_criterion = PTOffsetLoss()
+    #     self.score_criterion = nn.BCELoss()
 
-    
     def configure_optimizers(self):
         print("=> configure optimizer...")
+        return init_optimizer(**self.cfg.train.optim)
 
-        optim_class_name = self.cfg.train.optim.classname
-        optim = getattr(torch.optim, optim_class_name)
-        if optim_class_name == "Adam":
-            optimizer = optim(filter(lambda p: p.requires_grad, self.parameters()), lr=self.cfg.train.optim.lr)
-        elif optim_class_name == "SGD":
-            optimizer = optim(filter(lambda p: p.requires_grad, self.parameters()), lr=self.cfg.train.optim.lr, momentum=self.cfg.train.optim.momentum, weight_decay=self.cfg.train.optim.weight_decay)
-        else:
-            raise NotImplemented
+    def _loss(self, data_dict, output_dict):
+        losses = {}
 
-        return [optimizer]
-        
-        
-    def _loss(self, data_dict):
         N = data_dict["sem_labels"].shape[0]
         """semantic loss"""
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
         semantic_loss = self.sem_seg_criterion(data_dict["semantic_scores"], data_dict["sem_labels"])
-        data_dict["semantic_loss"] = (semantic_loss, N)
+        losses["semantic_loss"] = semantic_loss
 
         """offset loss"""
-        pt_offsets, coords, instance_info, instance_ids = data_dict["pt_offsets"], data_dict["locs"], data_dict["instance_info"], data_dict["instance_ids"]
         # pt_offsets: (N, 3), float, cuda
         # coords: (N, 3), float32
         # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
         # instance_ids: (N), long
-        gt_offsets = instance_info[:, 0:3] - coords   # (N, 3)
-        valid = (instance_ids != self.cfg.data.ignore_label).float()
-        offset_norm_loss, offset_dir_loss = self.pt_offset_criterion(pt_offsets, gt_offsets, valid_mask=valid)
-        data_dict["offset_norm_loss"] = (offset_norm_loss, valid.sum())
-        data_dict["offset_dir_loss"] = (offset_dir_loss, valid.sum())
+        gt_offsets = data_dict["instance_info"][:, 0:3] - data_dict["locs"]  # (N, 3)
+        valid = data_dict["instance_ids"] != self.cfg.data.ignore_label
+        pt_offset_criterion = PTOffsetLoss()
+        offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
+        losses["offset_norm_loss"] = offset_norm_loss
+        losses["offset_dir_loss"] = offset_dir_loss
+
+        total_loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + \
+                     self.cfg.train.loss_weight[2] * offset_dir_loss
 
         if self.current_epoch > self.cfg.cluster.prepare_epochs:
             """score loss"""
-            scores, proposals_idx, proposals_offset = data_dict["proposal_scores"]
+            scores, proposals_idx, proposals_offset = output_dict["proposal_scores"]
             instance_pointnum = data_dict["instance_num_point"]
             # scores: (nProposal, 1), float32
             # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
             # proposals_offset: (nProposal + 1), int, cpu
             # instance_pointnum: (total_nInst), int
-            ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), instance_ids, instance_pointnum) # (nProposal, nInstance), float
+            ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), data_dict["instance_ids"], instance_pointnum) # (nProposal, nInstance), float
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
             gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
             score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
-            data_dict["score_loss"] = (score_loss, gt_ious.shape[0])
+            losses["score_loss"] = score_loss
 
-        """total loss"""
-        loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + self.cfg.train.loss_weight[2] * offset_dir_loss
-        if self.current_epoch > self.cfg.cluster.prepare_epochs:
-            loss += (self.cfg.train.loss_weight[3] * score_loss)
-        data_dict["total_loss"] = (loss, N)
+            total_loss += self.cfg.train.loss_weight[3] * score_loss
 
-        return data_dict
-        
+        return losses, total_loss
         
     def _feed(self, data_dict):
         if self.cfg.model.use_coords:
@@ -288,48 +268,52 @@ class PointGroup(pl.LightningModule):
 
         data_dict["voxel_feats"] = pointgroup_ops.voxelization(data_dict["feats"], data_dict["p2v_map"], self.cfg.data.mode)  # (M, C), float, cuda
 
-        data_dict = self.forward(data_dict)
+        output_dict = self.forward(data_dict)
         
-        return data_dict
+        return output_dict
 
-        
     def training_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
+        # prepare input and forward
+        output_dict = self._feed(data_dict)
+        losses, total_loss = self._loss(data_dict, output_dict)
 
-        ##### prepare input and forward
-        data_dict = self._feed(data_dict)
-        data_dict = self._loss(data_dict)
-        loss = data_dict["total_loss"][0]
+        self.log("train/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
+        for key, value in losses.items():
+            self.log(f"train/{key}", value, on_step=False, on_epoch=True, sync_dist=True)
+        return total_loss
 
-        in_prog_bar = ["total_loss"]
-        for key, value in data_dict.items():
-            if "loss" in key:
-                self.log("train/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=True, on_epoch=True, sync_dist=True)
-
-        return loss
-
+    def training_epoch_end(self, outputs):
+        if self.current_epoch % self.hparams.cfg.train.clear_cache_every_n_epochs == 0:
+            torch.cuda.empty_cache()
 
     def validation_step(self, data_dict, idx):
         torch.cuda.empty_cache()
+        # prepare input and forward
+        output_dict = self._feed(data_dict)
+        losses, total_loss = self._loss(data_dict, output_dict)
 
-        ##### prepare input and forward
-        data_dict = self._feed(data_dict)
-        data_dict = self._loss(data_dict)
+        # log losses
+        self.log("val/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
+        for key, value in losses.items():
+            self.log(f"val/{key}", value, on_step=False, on_epoch=True, sync_dist=True)
 
-        in_prog_bar = ["total_loss"]
-        for key, value in data_dict.items():
-            if "loss" in key:
-                self.log("val/{}".format(key), value[0], prog_bar=key in in_prog_bar, on_step=False, on_epoch=True, sync_dist=True)
-                
-        return data_dict
+        # log semantic prediction accuracy
+        semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
+        semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
+                                                       ignore_label=self.hparams.cfg.data.ignore_label)
+        semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
+                                                   ignore_label=self.hparams.cfg.data.ignore_label)
+        self.log("val_accuracy/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("val_accuracy/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True)
 
-    
+        return data_dict, output_dict
+
     def test_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
-        
-        data_dict = self._feed(data_dict)
-        
-        return data_dict
+
+        # prepare input and forward
+        output_dict = self._feed(data_dict)
+
+        return output_dict
     
 
     def predict_step(self, data_dict, idx):

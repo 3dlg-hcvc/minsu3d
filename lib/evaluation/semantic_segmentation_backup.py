@@ -10,8 +10,8 @@ from importlib import import_module
 
 import numpy as np
 
-from lib.utils.log import Logger
-from lib.utils.eval import read_sem_ids
+from lib.util.log import Logger
+from lib.util.eval import read_sem_ids
 
 
 CLASS_NAME = None

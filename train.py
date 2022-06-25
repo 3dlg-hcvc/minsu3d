@@ -11,7 +11,7 @@ from importlib import import_module
 import torch
 import pytorch_lightning as pl
 from lib.dataset.scannet_data_module import ScanNetDataModule
-from lib.callbacks import *
+from lib.callback import *
 
 def load_conf(args):
     base_cfg = OmegaConf.load('conf/path.yaml')

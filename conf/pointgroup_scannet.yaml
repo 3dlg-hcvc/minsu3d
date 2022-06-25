@@ -13,7 +13,7 @@ data:
   module: lib.dataset
   dataset: ScanNet
   loader: scannet_loader
-  
+  ignore_classes: [0, 1]
   data_root: dataset
   file_suffix: .pth
 
@@ -67,7 +67,7 @@ model:
   num_size_cluster: 18
   max_num_proposal: 128
 
-  use_checkpoint: #XYZ_MULTIVIEW_NORMAL
+  use_checkpoint:
   resume_epoch: #480
   pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
   pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]

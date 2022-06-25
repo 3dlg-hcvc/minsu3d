@@ -7,8 +7,8 @@ from torch.utils.data import Dataset
 
 sys.path.append("../")  # HACK add the lib folder
 
-from lib.utils.pc import crop
-from lib.utils.transform import jitter, flip, rotz, elastic
+from lib.util.pc import crop
+from lib.util.transform import jitter, flip, rotz, elastic
 
 
 class ScanNet(Dataset):

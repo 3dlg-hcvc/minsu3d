@@ -2,9 +2,9 @@ import os
 import numpy as np
 import torch
 
-from lib.utils.bbox import get_3d_box
+from lib.util.bbox import get_3d_box
 # from lib.evaluation.object_detection import eval_det_cls, eval_det_multiprocessing, get_iou_obb
-from lib.utils.nms import nms_2d_faster, nms_3d_faster, nms_3d_faster_samecls
+from lib.util.nms import nms_2d_faster, nms_3d_faster, nms_3d_faster_samecls
 
 
 #####################################################

@@ -6,8 +6,8 @@ from multiprocessing import Pool
 import torch
 import numpy as np
 
-from lib.utils.log import Logger
-from lib.utils.bbox import box3d_iou
+from lib.util.log import Logger
+from lib.util.bbox import box3d_iou
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 
 # ---------- Label info ---------- #
@@ -100,7 +100,7 @@ def get_iou(bb1, bb2):
     iou3d = calc_iou(bb1, bb2)
     return iou3d
 
-from lib.utils.bbox import box3d_iou
+from lib.util.bbox import box3d_iou
 def get_iou_obb(bb1,bb2):
     iou3d = box3d_iou(bb1,bb2)
     return iou3d

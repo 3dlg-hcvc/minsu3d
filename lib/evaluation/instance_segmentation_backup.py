@@ -30,8 +30,8 @@ from copy import deepcopy
 
 import numpy as np
 
-from lib.utils.log import Logger
-from lib.utils.eval import read_inst_ids, parse_inst_pred_file, get_instances
+from lib.util.log import Logger
+from lib.util.eval import read_inst_ids, parse_inst_pred_file, get_instances
 
 # ---------- Label info ---------- #
 CLASS_NAME = None

@@ -7,8 +7,8 @@ from __future__ import print_function
 import math
 import numpy as np
 from scipy.spatial import ConvexHull
-from lib.utils.pc import write_ply_rgb_face
-from lib.utils.transform import roty, roty_batch, rotz
+from lib.util.pc import write_ply_rgb_face
+from lib.util.transform import roty, roty_batch, rotz
 import trimesh
 
  
@@ -19,7 +19,7 @@ import trimesh
 def get_3d_box(center, box_size, heading_angle=None):
     ''' box_size is array(l,w,h), heading_angle is radius clockwise from pos x axis, center is xyz of box center
         output (8,3) array for 3D box cornders
-        Similar to utils/compute_orientation_3d
+        Similar to util/compute_orientation_3d
     '''
     if heading_angle is None:
         R = np.eye(3)

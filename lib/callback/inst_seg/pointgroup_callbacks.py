@@ -7,7 +7,7 @@ import torch.nn as nn
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
 
-from lib.utils.eval import get_nms_instances
+from lib.util.eval import get_nms_instances
 
 
 # TODO: unused callbakc class, can be removed

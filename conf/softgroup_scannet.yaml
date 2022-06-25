@@ -102,7 +102,7 @@ train:
   monitor: val_accuracy/AP_50
 
   optim: 
-    classname: Adam # Adam or SGD
+    name: Adam # Adam or SGD
     lr: 0.001
     momentum: 0.9 # SGD
     weight_decay: 0.0001 # SGD
