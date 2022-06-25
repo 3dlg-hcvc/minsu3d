@@ -9,6 +9,7 @@ from lib.softgroup_ops.functions import softgroup_ops
 from lib.loss import *
 from model.common import ResidualBlock, VGGBlock, UBlock
 from lib.evaluation.semantic_seg_helper import *
+from backbone import Backbone
 
 
 class SoftGroup(pl.LightningModule):
@@ -20,12 +21,10 @@ class SoftGroup(pl.LightningModule):
         self.DC = ScannetDatasetConfig(cfg)
 
         input_channel = cfg.model.use_coords * 3 + cfg.model.use_color * 3 + cfg.model.use_normal * 3
-        m = cfg.model.m
-        D = 3
+        output_channel = cfg.model.m
         semantic_classes = cfg.data.classes
         self.instance_classes = semantic_classes - len(cfg.data.ignore_classes)
-        blocks = cfg.model.blocks
-        block_reps = cfg.model.block_reps
+
         block_residual = cfg.model.block_residual
 
         self.freeze_backbone = cfg.model.freeze_backbone
@@ -44,57 +43,38 @@ class SoftGroup(pl.LightningModule):
         else:
             block = VGGBlock
         sp_norm = functools.partial(ME.MinkowskiBatchNorm, eps=1e-4, momentum=0.1)
-        norm = functools.partial(nn.BatchNorm1d, eps=1e-4, momentum=0.1)
 
         """
-        Bottom-up Grouping Block
+        Backbone Block
         """
-        # 1. backbone U-Net
-        self.backbone = nn.Sequential(
-            ME.MinkowskiConvolution(input_channel, m, kernel_size=3, bias=False, dimension=D),
-            UBlock([m * c for c in blocks], sp_norm, block_reps, block),
-            sp_norm(m),
-            ME.MinkowskiReLU(inplace=True)
-        )
-
-        # 2.1 semantic prediction branch
-        self.semantic_branch = nn.Sequential(
-            nn.Linear(m, m),
-            norm(m),
-            nn.ReLU(inplace=True),
-            nn.Linear(m, semantic_classes)
-        )
-
-        # 2.2 offset prediction branch
-        self.offset_branch = nn.Sequential(
-            nn.Linear(m, m),
-            norm(m),
-            nn.ReLU(inplace=True),
-            nn.Linear(m, 3)
-        )
+        self.backbone = Backbone(input_channel=input_channel,
+                                 output_chanel=cfg.model.m,
+                                 block_channels=cfg.model.blocks,
+                                 block_reps=cfg.model.block_reps,
+                                 sem_classes=semantic_classes)
 
         """
         Top-down Refinement Block
         """
         # 3 tiny U-Net
         self.tiny_unet = nn.Sequential(
-            UBlock([m, 2 * m], sp_norm, 2, block),
-            sp_norm(m),
+            UBlock([output_channel, 2 * output_channel], sp_norm, 2, block),
+            sp_norm(output_channel),
             ME.MinkowskiReLU(inplace=True)
         )
 
         # 4.1 classification branch
-        self.classification_branch = nn.Linear(m, self.instance_classes + 1)
+        self.classification_branch = nn.Linear(output_channel, self.instance_classes + 1)
 
         # 4.2 mask scoring branch
         self.mask_scoring_branch = nn.Sequential(
-            nn.Linear(m, m),
+            nn.Linear(output_channel, output_channel),
             nn.ReLU(inplace=True),
-            nn.Linear(m, self.instance_classes + 1)
+            nn.Linear(output_channel, self.instance_classes + 1)
         )
 
         # 5
-        self.iou_score = nn.Linear(m, self.instance_classes + 1)
+        self.iou_score = nn.Linear(output_channel, self.instance_classes + 1)
 
     def _get_batch_offsets(self, batch_idxs, batch_size):
         """
@@ -144,26 +124,20 @@ class SoftGroup(pl.LightningModule):
         voxelization_feats = ME.SparseTensor(features=out_feats, coordinates=out_coords.int().cuda())
         return voxelization_feats, inp_map
 
-    def _forward(self, data_dict):
+    def forward(self, data_dict):
         batch_size = len(data_dict["batch_offsets"]) - 1
         output_dict = {}
         """
             Bottom-up Grouping Block
         """
-        x = ME.SparseTensor(features=data_dict["voxel_feats"], coordinates=data_dict["voxel_locs"].int())
-
-        out = self.backbone(x)
-        pt_feats = out.features[data_dict["v2p_map"].long()]  # (N, m) TODO: the naming p2v is wrong! should be v2p
-        semantic_scores = self.semantic_branch(pt_feats)  # (N, nClass), float
-        output_dict["semantic_scores"] = semantic_scores
-        pt_offsets = self.offset_branch(pt_feats)  # (N, 3), float32
-        output_dict["pt_offsets"] = pt_offsets
+        backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
+        output_dict.update(backbone_output_dict)
 
         if self.current_epoch > self.hparams.cfg.model.prepare_epochs or self.freeze_backbone:
             """
                 Top-down Refinement Block
             """
-            semantic_scores = semantic_scores.softmax(dim=-1)
+            semantic_scores = output_dict["semantic_scores"].softmax(dim=-1)
             batch_idxs = data_dict["locs_scaled"][:, 0].int()
 
             # hyperparameters from config
@@ -186,7 +160,7 @@ class SoftGroup(pl.LightningModule):
                 batch_idxs_ = batch_idxs[object_idxs]
                 batch_offsets_ = self._get_batch_offsets(batch_idxs_, batch_size)
                 coords_ = data_dict["locs"][object_idxs]
-                pt_offsets_ = pt_offsets[object_idxs]
+                pt_offsets_ = output_dict["point_offsets"][object_idxs]
                 idx, start_len = softgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
                                                                  grouping_radius, grouping_mean_active)
 
@@ -217,7 +191,7 @@ class SoftGroup(pl.LightningModule):
             inst_feats, inst_map = self._clusters_voxelization(
                 proposals_idx,
                 proposals_offset,
-                pt_feats,
+                output_dict["point_offsets"],
                 data_dict["locs"],
                 rand_quantize=True,
                 **self.hparams.cfg.model.instance_voxel_cfg)
@@ -358,11 +332,11 @@ class SoftGroup(pl.LightningModule):
 
         data_dict["voxel_feats"] = softgroup_ops.voxelization(data_dict["feats"], data_dict["p2v_map"],
                                                               self.cfg.data.mode)  # (M, C), float, cuda
-        data_dict = self._forward(data_dict)
+        data_dict = self.forward(data_dict)
         return data_dict
 
     def training_step(self, data_dict, idx):
-
+        torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
@@ -373,7 +347,7 @@ class SoftGroup(pl.LightningModule):
         return total_loss
 
     def validation_step(self, data_dict, idx):
-
+        torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)

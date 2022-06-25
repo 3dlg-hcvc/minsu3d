@@ -64,7 +64,7 @@ class ScanNet(Dataset):
             m = np.matmul(m, rot_m)  # rotation around z
         return np.matmul(xyz, m)
 
-    def _croppedInstanceIds(self, instance_ids, valid_idxs):
+    def _get_cropped_inst_ids(self, instance_ids, valid_idxs):
         """
         Postprocess instance_ids after cropping
         """
@@ -76,7 +76,7 @@ class ScanNet(Dataset):
             j += 1
         return instance_ids
 
-    def _getInstanceInfo(self, xyz, instance_ids, sem_labels):
+    def _get_inst_info(self, xyz, instance_ids, sem_labels):
         """
         :param xyz: (n, 3)
         :param instance_ids: (n), int, (0~nInst-1, -1)
@@ -112,7 +112,9 @@ class ScanNet(Dataset):
             # semantic label
             cls_idx = inst_i_idx[0][0]
             assert sem_labels[cls_idx] not in self.cfg.data.ignore_classes
-            instance_cls.append(sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[cls_idx] != self.cfg.data.ignore_label else sem_labels[cls_idx])
+            instance_cls.append(sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[
+                                                                                               cls_idx] != self.cfg.data.ignore_label else
+                                sem_labels[cls_idx])
 
         return num_instance, instance_info, instance_num_point, instance_cls
 
@@ -149,14 +151,14 @@ class ScanNet(Dataset):
 
         return gt_proposals_idx, gt_proposals_offset, object_ids, instance_bboxes
 
-    def __getitem__(self, id):
-        scene_id = self.scene_names[id]
-        scene = self.scenes[id]
+    def __getitem__(self, idx):
+        scene_id = self.scene_names[idx]
+        scene = self.scenes[idx]
 
         points = scene["xyz"]  # (N, 3)
         feats = scene["rgb"]  # (N, 3) rgb
 
-        data = {"id": id, "scene_id": scene_id}
+        data = {"id": idx, "scene_id": scene_id}
 
         if self.split != "test":
             instance_ids = scene["instance_ids"]
@@ -202,9 +204,9 @@ class ScanNet(Dataset):
                 points_augment = points_augment[valid_idxs]
                 feats = feats[valid_idxs]
                 sem_labels = sem_labels[valid_idxs]
-                instance_ids = self._croppedInstanceIds(instance_ids, valid_idxs)
+                instance_ids = self._get_cropped_inst_ids(instance_ids, valid_idxs)
 
-            num_instance, instance_info, instance_num_point, instance_semantic_cls = self._getInstanceInfo(
+            num_instance, instance_info, instance_num_point, instance_semantic_cls = self._get_inst_info(
                 points_augment, instance_ids.astype(np.int32), sem_labels)
 
             if self.requires_gt_mask:

@@ -87,7 +87,7 @@ def init_model(cfg):
         model.load_state_dict(model_dict)
 
     if cfg.model.freeze_backbone:
-        for param in model.backbone.parameters():
+        for param in model.unet.parameters():
             param.requires_grad = False
 
     return model
