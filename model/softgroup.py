@@ -9,7 +9,7 @@ from lib.softgroup_ops.functions import softgroup_ops
 from lib.loss import *
 from model.common import ResidualBlock, VGGBlock, UBlock
 from lib.evaluation.semantic_seg_helper import *
-from backbone import Backbone
+from model.backbone import Backbone
 
 
 class SoftGroup(pl.LightningModule):
@@ -255,7 +255,7 @@ class SoftGroup(pl.LightningModule):
         gt_offsets = data_dict["instance_info"][:, 0:3] - data_dict["locs"]  # (N, 3)
         valid = data_dict["instance_ids"] != self.cfg.data.ignore_label
         pt_offset_criterion = PTOffsetLoss()
-        offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["pt_offsets"], gt_offsets, valid_mask=valid)
+        offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
         valid_count = valid.count_nonzero()
         losses["offset_norm_loss"] = offset_norm_loss
         losses["offset_dir_loss"] = offset_dir_loss
