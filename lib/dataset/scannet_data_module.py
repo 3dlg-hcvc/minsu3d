@@ -28,8 +28,7 @@ class ScanNetDataModule(pl.LightningDataModule):
                           collate_fn=sparse_collate_fn)
 
     def val_dataloader(self):
-        return DataLoader(self.scannet_val, batch_size=self.cfg.data.batch_size, pin_memory=True,
-                          collate_fn=sparse_collate_fn)
+        return DataLoader(self.scannet_val, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn)
 
     def test_dataloader(self):
         return DataLoader(self.scannet_test, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn)

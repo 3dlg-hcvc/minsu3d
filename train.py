@@ -56,7 +56,6 @@ def init_trainer(cfg):
         num_nodes=args.num_nodes,
         max_epochs=cfg.train.epochs,
         num_sanity_val_steps=cfg.train.num_sanity_val_steps,
-        log_every_n_steps=cfg.train.log_every_n_steps,
         check_val_every_n_epoch=cfg.train.check_val_every_n_epoch,
         callbacks=callbacks,
         logger=logger,
