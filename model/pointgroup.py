@@ -1,6 +1,5 @@
 import os
 import torch
-import functools
 
 import torch.nn as nn
 import MinkowskiEngine as ME
@@ -10,8 +9,7 @@ from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.loss import PTOffsetLoss
 from lib.loss.utils import get_segmented_scores
 from lib.util.eval import get_nms_instances
-from model.module.common import ResidualBlock, UBlock
-from model.module.backbone import Backbone
+from model.module import Backbone, TinyUnet
 from lib.optimizer import init_optimizer
 from lib.evaluation.semantic_seg_helper import *
 
@@ -26,31 +24,21 @@ class PointGroup(pl.LightningModule):
 
         self.task = cfg.general.task
 
-        input_channel = cfg.model.use_color * 3 + cfg.model.use_normal * 3 + cfg.model.use_coords * 3 + cfg.model.use_multiview * 128
+        input_channel = cfg.model.use_color * 3 + cfg.model.use_normal * 3 + cfg.model.use_coords * 3
         output_channel = cfg.model.m
         semantic_classes = cfg.data.classes
         self.instance_classes = semantic_classes - len(cfg.data.ignore_classes)
 
-        block_residual = cfg.model.block_residual
 
-
-        cluster_blocks = cfg.model.cluster_blocks
-        
-        self.freeze_backbone = cfg.model.freeze_backbone
         self.requires_gt_mask = cfg.data.requires_gt_mask
 
-        self.cluster_radius = cfg.cluster.cluster_radius
         self.cluster_meanActive = cfg.cluster.cluster_meanActive
         self.cluster_shift_meanActive = cfg.cluster.cluster_shift_meanActive
         self.cluster_npoint_thre = cfg.cluster.cluster_npoint_thre
-        self.prepare_epochs = cfg.cluster.prepare_epochs
 
         self.score_scale = cfg.train.score_scale
         self.score_fullscale = cfg.train.score_fullscale
         self.mode = cfg.train.score_mode
-
-
-        sp_norm = functools.partial(ME.MinkowskiBatchNorm, eps=1e-4, momentum=0.1)
 
         """
             Backbone Block
@@ -64,17 +52,9 @@ class PointGroup(pl.LightningModule):
         """
             ScoreNet Block
         """
-        #### score
-        self.score_net = nn.Sequential(
-            UBlock([output_channel, 2 * output_channel], sp_norm, 2, ResidualBlock),
-            sp_norm(output_channel),
-            ME.MinkowskiReLU(inplace=True)
-        )
-        
-        self.score_linear = nn.Linear(output_channel, 1)
+        self.score_net = TinyUnet(output_channel)
+        self.score_branch = nn.Linear(output_channel, 1)
 
-        self._init_criterion()
-        
 
     def get_batch_offsets(self, batch_idxs, batch_size):
         """
@@ -148,12 +128,11 @@ class PointGroup(pl.LightningModule):
         output_dict.update(backbone_output_dict)
 
 
-        if self.current_epoch > self.hparams.cfg.model.prepare_epochs or self.freeze_backbone:
+        if self.current_epoch > self.hparams.cfg.model.prepare_epochs or self.hparams.cfg.model.freeze_backbone:
             # get prooposal clusters
             batch_idxs = data_dict["locs_scaled"][:, 0].int()
             semantic_preds = output_dict["semantic_scores"].max(1)[1]
             if not self.requires_gt_mask:
-
                 # set mask
                 semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
                 for class_label in self.hparams.cfg.data.ignore_classes:
@@ -167,7 +146,7 @@ class PointGroup(pl.LightningModule):
 
                 semantic_preds_cpu = semantic_preds[object_idxs].int().cpu()
 
-                idx_shift, start_len_shift = pointgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, self.cluster_radius, self.cluster_shift_meanActive)
+                idx_shift, start_len_shift = pointgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, self.hparams.cfg.cluster.cluster_radius, self.cluster_shift_meanActive)
                 proposals_idx_shift, proposals_offset_shift = pointgroup_ops.bfs_cluster(semantic_preds_cpu, idx_shift.cpu(), start_len_shift.cpu(), self.cluster_npoint_thre)
                 proposals_idx_shift[:, 1] = object_idxs[proposals_idx_shift[:, 1].long()].int()
                 proposals_batchId_shift_all = batch_idxs[proposals_idx_shift[:, 1].long()].int()
@@ -175,7 +154,7 @@ class PointGroup(pl.LightningModule):
                 # proposals_offset_shift: (nProposal + 1), int
                 # proposals_batchId_shift_all: (sumNPoint,) batch id
 
-                idx, start_len = pointgroup_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_, self.cluster_radius, self.cluster_meanActive)
+                idx, start_len = pointgroup_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_, self.hparams.cfg.cluster.cluster_radius, self.cluster_meanActive)
                 proposals_idx, proposals_offset = pointgroup_ops.bfs_cluster(semantic_preds_cpu, idx.cpu(), start_len.cpu(), self.cluster_npoint_thre)
                 proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
                 # proposals_idx: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
@@ -200,7 +179,7 @@ class PointGroup(pl.LightningModule):
             score_feats = self.score_net(proposals_voxel_feats)
             pt_score_feats = score_feats.features[proposals_p2v_map.long()] # (sumNPoint, C)
             proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
-            scores = self.score_linear(proposals_score_feats)  # (nProposal, 1)
+            scores = self.score_branch(proposals_score_feats)  # (nProposal, 1)
             output_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
             
         return output_dict
@@ -217,7 +196,6 @@ class PointGroup(pl.LightningModule):
     def _loss(self, data_dict, output_dict):
         losses = {}
 
-        N = data_dict["sem_labels"].shape[0]
         """semantic loss"""
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
@@ -304,10 +282,8 @@ class PointGroup(pl.LightningModule):
         return data_dict, output_dict
 
     def test_step(self, data_dict, idx):
-
         # prepare input and forward
         output_dict = self._feed(data_dict)
-
         return output_dict
     
 
