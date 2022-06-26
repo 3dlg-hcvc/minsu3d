@@ -2,18 +2,16 @@ import os
 import torch
 import functools
 
-import numpy as np
 import torch.nn as nn
 import MinkowskiEngine as ME
 import pytorch_lightning as pl
 
 from data.scannet.model_util_scannet import ScannetDatasetConfig
-from lib.softgroup_ops.functions import softgroup_ops
-from lib.loss import SemSegLoss, PTOffsetLoss
+from lib.loss import PTOffsetLoss
 from lib.loss.utils import get_segmented_scores
 from lib.util.eval import get_nms_instances
-from model.common import ResidualBlock, VGGBlock, UBlock
-from model.backbone import Backbone
+from model.module.common import ResidualBlock, UBlock
+from model.module.backbone import Backbone
 from lib.optimizer import init_optimizer
 from lib.evaluation.semantic_seg_helper import *
 
@@ -51,17 +49,14 @@ class PointGroup(pl.LightningModule):
         self.score_fullscale = cfg.train.score_fullscale
         self.mode = cfg.train.score_mode
 
-        if block_residual:
-            block = ResidualBlock
-        else:
-            block = VGGBlock
+
         sp_norm = functools.partial(ME.MinkowskiBatchNorm, eps=1e-4, momentum=0.1)
 
         """
             Backbone Block
         """
         self.backbone = Backbone(input_channel=input_channel,
-                                 output_chanel=cfg.model.m,
+                                 output_channel=cfg.model.m,
                                  block_channels=cfg.model.blocks,
                                  block_reps=cfg.model.block_reps,
                                  sem_classes=semantic_classes)
@@ -71,7 +66,7 @@ class PointGroup(pl.LightningModule):
         """
         #### score
         self.score_net = nn.Sequential(
-            UBlock([output_channel*c for c in cluster_blocks], sp_norm, 2, block),
+            UBlock([output_channel, 2 * output_channel], sp_norm, 2, ResidualBlock),
             sp_norm(output_channel),
             ME.MinkowskiReLU(inplace=True)
         )

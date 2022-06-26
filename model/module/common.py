@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 
 
 class BasicConvolutionBlock(pl.LightningModule):
-    
+
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1):
         super().__init__()
         self.net = nn.Sequential(
@@ -14,8 +14,7 @@ class BasicConvolutionBlock(pl.LightningModule):
             ME.MinkowskiReLU(inplace=True))
 
     def forward(self, x):
-        out = self.net(x)
-        return out
+        return self.net(x)
 
 
 class ResidualBlock(pl.LightningModule):
@@ -25,30 +24,27 @@ class ResidualBlock(pl.LightningModule):
         self.downsample = None
         if norm_fn is None:
             norm_fn = ME.MinkowskiBatchNorm
-        
+
         if in_channels != out_channels:
             self.downsample = nn.Sequential(
-                ME.MinkowskiConvolution(in_channels, out_channels, kernel_size=1, bias=False, dimension=dimension)
+                ME.MinkowskiConvolution(in_channels, out_channels, kernel_size=1, dimension=dimension)
             )
 
         self.conv_branch = nn.Sequential(
             norm_fn(in_channels),
             ME.MinkowskiReLU(inplace=True),
-            ME.MinkowskiConvolution(in_channels, out_channels, kernel_size=3, bias=False, dimension=dimension),
+            ME.MinkowskiConvolution(in_channels, out_channels, kernel_size=3, dimension=dimension),
             norm_fn(out_channels),
             ME.MinkowskiReLU(inplace=True),
-            ME.MinkowskiConvolution(out_channels, out_channels, kernel_size=3, bias=False, dimension=dimension)
+            ME.MinkowskiConvolution(out_channels, out_channels, kernel_size=3, dimension=dimension)
         )
 
     def forward(self, x):
         identity = x
         x = self.conv_branch(x)
-
         if self.downsample is not None:
-          identity = self.downsample(identity)
-        
+            identity = self.downsample(identity)
         x += identity
-        
         return x
 
 
@@ -62,7 +58,7 @@ class VGGBlock(pl.LightningModule):
         self.conv_layers = nn.Sequential(
             norm_fn(in_channels),
             ME.MinkowskiReLU(inplace=True),
-            ME.MinkowskiConvolution(in_channels, out_channels, kernel_size=3, bias=False, dimension=dimension)
+            ME.MinkowskiConvolution(in_channels, out_channels, kernel_size=3, dimension=dimension)
         )
 
     def forward(self, x):
@@ -70,34 +66,35 @@ class VGGBlock(pl.LightningModule):
 
 
 class UBlock(pl.LightningModule):
-    
-    def __init__(self, nPlanes, norm_fn, block_reps, block):
+
+    def __init__(self, n_planes, norm_fn, block_reps, block):
 
         super().__init__()
 
-        self.nPlanes = nPlanes
+        self.nPlanes = n_planes
         self.D = 3
 
-        blocks = {'block{}'.format(i): block(nPlanes[0], nPlanes[0], self.D, norm_fn) for i in range(block_reps)}
+        blocks = {'block{}'.format(i): block(n_planes[0], n_planes[0], self.D, norm_fn) for i in range(block_reps)}
         blocks = OrderedDict(blocks)
         self.blocks = nn.Sequential(blocks)
 
-        if len(nPlanes) > 1:
+        if len(n_planes) > 1:
             self.conv = nn.Sequential(
-                norm_fn(nPlanes[0]),
+                norm_fn(n_planes[0]),
                 ME.MinkowskiReLU(inplace=True),
-                ME.MinkowskiConvolution(nPlanes[0], nPlanes[1], kernel_size=2, stride=2, bias=False, dimension=self.D)
+                ME.MinkowskiConvolution(n_planes[0], n_planes[1], kernel_size=2, stride=2, dimension=self.D)
             )
 
-            self.u = UBlock(nPlanes[1:], norm_fn, block_reps, block)
+            self.u = UBlock(n_planes[1:], norm_fn, block_reps, block)
 
             self.deconv = nn.Sequential(
-                norm_fn(nPlanes[1]),
+                norm_fn(n_planes[1]),
                 ME.MinkowskiReLU(inplace=True),
-                ME.MinkowskiConvolutionTranspose(nPlanes[1], nPlanes[0], kernel_size=2, stride=2, bias=False, dimension=self.D)
+                ME.MinkowskiConvolutionTranspose(n_planes[1], n_planes[0], kernel_size=2, stride=2, dimension=self.D)
             )
 
-            blocks_tail = {'block{}'.format(i): block(nPlanes[0] * (2 - i), nPlanes[0], self.D, norm_fn) for i in range(block_reps)}
+            blocks_tail = {'block{}'.format(i): block(n_planes[0] * (2 - i), n_planes[0], self.D, norm_fn) for i in
+                           range(block_reps)}
             blocks_tail = OrderedDict(blocks_tail)
             self.blocks_tail = nn.Sequential(blocks_tail)
 
@@ -109,11 +106,8 @@ class UBlock(pl.LightningModule):
             out = self.conv(out)
             out = self.u(out)
             out = self.deconv(out)
-
             out = ME.cat(identity, out)
-
             out = self.blocks_tail(out)
-
         return out
 
 

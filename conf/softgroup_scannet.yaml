@@ -2,7 +2,7 @@ general:
   manual_seed: 123
   dataset: scannet
   model: softgroup
-  output_root: output/
+  output_root: output
 
 data:
   module: lib.dataset
@@ -63,7 +63,7 @@ model:
   num_size_cluster: 18
   max_num_proposal: 128
 
-  use_checkpoint:
+  use_checkpoint: # /localhome/yza440/Research/pointgroup-minkowski/output/scannet/softgroup/train/softgroup-scannet-epoch=127.ckpt
   pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
   pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]
   pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
@@ -102,33 +102,17 @@ train:
   monitor: val_accuracy/AP_50
 
   optim: 
-    name: Adam # Adam or SGD
+    name: Adam # Adam, AdamW or SGD
     lr: 0.001
-    momentum: 0.9 # SGD
-    weight_decay: 0.0001 # SGD
   
-  multiplier: 0.5
   loss_weight: [1, 1, 1, 1, 1, 1] # semantic_loss, offset_norm_loss, offset_dir_loss, score_loss, bbox_loss (if applies)
 
   fg_thresh: 0.75
   bg_thresh: 0.25
 
-  score_scale: 50 # the minimal voxel size is 2cm
-  score_fullscale: 14
-  score_mode: 4 # mean
-  
 
 test:
   use_exp: #DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
-
-  test_epoch: 384
-  test_seed: 567
-
-  TEST_NMS_THRESH: 0.3
-  TEST_SCORE_THRESH: 0.09
-  TEST_NPOINT_THRESH: 100
-
-  requires_visualize: True
 
 
 evaluation:

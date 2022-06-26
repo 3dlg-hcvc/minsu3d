@@ -1,5 +1,4 @@
 import torch
-import functools
 import torch.nn as nn
 import MinkowskiEngine as ME
 import pytorch_lightning as pl
@@ -7,9 +6,8 @@ from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode
 from lib.softgroup_ops.functions import softgroup_ops
 from lib.loss import *
-from model.common import ResidualBlock, VGGBlock, UBlock
 from lib.evaluation.semantic_seg_helper import *
-from model.backbone import Backbone
+from model.module import Backbone, TinyUnet
 from lib.optimizer import init_optimizer
 
 
@@ -19,37 +17,16 @@ class SoftGroup(pl.LightningModule):
         self.save_hyperparameters()
 
         self.cfg = cfg
-        self.DC = ScannetDatasetConfig(cfg)
-
         input_channel = cfg.model.use_coords * 3 + cfg.model.use_color * 3 + cfg.model.use_normal * 3
         output_channel = cfg.model.m
         semantic_classes = cfg.data.classes
         self.instance_classes = semantic_classes - len(cfg.data.ignore_classes)
 
-        block_residual = cfg.model.block_residual
-
-        self.freeze_backbone = cfg.model.freeze_backbone
-        self.requires_gt_mask = cfg.data.requires_gt_mask
-
-        self.grouping_radius = cfg.model.grouping_cfg.radius
-        self.grouping_meanActive = cfg.model.grouping_cfg.mean_active
-        self.grouping_npoint_threshold = cfg.model.grouping_cfg.npoint_thr
-
-        self.score_scale = cfg.train.score_scale
-        self.score_fullscale = cfg.train.score_fullscale
-        self.mode = cfg.train.score_mode
-
-        if block_residual:
-            block = ResidualBlock
-        else:
-            block = VGGBlock
-        sp_norm = functools.partial(ME.MinkowskiBatchNorm, eps=1e-4, momentum=0.1)
-
         """
             Backbone Block
         """
         self.backbone = Backbone(input_channel=input_channel,
-                                 output_chanel=cfg.model.m,
+                                 output_channel=cfg.model.m,
                                  block_channels=cfg.model.blocks,
                                  block_reps=cfg.model.block_reps,
                                  sem_classes=semantic_classes)
@@ -58,11 +35,7 @@ class SoftGroup(pl.LightningModule):
             Top-down Refinement Block
         """
         # 3 tiny U-Net
-        self.tiny_unet = nn.Sequential(
-            UBlock([output_channel, 2 * output_channel], sp_norm, 2, block),
-            sp_norm(output_channel),
-            ME.MinkowskiReLU(inplace=True)
-        )
+        self.tiny_unet = TinyUnet(output_channel)
 
         # 4.1 classification branch
         self.classification_branch = nn.Linear(output_channel, self.instance_classes + 1)
@@ -74,7 +47,7 @@ class SoftGroup(pl.LightningModule):
             nn.Linear(output_channel, self.instance_classes + 1)
         )
 
-        # 5
+        # 4.3 iou scoring branch
         self.iou_score = nn.Linear(output_channel, self.instance_classes + 1)
 
     def _get_batch_offsets(self, batch_idxs, batch_size):
@@ -134,7 +107,7 @@ class SoftGroup(pl.LightningModule):
         backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
         output_dict.update(backbone_output_dict)
 
-        if self.current_epoch > self.hparams.cfg.model.prepare_epochs or self.freeze_backbone:
+        if self.current_epoch > self.hparams.cfg.model.prepare_epochs or self.hparams.cfg.model.freeze_backbone:
             """
                 Top-down Refinement Block
             """
@@ -192,7 +165,7 @@ class SoftGroup(pl.LightningModule):
             inst_feats, inst_map = self._clusters_voxelization(
                 proposals_idx,
                 proposals_offset,
-                output_dict["point_offsets"],
+                output_dict["point_features"],
                 data_dict["locs"],
                 rand_quantize=True,
                 **self.hparams.cfg.model.instance_voxel_cfg)
@@ -225,8 +198,7 @@ class SoftGroup(pl.LightningModule):
         return x
 
     def configure_optimizers(self):
-        print("=> configure optimizer...")
-        return init_optimizer(**self.cfg.train.optim)
+        return init_optimizer(parameters=self.parameters(), **self.cfg.train.optim)
 
     def _loss(self, data_dict, output_dict):
         losses = {}
