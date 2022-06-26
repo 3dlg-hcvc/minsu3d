@@ -5,8 +5,8 @@ Written by Li Jiang
 
 import torch
 from torch.autograd import Function
-
 import PG_OP
+
 
 class Voxelization_Idx(Function):
     @staticmethod
@@ -53,11 +53,8 @@ class Voxelization(Function):
         N, C = feats.size()
         M = map_rule.size(0)
         maxActive = map_rule.size(1) - 1
-
         output_feats = torch.cuda.FloatTensor(M, C).zero_()
-
         ctx.for_backwards = (map_rule, mode, maxActive, N)
-
         PG_OP.voxelize_fp(feats, output_feats, map_rule, mode, M, maxActive, C)
         return output_feats
 

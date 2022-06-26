@@ -17,7 +17,7 @@ void voxelize_idx(/* long N*4 */ at::Tensor coords, /* long M*4 */ at::Tensor ou
     SparseGrids<dimension> inputSGs; // voxel_coords -> voxel_idx in M voxels      input_map: N points -> M voxels
     Int nActive = 0;
 
-    Int maxActive = voxelize_inputmap<dimension>(inputSGs, input_map.data<Int>(), voxelizeRuleBook, nActive, coords.data<long>(), coords.size(0), coords.size(1), batchSize, mode);
+    Int maxActive = voxelize_inputmap<dimension>(inputSGs, input_map.data_ptr<Int>(), voxelizeRuleBook, nActive, coords.data_ptr<long>(), coords.size(0), coords.size(1), batchSize, mode);
 
     output_map.resize_({nActive, maxActive + 1});
     output_map.zero_();
@@ -25,9 +25,9 @@ void voxelize_idx(/* long N*4 */ at::Tensor coords, /* long M*4 */ at::Tensor ou
     output_coords.resize_({nActive, coords.size(1)});
     output_coords.zero_();
 
-    Int *oM = output_map.data<Int>();
-    long *oC = output_coords.data<long>();
-    voxelize_outputmap<dimension>(coords.data<long>(), oC, oM, &voxelizeRuleBook[1][0], nActive, maxActive);
+    Int *oM = output_map.data_ptr<Int>();
+    long *oC = output_coords.data_ptr<long>();
+    voxelize_outputmap<dimension>(coords.data_ptr<long>(), oC, oM, &voxelizeRuleBook[1][0], nActive, maxActive);
 }
 
 
@@ -158,10 +158,10 @@ void voxelize_fp(/* cuda float N*C */ at::Tensor feats, // N * 3 -> M * 3 (N >= 
               /* cuda float M*C */ at::Tensor output_feats,
               /* cuda Int M*(maxActive+1) */ at::Tensor output_map, Int mode, Int nActive, Int maxActive, Int nPlane){
 
-    auto iF = feats.data<T>();
-    auto oF = output_feats.data<T>();
+    auto iF = feats.data_ptr<T>();
+    auto oF = output_feats.data_ptr<T>();
 
-    Int *rules = output_map.data<Int>();
+    Int *rules = output_map.data_ptr<Int>();
 
     voxelize_fp_cuda<T>(nActive, maxActive, nPlane, iF, oF, rules, mode==4);
 }
@@ -169,10 +169,10 @@ void voxelize_fp(/* cuda float N*C */ at::Tensor feats, // N * 3 -> M * 3 (N >= 
 template <typename T>
 void voxelize_bp(/* cuda float M*C */ at::Tensor d_output_feats, /* cuda float N*C */ at::Tensor d_feats, /* cuda Int M*(maxActive+1) */ at::Tensor output_map,
             Int mode, Int nActive, Int maxActive, Int nPlane){
-    auto d_oF = d_output_feats.data<T>();
-    auto d_iF = d_feats.data<T>();
+    auto d_oF = d_output_feats.data_ptr<T>();
+    auto d_iF = d_feats.data_ptr<T>();
 
-    Int *rules = output_map.data<Int>();
+    Int *rules = output_map.data_ptr<Int>();
 
     voxelize_bp_cuda<T>(nActive, maxActive, nPlane, d_oF, d_iF, rules, mode==4);
 }
@@ -181,10 +181,10 @@ void voxelize_bp(/* cuda float M*C */ at::Tensor d_output_feats, /* cuda float N
 template <typename T>
 void point_recover_fp(/* cuda float M*C */ at::Tensor feats, /* cuda float N*C */ at::Tensor output_feats, /* cuda Int M*(maxActive+1) */ at::Tensor idx_map,
                 Int nActive, Int maxActive, Int nPlane){
-    auto iF = feats.data<T>();
-    auto oF = output_feats.data<T>();
+    auto iF = feats.data_ptr<T>();
+    auto oF = output_feats.data_ptr<T>();
 
-    Int *rules = idx_map.data<Int>();
+    Int *rules = idx_map.data_ptr<Int>();
 
     voxelize_bp_cuda<T>(nActive, maxActive, nPlane, iF, oF, rules, false);
 }
@@ -193,10 +193,10 @@ void point_recover_fp(/* cuda float M*C */ at::Tensor feats, /* cuda float N*C *
 template <typename T>
 void point_recover_bp(/* cuda float N*C */ at::Tensor d_output_feats, /* cuda float M*C */ at::Tensor d_feats,  /* cuda Int M*(maxActive+1) */ at::Tensor idx_map,
                 Int nActive, Int maxActive, Int nPlane){
-    auto d_oF = d_output_feats.data<T>();
-    auto d_iF = d_feats.data<T>();
+    auto d_oF = d_output_feats.data_ptr<T>();
+    auto d_iF = d_feats.data_ptr<T>();
 
-    Int *rules = idx_map.data<Int>();
+    Int *rules = idx_map.data_ptr<Int>();
 
     voxelize_fp_cuda<T>(nActive, maxActive, nPlane, d_oF, d_iF, rules, false);
 }

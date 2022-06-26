@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import MinkowskiEngine as ME
 import pytorch_lightning as pl
-from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode
 from lib.softgroup_ops.functions import softgroup_ops
 from lib.loss import *
