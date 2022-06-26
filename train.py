@@ -11,7 +11,8 @@ from importlib import import_module
 import torch
 import pytorch_lightning as pl
 from lib.dataset.scannet_data_module import ScanNetDataModule
-from lib.callback import *
+from lib.callback import init_checkpoint_monitor, init_gpu_stats_monitor
+
 
 def load_conf(args):
     base_cfg = OmegaConf.load('conf/path.yaml')
@@ -63,14 +64,6 @@ def init_trainer(cfg):
     )
 
     return trainer
-
-
-def init_ckpt(cfg):
-    if cfg.model.use_checkpoint:
-        print("=> configuring trainer with checkpoint from {} ...".format(cfg.model.use_checkpoint))
-        return cfg.model.use_checkpoint
-    print("=> checkpoint path not specified ...")
-    return None
 
 
 def init_model(cfg):
