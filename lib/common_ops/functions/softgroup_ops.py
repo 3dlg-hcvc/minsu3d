@@ -1,0 +1,196 @@
+import torch
+from torch.autograd import Function
+import SG_OP
+
+
+class GetMaskIoUOnCluster(Function):
+
+    @staticmethod
+    def forward(ctx, proposals_idx, proposals_offset, instance_labels, instance_pointnum):
+        '''
+        :param ctx:
+        :param proposals_idx: (sumNPoint), int
+        :param proposals_offset: (nProposal + 1), int
+        :param instance_labels: (N), long, 0~total_nInst-1, -100
+        :param instance_pointnum: (total_nInst), int
+        :param mask_scores_sigmoid: (sumNPoint), float
+        :param mode: int, mode = 1 if cal IoU based on mask else mode = 0
+
+        :return: proposals_iou: (nProposal, total_nInst), float
+        :return mask_label:
+        '''
+
+        nInstance = instance_pointnum.size(0)
+        nProposal = proposals_offset.size(0) - 1
+        proposals_iou = torch.cuda.FloatTensor(nProposal, nInstance).zero_()
+
+        assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
+        assert proposals_offset.is_contiguous() and proposals_offset.is_cuda
+        assert instance_labels.is_contiguous() and instance_labels.is_cuda
+        assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
+
+        SG_OP.get_mask_iou_on_cluster(proposals_idx, proposals_offset, instance_labels,
+                                    instance_pointnum, proposals_iou, nInstance, nProposal)
+
+        return proposals_iou
+
+    @staticmethod
+    def backward(ctx, a=None):
+        return None, None, None, None
+
+
+get_mask_iou_on_cluster = GetMaskIoUOnCluster.apply
+
+
+class GetMaskIoUOnPred(Function):
+
+    @staticmethod
+    def forward(ctx, proposals_idx, proposals_offset, instance_labels, instance_pointnum,
+                mask_scores_sigmoid):
+        '''
+        :param ctx:
+        :param proposals_idx: (sumNPoint), int
+        :param proposals_offset: (nProposal + 1), int
+        :param instance_labels: (N), long, 0~total_nInst-1, -100
+        :param instance_pointnum: (total_nInst), int
+        :param mask_scores_sigmoid: (sumNPoint), float
+        :param mode: int, mode = 1 if cal IoU based on mask else mode = 0
+
+        :return: proposals_iou: (nProposal, total_nInst), float
+        :return mask_label:
+        '''
+
+        nInstance = instance_pointnum.size(0)
+        nProposal = proposals_offset.size(0) - 1
+        proposals_iou = torch.cuda.FloatTensor(nProposal, nInstance).zero_()
+
+        assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
+        assert proposals_offset.is_contiguous() and proposals_offset.is_cuda
+        assert instance_labels.is_contiguous() and instance_labels.is_cuda
+        assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
+        assert mask_scores_sigmoid.is_contiguous() and mask_scores_sigmoid.is_cuda
+
+        SG_OP.get_mask_iou_on_pred(proposals_idx, proposals_offset, instance_labels,
+                                 instance_pointnum, proposals_iou, nInstance, nProposal,
+                                 mask_scores_sigmoid)
+
+        return proposals_iou
+
+    @staticmethod
+    def backward(ctx, a=None):
+        return None, None, None, None
+
+
+get_mask_iou_on_pred = GetMaskIoUOnPred.apply
+
+
+class GetMaskLabel(Function):
+
+    @staticmethod
+    def forward(ctx, proposals_idx, proposals_offset, instance_labels, instance_cls,
+                instance_pointnum, proposals_iou, iou_thr):
+        '''
+        :param ctx:
+        :param proposals_idx: (sumNPoint), int
+        :param proposals_offset: (nProposal + 1), int
+        :param instance_labels: (N), long, 0~total_nInst-1, -100
+        :param mask_scores_sigmoid: (sumNPoint), float
+        :param mode: int, mode = 1 if cal IoU based on mask else mode = 0
+
+        :return: proposals_iou: (nProposal, total_nInst), float
+        :return mask_label:
+        '''
+
+        nInstance = instance_pointnum.size(0)
+        nProposal = proposals_offset.size(0) - 1
+        mask_label = torch.cuda.FloatTensor(proposals_idx.shape).zero_() - 1.
+
+        assert proposals_iou.is_contiguous() and proposals_iou.is_cuda
+        assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
+        assert proposals_offset.is_contiguous() and proposals_offset.is_cuda
+        assert instance_labels.is_contiguous() and instance_labels.is_cuda
+        assert instance_cls.is_contiguous() and instance_cls.is_cuda
+
+        SG_OP.get_mask_label(proposals_idx, proposals_offset, instance_labels, instance_cls,
+                           proposals_iou, nInstance, nProposal, iou_thr, mask_label)
+
+        return mask_label
+
+    @staticmethod
+    def backward(ctx, a=None):
+        return None, None, None, None
+
+
+get_mask_label = GetMaskLabel.apply
+
+class BFSCluster(Function):
+
+    @staticmethod
+    def forward(ctx, cluster_numpoint_mean, ball_query_idxs, start_len, threshold, class_id):
+        '''
+        :param ctx:
+        :param ball_query_idxs: (nActive), int
+        :param start_len: (N, 2), int
+        :return: cluster_idxs:  int (sumNPoint, 2), dim 0 for cluster_id, dim 1 for point idxs in N
+        :return: cluster_offsets: int (nCluster + 1)
+        '''
+
+        N = start_len.size(0)
+        assert cluster_numpoint_mean.is_contiguous()
+        assert ball_query_idxs.is_contiguous()
+        assert start_len.is_contiguous()
+
+        cluster_idxs = ball_query_idxs.new()
+        cluster_offsets = ball_query_idxs.new()
+
+        SG_OP.bfs_cluster(cluster_numpoint_mean, ball_query_idxs, start_len, cluster_idxs,
+                        cluster_offsets, N, threshold, class_id)
+
+        return cluster_idxs, cluster_offsets
+
+    @staticmethod
+    def backward(ctx, a=None):
+        return None
+
+
+bfs_cluster = BFSCluster.apply
+
+
+class GlobalAvgPool(Function):
+
+    @staticmethod
+    def forward(ctx, feats, proposals_offset):
+        '''
+        :param ctx:
+        :param feats: (sumNPoint, C) float
+        :param proposals_offset: (nProposal + 1) int
+        :return: output_feats (nProposal, C) float
+        '''
+        nProposal = proposals_offset.size(0) - 1
+        sumNPoint, C = feats.size()
+
+        assert feats.is_contiguous()
+        assert proposals_offset.is_contiguous()
+
+        output_feats = torch.cuda.FloatTensor(nProposal, C).zero_()
+
+        SG_OP.global_avg_pool_fp(feats, proposals_offset, output_feats, nProposal, C)
+
+        ctx.for_backwards = (proposals_offset, sumNPoint)
+
+        return output_feats
+
+    @staticmethod
+    def backward(ctx, d_output_feats):
+        nProposal, C = d_output_feats.size()
+
+        proposals_offset, sumNPoint = ctx.for_backwards
+
+        d_feats = torch.cuda.FloatTensor(sumNPoint, C).zero_()
+
+        SG_OP.global_avg_pool_bp(d_feats, proposals_offset, d_output_feats.contiguous(), nProposal, C)
+
+        return d_feats, None
+
+
+global_avg_pool = GlobalAvgPool.apply

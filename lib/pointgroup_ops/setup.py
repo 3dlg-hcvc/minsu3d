@@ -5,8 +5,8 @@ setup(
     name='PG_OP',
     ext_modules=[
         CUDAExtension('PG_OP', [
-            'src/pointgroup_ops_api.cpp',
-            'src/pointgroup_ops.cpp',
+            'src/common_ops_api.cpp',
+            'src/common_ops.cpp',
             'src/cuda.cu'
         ], extra_compile_args={'cxx': ['-g'], 'nvcc': ['-O2']})
     ],
