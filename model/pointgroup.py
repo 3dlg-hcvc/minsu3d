@@ -6,7 +6,7 @@ import MinkowskiEngine as ME
 import pytorch_lightning as pl
 
 from data.scannet.model_util_scannet import ScannetDatasetConfig
-from lib.loss import PTOffsetLoss
+from lib.loss import *
 from lib.loss.utils import get_segmented_scores
 from lib.util.eval import get_nms_instances
 from model.module import Backbone, TinyUnet
@@ -183,11 +183,7 @@ class PointGroup(pl.LightningModule):
             output_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
             
         return output_dict
-    
-    # def _init_criterion(self):
-    #     self.sem_seg_criterion = SemSegLoss(self.cfg.data.ignore_label)
-    #     self.pt_offset_criterion = PTOffsetLoss()
-    #     self.score_criterion = nn.BCELoss()
+
 
     def configure_optimizers(self):
         print("=> configure optimizer...")
@@ -228,7 +224,8 @@ class PointGroup(pl.LightningModule):
             ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset.cuda(), data_dict["instance_ids"], instance_pointnum) # (nProposal, nInstance), float
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
             gt_scores = get_segmented_scores(gt_ious, self.cfg.train.fg_thresh, self.cfg.train.bg_thresh)
-            score_loss = self.score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
+            score_criterion = ScoreLoss()
+            score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             losses["score_loss"] = score_loss
 
             total_loss += self.cfg.train.loss_weight[3] * score_loss
