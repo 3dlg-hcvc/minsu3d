@@ -167,6 +167,7 @@ class Voxelization(Function):
         :param feats: cuda float N * C
         :return: output_feats: cuda float M * C
         '''
+     
         assert map_rule.is_contiguous()
         assert feats.is_contiguous()
         N, C = feats.size()

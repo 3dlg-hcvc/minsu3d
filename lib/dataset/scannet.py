@@ -38,20 +38,18 @@ class ScanNet(Dataset):
     def _load_from_disk(self):
         with open(self.DATA_MAP[self.split]) as f:
             self.scene_names = [line.strip() for line in f]
-
         self.scenes = []
-
         for scene_name in tqdm(self.scene_names):
             scene_path = os.path.join(self.root, self.split, scene_name + self.file_suffix)
             scene = torch.load(scene_path)
             scene["xyz"] -= scene["xyz"].mean(axis=0)
-            scene["rgb"] = scene["rgb"] / 127.5 - 1
+            scene["rgb"] = scene["rgb"].astype(np.float32) / 127.5 - 1
             self.scenes.append(scene)
 
     def __len__(self):
         return len(self.scenes)
 
-    def _augment(self, xyz):
+    def _get_augmentation_matrix(self):
         m = np.eye(3)
         if self.cfg.data.augmentation.jitter_xyz:
             m = np.matmul(m, jitter())
@@ -62,7 +60,7 @@ class ScanNet(Dataset):
             t = np.random.rand() * 2 * np.pi
             rot_m = rotz(t)
             m = np.matmul(m, rot_m)  # rotation around z
-        return np.matmul(xyz, m)
+        return m.astype(np.float32)
 
     def _get_cropped_inst_ids(self, instance_ids, valid_idxs):
         """
@@ -156,7 +154,8 @@ class ScanNet(Dataset):
         scene = self.scenes[idx]
 
         points = scene["xyz"]  # (N, 3)
-        feats = scene["rgb"]  # (N, 3) rgb
+        colors = scene["rgb"]  # (N, 3) rgb
+        normals = scene["normal"]
 
         data = {"id": idx, "scene_id": scene_id}
 
@@ -165,10 +164,11 @@ class ScanNet(Dataset):
             sem_labels = scene["sem_labels"]  # {0,1,...,19}, -1 as ignored (unannotated) class
             # augment
             if self.split == "train":
-                points_augment = self._augment(points)
+                aug_matrix = self._get_augmentation_matrix()
+                points_augment = np.matmul(points, aug_matrix)
+                normals = np.matmul(normals, np.transpose(np.linalg.inv(aug_matrix)))
             else:
                 points_augment = points.copy()
-
             # scale
             points = points_augment * self.scale
 
@@ -179,7 +179,7 @@ class ScanNet(Dataset):
 
             # jitter rgb
             if self.split == "train" and self.cfg.data.augmentation.jitter_rgb:
-                feats += np.random.randn(3) * 0.1
+                colors += np.random.randn(3) * 0.1
 
             # offset
             points -= points.min(axis=0)
@@ -202,7 +202,8 @@ class ScanNet(Dataset):
 
                 points = points[valid_idxs]
                 points_augment = points_augment[valid_idxs]
-                feats = feats[valid_idxs]
+                normals = normals[valid_idxs]
+                colors = colors[valid_idxs]
                 sem_labels = sem_labels[valid_idxs]
                 instance_ids = self._get_cropped_inst_ids(instance_ids, valid_idxs)
 
@@ -211,14 +212,18 @@ class ScanNet(Dataset):
 
             if self.requires_gt_mask:
                 gt_proposals_idx, gt_proposals_offset, _, _ = self._generate_gt_clusters(points, instance_ids)
-
-            data["locs"] = points_augment.astype(np.float32)  # (N, 3)
-            data["locs_scaled"] = points.astype(np.float32)  # (N, 3)
-            data["feats"] = feats.astype(np.float32)  # (N, 3)
-            data["sem_labels"] = sem_labels.astype(np.int32)  # (N,)
-            data["instance_ids"] = instance_ids.astype(np.int32)  # (N,) 0~total_nInst, -1
+            feats = np.zeros(shape=(len(points), 0), dtype=np.float32)
+            if self.cfg.model.use_color:
+                feats = np.concatenate((feats, colors), axis=1)
+            if self.cfg.model.use_normal:
+                feats = np.concatenate((feats, normals), axis=1)
+            data["locs"] = points_augment  # (N, 3)
+            data["locs_scaled"] = points  # (N, 3)
+            data["feats"] = feats  # (N, 3)
+            data["sem_labels"] = sem_labels  # (N,)
+            data["instance_ids"] = instance_ids  # (N,) 0~total_nInst, -1
             data["num_instance"] = np.array(num_instance, dtype=np.int32)  # int
-            data["instance_info"] = instance_info.astype(np.float32)  # (N, 12)
+            data["instance_info"] = instance_info  # (N, 12)
             data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)  # (num_instance,)
             data["instance_semantic_cls"] = np.array(instance_semantic_cls, dtype=np.int32)
             if self.requires_gt_mask:
@@ -226,13 +231,18 @@ class ScanNet(Dataset):
                 data['gt_proposals_offset'] = gt_proposals_offset
         else:
             # scale
-            points = points.copy() * self.scale
+            points = points * self.scale
 
             # offset
             points -= points.min(0)
 
-            data["locs"] = points.astype(np.float32)  # (N, 3)
-            data["locs_scaled"] = points.astype(np.float32)  # (N, 3)
-            data["feats"] = feats.astype(np.float32)  # (N, 3)
+            data["locs"] = points  # (N, 3)
+            data["locs_scaled"] = points  # (N, 3)
+            feats = np.zeros(shape=(len(points), 0), dtype=np.float32)
+            if self.cfg.model.use_color:
+                feats = np.concatenate((feats, colors), axis=1)
+            if self.cfg.model.use_normal:
+                feats = np.concatenate((feats, normals), axis=1)
+            data["feats"] = feats  # (N, 3)
 
         return data

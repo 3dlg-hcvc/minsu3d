@@ -27,7 +27,8 @@ def read_mesh_file(mesh_file, axis_align_matrix):
     if axis_align_matrix is not None:
         # align the mesh
         mesh.transform(axis_align_matrix)
-    return np.asarray(mesh.vertices), np.rint(np.asarray(mesh.vertex_colors) * 255).astype(np.uint8), np.asarray(mesh.vertex_normals)
+    mesh.compute_vertex_normals()
+    return np.asarray(mesh.vertices, dtype=np.float32), np.rint(np.asarray(mesh.vertex_colors) * 255).astype(np.uint8), np.asarray(mesh.vertex_normals, dtype=np.float32)
 
 
 def read_axis_align_matrix(meta_file):

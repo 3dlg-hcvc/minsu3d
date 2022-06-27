@@ -289,7 +289,7 @@ class SoftGroup(pl.LightningModule):
 
     def _feed(self, data_dict):
         if self.cfg.model.use_coords:
-            data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), 1)
+            data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
 
         data_dict["voxel_feats"] = softgroup_ops.voxelization(data_dict["feats"], data_dict["p2v_map"],
                                                               self.cfg.data.mode)  # (M, C), float, cuda

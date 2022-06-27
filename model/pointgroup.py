@@ -234,19 +234,15 @@ class PointGroup(pl.LightningModule):
         
     def _feed(self, data_dict):
         if self.cfg.model.use_coords:
-            data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), 1)
-
+            data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
         data_dict["voxel_feats"] = pointgroup_ops.voxelization(data_dict["feats"], data_dict["p2v_map"], self.cfg.data.mode)  # (M, C), float, cuda
-
         output_dict = self.forward(data_dict)
-        
         return output_dict
 
     def training_step(self, data_dict, idx):
         # prepare input and forward
         output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
-
         self.log("train/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
         for key, value in losses.items():
             self.log(f"train/{key}", value, on_step=False, on_epoch=True, sync_dist=True)
