@@ -219,7 +219,7 @@ class SoftGroup(pl.LightningModule):
         pt_offset_criterion = PTOffsetLoss()
         offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
         losses["offset_norm_loss"] = offset_norm_loss
-        losses["offset_dir_loss"] = offset_dir_loss
+        # losses["offset_dir_loss"] = offset_dir_loss
 
         total_loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + \
                      self.cfg.train.loss_weight[2] * offset_dir_loss
