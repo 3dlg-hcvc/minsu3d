@@ -221,8 +221,7 @@ class SoftGroup(pl.LightningModule):
         losses["offset_norm_loss"] = offset_norm_loss
         # losses["offset_dir_loss"] = offset_dir_loss
 
-        total_loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + \
-                     self.cfg.train.loss_weight[2] * offset_dir_loss
+        total_loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss
 
         if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
             proposals_idx = output_dict["proposals_idx"][:, 1].cuda()
@@ -333,7 +332,6 @@ class SoftGroup(pl.LightningModule):
             torch.cuda.empty_cache()
 
     def validation_epoch_end(self, outputs):
-        torch.cuda.empty_cache()
         # evaluate instance predictions
         if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
             all_pred_insts = []
