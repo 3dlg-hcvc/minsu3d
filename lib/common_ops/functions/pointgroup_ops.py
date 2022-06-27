@@ -1,9 +1,9 @@
 import torch
 from torch.autograd import Function
-import PG_OP
+import COMMON_OPS
 
 
-class BFSCluster(Function):
+class PGBFSCluster(Function):
     @staticmethod
     def forward(ctx, semantic_label, ball_query_idxs, start_len, threshold):
         '''
@@ -24,7 +24,7 @@ class BFSCluster(Function):
         cluster_idxs = semantic_label.new()
         cluster_offsets = semantic_label.new()
 
-        PG_OP.bfs_cluster(semantic_label, ball_query_idxs, start_len, cluster_idxs, cluster_offsets, N, threshold)
+        COMMON_OPS.bfs_cluster(semantic_label, ball_query_idxs, start_len, cluster_idxs, cluster_offsets, N, threshold)
 
         return cluster_idxs, cluster_offsets
 
@@ -33,7 +33,7 @@ class BFSCluster(Function):
         return None
 
 
-bfs_cluster = BFSCluster.apply
+pg_bfs_cluster = PGBFSCluster.apply
 
 
 class RoiPool(Function):
@@ -54,7 +54,7 @@ class RoiPool(Function):
         output_feats = torch.cuda.FloatTensor(nProposal, C).zero_()
         output_maxidx = torch.cuda.IntTensor(nProposal, C).zero_()
 
-        PG_OP.roipool_fp(feats, proposals_offset, output_feats, output_maxidx, nProposal, C)
+        COMMON_OPS.roipool_fp(feats, proposals_offset, output_feats, output_maxidx, nProposal, C)
 
         ctx.for_backwards = (output_maxidx, proposals_offset, sumNPoint)
 
@@ -68,7 +68,7 @@ class RoiPool(Function):
 
         d_feats = torch.cuda.FloatTensor(sumNPoint, C).zero_()
 
-        PG_OP.roipool_bp(d_feats, proposals_offset, output_maxidx, d_output_feats.contiguous(), nProposal, C)
+        COMMON_OPS.roipool_bp(d_feats, proposals_offset, output_maxidx, d_output_feats.contiguous(), nProposal, C)
 
         return d_feats, None
 
@@ -97,7 +97,7 @@ class GetIoU(Function):
 
         proposals_iou = torch.cuda.FloatTensor(nProposal, nInstance).zero_()
 
-        PG_OP.get_iou(proposals_idx, proposals_offset, instance_labels, instance_pointnum, proposals_iou, nInstance,
+        COMMON_OPS.get_iou(proposals_idx, proposals_offset, instance_labels, instance_pointnum, proposals_iou, nInstance,
                       nProposal)
 
         return proposals_iou
@@ -129,7 +129,7 @@ class PointRecover(Function):
 
         ctx.for_backwards = (map_rule, maxActive, M)
 
-        PG_OP.point_recover_fp(feats, output_feats, map_rule, M, maxActive, C)
+        COMMON_OPS.point_recover_fp(feats, output_feats, map_rule, M, maxActive, C)
 
         return output_feats
 
@@ -140,7 +140,7 @@ class PointRecover(Function):
 
         d_feats = torch.cuda.FloatTensor(M, C).zero_()
 
-        PG_OP.point_recover_bp(d_output_feats.contiguous(), d_feats, map_rule, M, maxActive, C)
+        COMMON_OPS.point_recover_bp(d_output_feats.contiguous(), d_feats, map_rule, M, maxActive, C)
 
         return d_feats, None, None
 

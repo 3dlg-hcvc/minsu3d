@@ -1,6 +1,6 @@
 import torch
 from torch.autograd import Function
-import SG_OP
+import COMMON_OPS
 
 
 class GetMaskIoUOnCluster(Function):
@@ -29,7 +29,7 @@ class GetMaskIoUOnCluster(Function):
         assert instance_labels.is_contiguous() and instance_labels.is_cuda
         assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
 
-        SG_OP.get_mask_iou_on_cluster(proposals_idx, proposals_offset, instance_labels,
+        COMMON_OPS.get_mask_iou_on_cluster(proposals_idx, proposals_offset, instance_labels,
                                     instance_pointnum, proposals_iou, nInstance, nProposal)
 
         return proposals_iou
@@ -70,7 +70,7 @@ class GetMaskIoUOnPred(Function):
         assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
         assert mask_scores_sigmoid.is_contiguous() and mask_scores_sigmoid.is_cuda
 
-        SG_OP.get_mask_iou_on_pred(proposals_idx, proposals_offset, instance_labels,
+        COMMON_OPS.get_mask_iou_on_pred(proposals_idx, proposals_offset, instance_labels,
                                  instance_pointnum, proposals_iou, nInstance, nProposal,
                                  mask_scores_sigmoid)
 
@@ -111,7 +111,7 @@ class GetMaskLabel(Function):
         assert instance_labels.is_contiguous() and instance_labels.is_cuda
         assert instance_cls.is_contiguous() and instance_cls.is_cuda
 
-        SG_OP.get_mask_label(proposals_idx, proposals_offset, instance_labels, instance_cls,
+        COMMON_OPS.get_mask_label(proposals_idx, proposals_offset, instance_labels, instance_cls,
                            proposals_iou, nInstance, nProposal, iou_thr, mask_label)
 
         return mask_label
@@ -123,7 +123,7 @@ class GetMaskLabel(Function):
 
 get_mask_label = GetMaskLabel.apply
 
-class BFSCluster(Function):
+class SGBFSCluster(Function):
 
     @staticmethod
     def forward(ctx, cluster_numpoint_mean, ball_query_idxs, start_len, threshold, class_id):
@@ -143,7 +143,7 @@ class BFSCluster(Function):
         cluster_idxs = ball_query_idxs.new()
         cluster_offsets = ball_query_idxs.new()
 
-        SG_OP.bfs_cluster(cluster_numpoint_mean, ball_query_idxs, start_len, cluster_idxs,
+        COMMON_OPS.bfs_cluster(cluster_numpoint_mean, ball_query_idxs, start_len, cluster_idxs,
                         cluster_offsets, N, threshold, class_id)
 
         return cluster_idxs, cluster_offsets
@@ -153,7 +153,7 @@ class BFSCluster(Function):
         return None
 
 
-bfs_cluster = BFSCluster.apply
+sg_bfs_cluster = SGBFSCluster.apply
 
 
 class GlobalAvgPool(Function):
@@ -174,7 +174,7 @@ class GlobalAvgPool(Function):
 
         output_feats = torch.cuda.FloatTensor(nProposal, C).zero_()
 
-        SG_OP.global_avg_pool_fp(feats, proposals_offset, output_feats, nProposal, C)
+        COMMON_OPS.global_avg_pool_fp(feats, proposals_offset, output_feats, nProposal, C)
 
         ctx.for_backwards = (proposals_offset, sumNPoint)
 
@@ -188,7 +188,7 @@ class GlobalAvgPool(Function):
 
         d_feats = torch.cuda.FloatTensor(sumNPoint, C).zero_()
 
-        SG_OP.global_avg_pool_bp(d_feats, proposals_offset, d_output_feats.contiguous(), nProposal, C)
+        COMMON_OPS.global_avg_pool_bp(d_feats, proposals_offset, d_output_feats.contiguous(), nProposal, C)
 
         return d_feats, None
 

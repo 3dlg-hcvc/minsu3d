@@ -3,7 +3,8 @@ import torch.nn as nn
 import MinkowskiEngine as ME
 import pytorch_lightning as pl
 from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode
-from lib.softgroup_ops.functions import softgroup_ops
+from lib.common_ops.functions import softgroup_ops
+from lib.common_ops.functions import common_ops
 from lib.loss import *
 from lib.evaluation.semantic_seg_helper import *
 from model.module import Backbone, TinyUnet
@@ -68,8 +69,8 @@ class SoftGroup(pl.LightningModule):
         feats = feats[c_idxs.long()]
         coords = coords[c_idxs.long()]
 
-        coords_min = softgroup_ops.sec_min(coords, clusters_offset.cuda())
-        coords_max = softgroup_ops.sec_max(coords, clusters_offset.cuda())
+        coords_min = common_ops.sec_min(coords, clusters_offset.cuda())
+        coords_max = common_ops.sec_max(coords, clusters_offset.cuda())
 
         # 0.01 to ensure voxel_coords < spatial_shape
         clusters_scale = 1 / ((coords_max - coords_min) / spatial_shape).max(1)[0] - 0.01
@@ -91,8 +92,8 @@ class SoftGroup(pl.LightningModule):
         coords = coords.long()
         coords = torch.cat([clusters_idx[:, 0].view(-1, 1).long(), coords.cpu()], 1)
 
-        out_coords, inp_map, out_map = softgroup_ops.voxelization_idx(coords, int(clusters_idx[-1, 0]) + 1)
-        out_feats = softgroup_ops.voxelization(feats, out_map.cuda())
+        out_coords, inp_map, out_map = common_ops.voxelization_idx(coords, int(clusters_idx[-1, 0]) + 1)
+        out_feats = common_ops.voxelization(feats, out_map.cuda())
 
         voxelization_feats = ME.SparseTensor(features=out_feats, coordinates=out_coords.int().cuda())
         return voxelization_feats, inp_map
@@ -134,10 +135,10 @@ class SoftGroup(pl.LightningModule):
                 batch_offsets_ = self._get_batch_offsets(batch_idxs_, batch_size)
                 coords_ = data_dict["locs"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
-                idx, start_len = softgroup_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
+                idx, start_len = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
                                                                  grouping_radius, grouping_mean_active)
 
-                proposals_idx, proposals_offset = softgroup_ops.bfs_cluster(class_num_point_mean, idx.cpu(),
+                proposals_idx, proposals_offset = softgroup_ops.sg_bfs_cluster(class_num_point_mean, idx.cpu(),
                                                                             start_len.cpu(),
                                                                             grouping_num_point_threshold, class_id)
                 proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
@@ -291,7 +292,7 @@ class SoftGroup(pl.LightningModule):
         if self.cfg.model.use_coords:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
 
-        data_dict["voxel_feats"] = softgroup_ops.voxelization(data_dict["feats"], data_dict["p2v_map"],
+        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"], data_dict["p2v_map"],
                                                               self.cfg.data.mode)  # (M, C), float, cuda
         output_dict = self.forward(data_dict)
         return output_dict

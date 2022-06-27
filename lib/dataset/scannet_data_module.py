@@ -1,7 +1,7 @@
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from MinkowskiEngine.utils import sparse_collate, batched_coordinates
-from lib.softgroup_ops.functions import softgroup_ops
+from lib.common_ops.functions import common_ops
 from lib.dataset.scannet import ScanNet
 import numpy as np
 import torch
@@ -131,7 +131,7 @@ def sparse_collate_fn(batch):
         data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int32)  # int (B+1)
         data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.long)  # long (total_nInst)
     # voxelize
-    data["voxel_locs"], data["v2p_map"], data["p2v_map"] = softgroup_ops.voxelization_idx(data["locs_scaled"],
+    data["voxel_locs"], data["v2p_map"], data["p2v_map"] = common_ops.voxelization_idx(data["locs_scaled"],
                                                                                           len(batch),
                                                                                           4)
 
