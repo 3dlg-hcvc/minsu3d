@@ -184,10 +184,8 @@ class PointGroup(pl.LightningModule):
             
         return output_dict
 
-
     def configure_optimizers(self):
-        print("=> configure optimizer...")
-        return init_optimizer(**self.cfg.train.optim)
+        return init_optimizer(parameters=self.parameters(), **self.cfg.train.optim)
 
     def _loss(self, data_dict, output_dict):
         losses = {}
@@ -195,7 +193,8 @@ class PointGroup(pl.LightningModule):
         """semantic loss"""
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
-        semantic_loss = self.sem_seg_criterion(data_dict["semantic_scores"], data_dict["sem_labels"])
+        sem_seg_criterion = SemSegLoss(self.cfg.data.ignore_label)
+        semantic_loss = sem_seg_criterion(output_dict["semantic_scores"], data_dict["sem_labels"])
         losses["semantic_loss"] = semantic_loss
 
         """offset loss"""
@@ -213,7 +212,7 @@ class PointGroup(pl.LightningModule):
         total_loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss + \
                      self.cfg.train.loss_weight[2] * offset_dir_loss
 
-        if self.current_epoch > self.cfg.cluster.prepare_epochs:
+        if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
             """score loss"""
             scores, proposals_idx, proposals_offset = output_dict["proposal_scores"]
             instance_pointnum = data_dict["instance_num_point"]

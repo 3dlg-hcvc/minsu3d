@@ -218,7 +218,6 @@ class SoftGroup(pl.LightningModule):
         valid = data_dict["instance_ids"] != self.cfg.data.ignore_label
         pt_offset_criterion = PTOffsetLoss()
         offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
-        valid_count = valid.count_nonzero()
         losses["offset_norm_loss"] = offset_norm_loss
         losses["offset_dir_loss"] = offset_dir_loss
 
