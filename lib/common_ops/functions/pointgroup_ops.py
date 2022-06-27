@@ -24,7 +24,7 @@ class PGBFSCluster(Function):
         cluster_idxs = semantic_label.new()
         cluster_offsets = semantic_label.new()
 
-        COMMON_OPS.bfs_cluster(semantic_label, ball_query_idxs, start_len, cluster_idxs, cluster_offsets, N, threshold)
+        COMMON_OPS.pg_bfs_cluster(semantic_label, ball_query_idxs, start_len, cluster_idxs, cluster_offsets, N, threshold)
 
         return cluster_idxs, cluster_offsets
 

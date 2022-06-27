@@ -9,6 +9,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
     m.def("get_mask_iou_on_cluster", &get_mask_iou_on_cluster, "get_mask_iou_on_cluster");
     m.def("get_mask_iou_on_pred", &get_mask_iou_on_pred, "get_mask_iou_on_pred");
     m.def("get_mask_label", &get_mask_label, "get_mask_label");
+    m.def("global_avg_pool_fp", &global_avg_pool_fp, "global_avg_pool_fp");
+    m.def("global_avg_pool_bp", &global_avg_pool_bp, "global_avg_pool_bp");
+
     // Common
     m.def("voxelize_idx", &voxelize_idx_3d, "voxelize_idx");
     m.def("voxelize_fp", &voxelize_fp_feat, "voxelize_fp");
@@ -17,6 +20,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
     m.def("sec_mean", &sec_mean, "sec_mean");
     m.def("sec_min", &sec_min, "sec_min");
     m.def("sec_max", &sec_max, "sec_max");
+
     // PointGroup
     m.def("point_recover_fp", &point_recover_fp_feat, "point_recover_fp");
     m.def("point_recover_bp", &point_recover_bp_feat, "point_recover_bp");

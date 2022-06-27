@@ -22,4 +22,18 @@ void roipool_bp(at::Tensor d_feats_tensor, at::Tensor proposals_offset_tensor, a
 
 void roipool_bp_cuda(int nProposal, int C, float *d_feats, int *proposals_offset, int *output_maxidx, float *d_output_feats);
 
+void global_avg_pool_fp_cuda(int nProposal, int C, float *feats,
+                             int *proposals_offset, float *output_feats);
+
+void global_avg_pool_bp_cuda(int nProposal, int C, float *d_feats,
+                             int *proposals_offset, float *d_output_feats);
+
+void global_avg_pool_fp(at::Tensor feats_tensor,
+                        at::Tensor proposals_offset_tensor,
+                        at::Tensor output_feats_tensor, int nProposal, int C);
+
+void global_avg_pool_bp(at::Tensor d_feats_tensor,
+                        at::Tensor proposals_offset_tensor,
+                        at::Tensor d_output_feats_tensor, int nProposal, int C);
+
 #endif //ROIPOOL_H

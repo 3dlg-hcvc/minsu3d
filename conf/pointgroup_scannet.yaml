@@ -14,6 +14,9 @@ data:
   dataset: ScanNet
   loader: scannet_loader
   ignore_classes: [ 0, 1 ]
+  class_names: [ 'cabinet', 'bed', 'chair', 'sofa', 'table', 'door', 'window', 'bookshelf', 'picture',
+                 'counter', 'desk', 'curtain', 'refrigerator', 'shower curtain', 'toilet', 'sink',
+                 'bathtub', 'otherfurniture' ]
   data_root: dataset
   file_suffix: .pth
 
@@ -66,7 +69,7 @@ model:
   num_size_cluster: 18
   max_num_proposal: 128
 
-  use_checkpoint:
+  use_checkpoint: # /localhome/yza440/Research/pointgroup-minkowski/output/scannet/pointgroup/train/pointgroup-scannet-epoch=127.ckpt
   pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
   pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]
   pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth

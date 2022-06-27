@@ -143,7 +143,7 @@ class SGBFSCluster(Function):
         cluster_idxs = ball_query_idxs.new()
         cluster_offsets = ball_query_idxs.new()
 
-        COMMON_OPS.bfs_cluster(cluster_numpoint_mean, ball_query_idxs, start_len, cluster_idxs,
+        COMMON_OPS.sg_bfs_cluster(cluster_numpoint_mean, ball_query_idxs, start_len, cluster_idxs,
                         cluster_offsets, N, threshold, class_id)
 
         return cluster_idxs, cluster_offsets

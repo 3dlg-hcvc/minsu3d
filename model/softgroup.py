@@ -168,7 +168,8 @@ class SoftGroup(pl.LightningModule):
                 output_dict["point_features"],
                 data_dict["locs"],
                 rand_quantize=True,
-                **self.hparams.cfg.model.instance_voxel_cfg)
+                **self.hparams.cfg.model.instance_voxel_cfg
+            )
 
             feats = self.tiny_unet(inst_feats)
 
@@ -337,9 +338,9 @@ class SoftGroup(pl.LightningModule):
             all_pred_insts = []
             all_gt_insts = []
             for batch, output in outputs:
-                pred_instances = self._get_instances(output["proposals_idx"].cpu(), output["semantic_scores"].cpu(),
-                                                     output["cls_scores"].cpu(), output["iou_scores"].cpu(),
-                                                     output["mask_scores"].cpu())
+                pred_instances = self._get_pred_instances(output["proposals_idx"].cpu(), output["semantic_scores"].cpu(),
+                                                          output["cls_scores"].cpu(), output["iou_scores"].cpu(),
+                                                          output["mask_scores"].cpu())
                 gt_instances = self._get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu())
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
@@ -365,14 +366,14 @@ class SoftGroup(pl.LightningModule):
 
         if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
             # instance prediction
-            pred_instances = self._get_instances(data_dict["proposals_idx"], data_dict["semantic_scores"],
-                                                 data_dict["cls_scores"], data_dict["iou_scores"],
-                                                 data_dict["mask_scores"])
+            pred_instances = self._get_pred_instances(data_dict["proposals_idx"], data_dict["semantic_scores"],
+                                                      data_dict["cls_scores"], data_dict["iou_scores"],
+                                                      data_dict["mask_scores"])
 
         # save predictions
         return data_dict
 
-    def _get_instances(self, proposals_idx, semantic_scores, cls_scores, iou_scores, mask_scores):
+    def _get_pred_instances(self, proposals_idx, semantic_scores, cls_scores, iou_scores, mask_scores):
         num_instances = cls_scores.size(0)
         num_points = semantic_scores.size(0)
         cls_scores = cls_scores.softmax(1)
