@@ -13,6 +13,8 @@ def load_conf(args):
 
     cfg.general.experiment = args.experiment
     cfg.general.task = "predict"
+    if args.pretrain is not None:
+        cfg.model.use_checkpoint = args.pretrain
 
     root = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.general.experiment,
                         cfg.general.task)
@@ -49,6 +51,7 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--config', type=str, default='conf/softgroup_scannet.yaml', help='path to config file')
     parser.add_argument('-s', '--split', type=str, default='val', help='specify data split')
     parser.add_argument('-e', '--experiment', type=str, default='', help='specify experiment')
+    parser.add_argument('-p', '--pretrain', type=str, default=None, help='specify pretrained model')
     args = parser.parse_args()
 
     print("=> loading configurations...")
