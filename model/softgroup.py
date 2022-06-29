@@ -354,7 +354,7 @@ class SoftGroup(pl.LightningModule):
         torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
-        return output_dict
+        return data_dict, output_dict
 
     def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
         torch.cuda.empty_cache()
@@ -362,7 +362,8 @@ class SoftGroup(pl.LightningModule):
         output_dict = self._feed(data_dict)
         return data_dict, output_dict
 
-    def on_predict_epoch_end(self, results):
+    def test_epoch_end(self, results):
+        torch.cuda.empty_cache()
         # evaluate instance predictions
         if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
             all_pred_insts = []

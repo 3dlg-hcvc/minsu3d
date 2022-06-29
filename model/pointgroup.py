@@ -282,11 +282,6 @@ class PointGroup(pl.LightningModule):
 
         return data_dict, output_dict
 
-    def test_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
-        # prepare input and forward
-        output_dict = self._feed(data_dict)
-        return output_dict
 
     def validation_epoch_end(self, outputs):
         # evaluate instance predictions

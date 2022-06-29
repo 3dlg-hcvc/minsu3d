@@ -18,7 +18,7 @@ class ScanNetDataModule(pl.LightningDataModule):
             self.scannet_val = ScanNet(self.cfg, "val")
 
         if stage == "test" or stage is None:
-            self.scannet_test = ScanNet(self.cfg, "test")
+            self.scannet_test = ScanNet(self.cfg, "val")
 
         if stage == "predict" or stage is None:
             self.scannet_predict = ScanNet(self.cfg, "test")

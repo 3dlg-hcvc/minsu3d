@@ -26,7 +26,6 @@ def load_conf(args):
                         cfg.general.task)
     os.makedirs(root, exist_ok=True)
     cfg.general.root = root
-
     cfg_backup_path = os.path.join(cfg.general.root, "config.yaml")
     OmegaConf.save(cfg, cfg_backup_path)
 
