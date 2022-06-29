@@ -351,27 +351,33 @@ class SoftGroup(pl.LightningModule):
             self.log("val_accuracy/AP_25", evaluation_result["all_ap_25%"], sync_dist=True)
 
     def test_step(self, data_dict, idx):
-
+        torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
-
         return output_dict
 
-    def predict_step(self, data_dict, idx, dataloader_idx):
+    def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
+        torch.cuda.empty_cache()
         # prepare input and forward
-        data_dict = self._feed(data_dict)
+        output_dict = self._feed(data_dict)
+        return data_dict, output_dict
 
-        # semantic prediction
-        semantic_predictions = data_dict["semantic_scores"].max(1)[1]
-
+    def on_predict_epoch_end(self, results):
+        # evaluate instance predictions
         if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
-            # instance prediction
-            pred_instances = self._get_pred_instances(data_dict["proposals_idx"], data_dict["semantic_scores"],
-                                                      data_dict["cls_scores"], data_dict["iou_scores"],
-                                                      data_dict["mask_scores"])
+            all_pred_insts = []
+            all_gt_insts = []
+            for batch, output in results:
+                pred_instances = self._get_pred_instances(output["proposals_idx"].cpu(),
+                                                          output["semantic_scores"].cpu(),
+                                                          output["cls_scores"].cpu(), output["iou_scores"].cpu(),
+                                                          output["mask_scores"].cpu())
+                gt_instances = self._get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu())
+                all_pred_insts.append(pred_instances)
+                all_gt_insts.append(gt_instances)
+            evaluator = ScanNetEval(self.hparams.cfg.data.class_names)
+            evaluation_result = evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
 
-        # save predictions
-        return data_dict
 
     def _get_pred_instances(self, proposals_idx, semantic_scores, cls_scores, iou_scores, mask_scores):
         num_instances = cls_scores.size(0)

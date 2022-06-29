@@ -2,6 +2,7 @@ import os
 import argparse
 from omegaconf import OmegaConf
 from importlib import import_module
+from lib.dataset.scannet_data_module import ScanNetDataModule
 import pytorch_lightning as pl
 
 
@@ -23,21 +24,6 @@ def load_conf(args):
     cfg.cluster.prepare_epochs = -1
 
     return cfg
-
-
-def init_data(cfg):
-    DATA_MODULE = import_module(cfg.data.module)
-    dataloader = getattr(DATA_MODULE, cfg.data.loader)
-
-    if cfg.general.task == "train":
-        print("=> loading the train and val datasets...")
-    else:
-        print("=> loading the {} dataset...".format(cfg.data.split))
-        
-    dataset, dataloader = dataloader(cfg)
-    print("=> loading dataset completed")
-
-    return dataset, dataloader
 
 # def init_model(cfg):
 #     MODEL = getattr(import_module(cfg.model.module), cfg.model.classname)
@@ -71,8 +57,6 @@ def init_trainer(cfg):
 def init_model(cfg):
     MODEL = getattr(import_module(cfg.model.module), cfg.model.classname)
     model = MODEL(cfg)
-    print("=> loading pretrained checkpoint from {} ...".format(cfg.pretrain))
-    model.load_from_checkpoint(cfg.pretrain)
     return model
 
 
@@ -86,23 +70,14 @@ if __name__ == '__main__':
     print("=> loading configurations...")
     cfg = load_conf(args)
 
-    print("=> initializing data...")
-    dataset, dataloader = init_data(cfg)
-
     print("=> initializing trainer...")
     trainer = init_trainer(cfg)
 
+    print("=> initializing data...")
+    data_module = ScanNetDataModule(cfg)
+
     print("=> initializing model...")
-    pointgroup = init_model(cfg)
+    model = init_model(cfg)
 
     print("=> start inferencing...")
-    trainer.predict(model=pointgroup, dataloaders=dataloader["val"], ckpt_path=cfg.pretrain)
-
-    # if args.task == 'test':
-    #     model.inference(dataloader[args.split])
-    # elif args.task == 'gt_feats':
-    #     if args.split == 'train':
-    #         epoch = 200
-    #     else:
-    #         epoch = 1
-    #     model.generate_gt_features(dataloader[args.split], cfg.data.split, epoch)
+    trainer.predict(model=model, datamodule=data_module, ckpt_path=cfg.model.use_checkpoint)

@@ -283,6 +283,7 @@ class PointGroup(pl.LightningModule):
         return data_dict, output_dict
 
     def test_step(self, data_dict, idx):
+        torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
         return output_dict
@@ -304,12 +305,17 @@ class PointGroup(pl.LightningModule):
             self.log("val_accuracy/AP_50", evaluation_result['all_ap_50%'], sync_dist=True)
             self.log("val_accuracy/AP_25", evaluation_result["all_ap_25%"], sync_dist=True)
 
-    def predict_step(self, data_dict, idx):
+    def test_step(self, data_dict, idx):
         torch.cuda.empty_cache()
-        data_dict = self._feed(data_dict)
-        self.parse_semantic_predictions(data_dict)
-        if self.current_epoch > self.cfg.cluster.prepare_epochs:
-            self.parse_instance_predictions(data_dict)
+        # prepare input and forward
+        output_dict = self._feed(data_dict)
+        return output_dict
+
+    def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
+        torch.cuda.empty_cache()
+        # prepare input and forward
+        output_dict = self._feed(data_dict)
+        return data_dict, output_dict
 
 
     def _get_gt_instances(self, semantic_labels, instance_labels):

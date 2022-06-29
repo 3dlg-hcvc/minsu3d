@@ -386,7 +386,7 @@ class ScanNetEval(object):
 
         return gt2pred, pred2gt
 
-    def evaluate(self, pred_list, gt_list):
+    def evaluate(self, pred_list, gt_list, print_result=False):
         """
         Args:
             pred_list:
@@ -408,5 +408,60 @@ class ScanNetEval(object):
             matches[matches_key]['pred'] = pred2gt
         ap_scores, rc_scores = self.evaluate_matches(matches)
         avgs = self.compute_averages(ap_scores, rc_scores)
-
+        if print_result:
+            self.print_results(avgs)
         return avgs
+
+    def print_results(self, avgs):
+        sep = ''
+        col1 = ':'
+        lineLen = 64
+
+        print()
+        print('#' * lineLen)
+        line = ''
+        line += '{:<15}'.format('what') + sep + col1
+        line += '{:>8}'.format('AP') + sep
+        line += '{:>8}'.format('AP_50%') + sep
+        line += '{:>8}'.format('AP_25%') + sep
+        line += '{:>8}'.format('AR') + sep
+        line += '{:>8}'.format('RC_50%') + sep
+        line += '{:>8}'.format('RC_25%') + sep
+
+        print(line)
+        print('#' * lineLen)
+
+        for (li, label_name) in enumerate(self.eval_class_labels):
+            ap_avg = avgs['classes'][label_name]['ap']
+            ap_50o = avgs['classes'][label_name]['ap50%']
+            ap_25o = avgs['classes'][label_name]['ap25%']
+            rc_avg = avgs['classes'][label_name]['rc']
+            rc_50o = avgs['classes'][label_name]['rc50%']
+            rc_25o = avgs['classes'][label_name]['rc25%']
+            line = '{:<15}'.format(label_name) + sep + col1
+            line += sep + '{:>8.3f}'.format(ap_avg) + sep
+            line += sep + '{:>8.3f}'.format(ap_50o) + sep
+            line += sep + '{:>8.3f}'.format(ap_25o) + sep
+            line += sep + '{:>8.3f}'.format(rc_avg) + sep
+            line += sep + '{:>8.3f}'.format(rc_50o) + sep
+            line += sep + '{:>8.3f}'.format(rc_25o) + sep
+            print(line)
+
+        all_ap_avg = avgs['all_ap']
+        all_ap_50o = avgs['all_ap_50%']
+        all_ap_25o = avgs['all_ap_25%']
+        all_rc_avg = avgs['all_rc']
+        all_rc_50o = avgs['all_rc_50%']
+        all_rc_25o = avgs['all_rc_25%']
+
+        print('-' * lineLen)
+        line = '{:<15}'.format('average') + sep + col1
+        line += '{:>8.3f}'.format(all_ap_avg) + sep
+        line += '{:>8.3f}'.format(all_ap_50o) + sep
+        line += '{:>8.3f}'.format(all_ap_25o) + sep
+        line += '{:>8.3f}'.format(all_rc_avg) + sep
+        line += '{:>8.3f}'.format(all_rc_50o) + sep
+        line += '{:>8.3f}'.format(all_rc_25o) + sep
+        print(line)
+        print('#' * lineLen)
+        print()
