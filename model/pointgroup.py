@@ -1,13 +1,12 @@
-import os
 import torch
 import torch.nn as nn
-import MinkowskiEngine as ME
 import pytorch_lightning as pl
-from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode
+from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode, get_gt_instances
 from lib.common_ops.functions import pointgroup_ops
 from lib.common_ops.functions import common_ops
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.loss import *
+from model.helper import clusters_voxelization, get_batch_offsets
 from lib.loss.utils import get_segmented_scores
 from lib.util.eval import get_nms_instances
 from model.module import Backbone, TinyUnet
@@ -57,77 +56,12 @@ class PointGroup(pl.LightningModule):
         self.score_branch = nn.Linear(output_channel, 1)
 
 
-    def get_batch_offsets(self, batch_idxs, batch_size):
-        """
-        :param batch_idxs: (N), int
-        :param batch_size: int
-        :return: batch_offsets: (batch_size + 1)
-        """
-        batch_offsets = torch.zeros(batch_size + 1, dtype=torch.int32, device=self.device)
-        for i in range(batch_size):
-            batch_offsets[i + 1] = batch_offsets[i] + torch.count_nonzero(batch_idxs == i)
-        assert batch_offsets[-1] == batch_idxs.shape[0]
-        return batch_offsets
-
-
-    def clusters_voxelization(self, clusters_idx, clusters_offset, feats, coords, fullscale, scale, mode):
-        """
-        :param clusters_idx: (SumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N, cpu
-        :param clusters_offset: (nCluster + 1), int, cpu
-        :param feats: (N, C), float, cuda
-        :param coords: (N, 3), float, cuda
-        :return:
-        """
-        c_idxs = clusters_idx[:, 1].cuda()
-        clusters_feats = feats[c_idxs.long()]
-        clusters_coords = coords[c_idxs.long()]
-
-        clusters_coords_mean = common_ops.sec_mean(clusters_coords, clusters_offset.cuda())  # (nCluster, 3), float
-        clusters_coords_mean_all = torch.index_select(clusters_coords_mean, 0, clusters_idx[:, 0].cuda().long())  # (sumNPoint, 3), float
-        clusters_coords -= clusters_coords_mean_all
-
-        clusters_coords_min = common_ops.sec_min(clusters_coords, clusters_offset.cuda())  # (nCluster, 3), float
-        clusters_coords_max = common_ops.sec_max(clusters_coords, clusters_offset.cuda())  # (nCluster, 3), float
-
-        #### make sure the the range of scaled clusters are at most fullscale
-        clusters_scale = 1 / ((clusters_coords_max - clusters_coords_min) / fullscale).max(1)[0] - 0.01  # (nCluster), float
-        clusters_scale = torch.clamp(clusters_scale, min=None, max=scale)
-
-        min_xyz = clusters_coords_min * clusters_scale.unsqueeze(-1)  # (nCluster, 3), float
-        max_xyz = clusters_coords_max * clusters_scale.unsqueeze(-1)
-
-        clusters_scale = torch.index_select(clusters_scale, 0, clusters_idx[:, 0].cuda().long())
-
-        clusters_coords = clusters_coords * clusters_scale.unsqueeze(-1)
-
-        range = max_xyz - min_xyz
-        offset = - min_xyz + torch.clamp(fullscale - range - 0.001, min=0) * torch.rand(3).cuda() + torch.clamp(fullscale - range + 0.001, max=0) * torch.rand(3).cuda()
-        offset = torch.index_select(offset, 0, clusters_idx[:, 0].cuda().long())
-        clusters_coords += offset
-        assert clusters_coords.shape.numel() == ((clusters_coords >= 0) * (clusters_coords < fullscale)).sum()
-
-        clusters_coords = clusters_coords.long()
-        clusters_coords = torch.cat([clusters_idx[:, 0].view(-1, 1).long(), clusters_coords.cpu()], 1)  # (sumNPoint, 1 + 3)
-
-        clusters_voxel_coords, clusters_p2v_map, clusters_v2p_map = common_ops.voxelization_idx(clusters_coords, int(clusters_idx[-1, 0]) + 1, mode)
-        # clusters_voxel_coords: M * (1 + 3) long
-        # clusters_p2v_map: sumNPoint int, in M
-        # clusters_v2p_map: M * (maxActive + 1) int, in N
-
-        clusters_voxel_feats = common_ops.voxelization(clusters_feats, clusters_v2p_map.cuda(), mode)  # (M, C), float, cuda
-
-        clusters_voxel_feats = ME.SparseTensor(features=clusters_voxel_feats, coordinates=clusters_voxel_coords.int().cuda())
-
-        return clusters_voxel_feats, clusters_p2v_map
-    
-
     def forward(self, data_dict):
         batch_size = len(data_dict["batch_offsets"]) - 1
         output_dict = {}
 
         backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
         output_dict.update(backbone_output_dict)
-
 
         if self.current_epoch > self.hparams.cfg.model.prepare_epochs or self.hparams.cfg.model.freeze_backbone:
             # get prooposal clusters
@@ -141,7 +75,7 @@ class PointGroup(pl.LightningModule):
                 object_idxs = torch.nonzero(semantic_preds_mask).view(-1)  # exclude predicted wall and floor
 
                 batch_idxs_ = batch_idxs[object_idxs]
-                batch_offsets_ = self.get_batch_offsets(batch_idxs_, batch_size)
+                batch_offsets_ = get_batch_offsets(batch_idxs_, batch_size, self.device)
                 coords_ = data_dict["locs"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
 
@@ -172,19 +106,19 @@ class PointGroup(pl.LightningModule):
                 proposals_offset = data_dict["gt_proposals_offset"].cpu()
 
             # proposals voxelization again
-            proposals_voxel_feats, proposals_p2v_map = self.clusters_voxelization(
-                proposals_idx,
-                proposals_offset,
-                output_dict["point_features"],
-                data_dict["locs"],
-                self.score_fullscale,
-                self.score_scale,
-                self.mode
+            proposals_voxel_feats, proposals_p2v_map = clusters_voxelization(
+                clusters_idx=proposals_idx,
+                clusters_offset=proposals_offset,
+                feats=output_dict["point_features"],
+                coords=data_dict["locs"],
+                scale=self.score_scale,
+                spatial_shape=self.score_fullscale,
+                mode=4,
+                device=self.device
             )
             # proposals_voxel_feats: (M, C) M: voxels
             # proposals_p2v_map: point2voxel map (sumNPoint,)
-
-            ## score
+            # score
             score_feats = self.score_net(proposals_voxel_feats)
             pt_score_feats = score_feats.features[proposals_p2v_map.long()] # (sumNPoint, C)
             proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset.cuda())  # (nProposal, C)
@@ -243,7 +177,7 @@ class PointGroup(pl.LightningModule):
     def _feed(self, data_dict):
         if self.cfg.model.use_coords:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
-        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"], data_dict["p2v_map"], self.cfg.data.mode)  # (M, C), float, cuda
+        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"], data_dict["p2v_map"], self.cfg.data.mode) # (M, C), float, cuda
         output_dict = self.forward(data_dict)
         return output_dict
 
@@ -256,12 +190,8 @@ class PointGroup(pl.LightningModule):
             self.log(f"train/{key}", value, on_step=False, on_epoch=True, sync_dist=True)
         return total_loss
 
-    def training_epoch_end(self, outputs):
-        if self.current_epoch % self.hparams.cfg.train.clear_cache_every_n_epochs == 0:
-            torch.cuda.empty_cache()
 
     def validation_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
@@ -291,7 +221,7 @@ class PointGroup(pl.LightningModule):
             for batch, output in outputs:
                 pred_instances = self._get_pred_instances(output["proposal_scores"][0].cpu(), output["proposal_scores"][1].cpu(),
                                                      output["proposal_scores"][2].cpu(), output["semantic_scores"].cpu())
-                gt_instances = self._get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu())
+                gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.cfg.data.ignore_classes)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
             evaluator = ScanNetEval(self.hparams.cfg.data.class_names)
@@ -301,31 +231,15 @@ class PointGroup(pl.LightningModule):
             self.log("val_accuracy/AP_25", evaluation_result["all_ap_25%"], sync_dist=True)
 
     def test_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
         return output_dict
 
     def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
-        torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
         return data_dict, output_dict
 
-
-    def _get_gt_instances(self, semantic_labels, instance_labels):
-        """Get gt instances for evaluation."""
-        # convert to evaluation format 0: ignore, 1->N: valid
-        label_shift = len(self.hparams.cfg.data.ignore_classes)
-        semantic_labels = semantic_labels - label_shift + 1
-        semantic_labels[semantic_labels < 0] = 0
-        instance_labels += 1
-        ignore_inds = instance_labels < 0
-        # scannet encoding rule
-        gt_ins = semantic_labels * 1000 + instance_labels
-        gt_ins[ignore_inds] = 0
-        gt_ins = gt_ins
-        return gt_ins
 
     def _get_pred_instances(self, proposals_scores, proposals_idx, proposals_offset, semantic_scores):
 

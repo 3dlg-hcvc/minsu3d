@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
-import MinkowskiEngine as ME
 import pytorch_lightning as pl
-from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode
+from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode, get_gt_instances
 from lib.common_ops.functions import softgroup_ops
 from lib.common_ops.functions import common_ops
 from lib.loss import *
 from lib.evaluation.semantic_seg_helper import *
 from model.module import Backbone, TinyUnet
+from model.helper import clusters_voxelization, get_batch_offsets
 from lib.optimizer import init_optimizer
 
 
@@ -50,53 +50,6 @@ class SoftGroup(pl.LightningModule):
         # 4.3 iou scoring branch
         self.iou_score = nn.Linear(output_channel, self.instance_classes + 1)
 
-    def _get_batch_offsets(self, batch_idxs, batch_size):
-        """
-        :param batch_idxs: (N), int
-        :param batch_size: int
-        :return: batch_offsets: (batch_size + 1)
-        """
-        batch_offsets = torch.zeros(batch_size + 1, dtype=torch.int32, device=self.device)
-        for i in range(batch_size):
-            batch_offsets[i + 1] = batch_offsets[i] + torch.count_nonzero(batch_idxs == i)
-        assert batch_offsets[-1] == batch_idxs.shape[0]
-        return batch_offsets
-
-    def _clusters_voxelization(self, clusters_idx, clusters_offset, feats, coords, scale, spatial_shape,
-                               rand_quantize=False):
-        batch_idx = clusters_idx[:, 0].cuda().long()
-        c_idxs = clusters_idx[:, 1].cuda()
-        feats = feats[c_idxs.long()]
-        coords = coords[c_idxs.long()]
-
-        coords_min = common_ops.sec_min(coords, clusters_offset.cuda())
-        coords_max = common_ops.sec_max(coords, clusters_offset.cuda())
-
-        # 0.01 to ensure voxel_coords < spatial_shape
-        clusters_scale = 1 / ((coords_max - coords_min) / spatial_shape).max(1)[0] - 0.01
-        clusters_scale = torch.clamp(clusters_scale, min=None, max=scale)
-
-        coords_min = coords_min * clusters_scale[:, None]
-        coords_max = coords_max * clusters_scale[:, None]
-        clusters_scale = clusters_scale[batch_idx]
-        coords = coords * clusters_scale[:, None]
-
-        if rand_quantize:
-            # after this, coords.long() will have some randomness
-            range = coords_max - coords_min
-            coords_min -= torch.clamp(spatial_shape - range - 0.001, min=0) * torch.rand(3, device=self.device)
-            coords_min -= torch.clamp(spatial_shape - range + 0.001, max=0) * torch.rand(3, device=self.device)
-        coords_min = coords_min[batch_idx]
-        coords -= coords_min
-        assert coords.shape.numel() == ((coords >= 0) * (coords < spatial_shape)).sum()
-        coords = coords.long()
-        coords = torch.cat([clusters_idx[:, 0].view(-1, 1).long(), coords.cpu()], 1)
-
-        out_coords, inp_map, out_map = common_ops.voxelization_idx(coords, int(clusters_idx[-1, 0]) + 1)
-        out_feats = common_ops.voxelization(feats, out_map.cuda())
-
-        voxelization_feats = ME.SparseTensor(features=out_feats, coordinates=out_coords.int().cuda())
-        return voxelization_feats, inp_map
 
     def forward(self, data_dict):
         batch_size = len(data_dict["batch_offsets"]) - 1
@@ -132,7 +85,7 @@ class SoftGroup(pl.LightningModule):
                 if object_idxs.size(0) < self.hparams.cfg.model.test_cfg.min_npoint:
                     continue
                 batch_idxs_ = batch_idxs[object_idxs]
-                batch_offsets_ = self._get_batch_offsets(batch_idxs_, batch_size)
+                batch_offsets_ = get_batch_offsets(batch_idxs_, batch_size, self.device)
                 coords_ = data_dict["locs"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
                 idx, start_len = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
@@ -162,12 +115,13 @@ class SoftGroup(pl.LightningModule):
             output_dict["proposals_idx"] = proposals_idx
             output_dict["proposals_offset"] = proposals_offset
 
-            inst_feats, inst_map = self._clusters_voxelization(
-                proposals_idx,
-                proposals_offset,
-                output_dict["point_features"],
-                data_dict["locs"],
-                rand_quantize=True,
+            inst_feats, inst_map = clusters_voxelization(
+                clusters_idx=proposals_idx,
+                clusters_offset=proposals_offset,
+                feats=output_dict["point_features"],
+                coords=data_dict["locs"],
+                mode=4,
+                device=self.device,
                 **self.hparams.cfg.model.instance_voxel_cfg
             )
 
@@ -307,7 +261,6 @@ class SoftGroup(pl.LightningModule):
         return total_loss
 
     def validation_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
@@ -328,10 +281,6 @@ class SoftGroup(pl.LightningModule):
 
         return data_dict, output_dict
 
-    def training_epoch_end(self, outputs):
-        if self.current_epoch % self.hparams.cfg.train.clear_cache_every_n_epochs == 0:
-            torch.cuda.empty_cache()
-
     def validation_epoch_end(self, outputs):
         # evaluate instance predictions
         if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
@@ -341,7 +290,7 @@ class SoftGroup(pl.LightningModule):
                 pred_instances = self._get_pred_instances(output["proposals_idx"].cpu(), output["semantic_scores"].cpu(),
                                                           output["cls_scores"].cpu(), output["iou_scores"].cpu(),
                                                           output["mask_scores"].cpu())
-                gt_instances = self._get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu())
+                gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.cfg.data.ignore_classes)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
             evaluator = ScanNetEval(self.hparams.cfg.data.class_names)
@@ -351,19 +300,16 @@ class SoftGroup(pl.LightningModule):
             self.log("val_accuracy/AP_25", evaluation_result["all_ap_25%"], sync_dist=True)
 
     def test_step(self, data_dict, idx):
-        torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
         return data_dict, output_dict
 
     def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
-        torch.cuda.empty_cache()
         # prepare input and forward
         output_dict = self._feed(data_dict)
         return data_dict, output_dict
 
     def test_epoch_end(self, results):
-        torch.cuda.empty_cache()
         # evaluate instance predictions
         if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
             all_pred_insts = []
@@ -373,12 +319,11 @@ class SoftGroup(pl.LightningModule):
                                                           output["semantic_scores"].cpu(),
                                                           output["cls_scores"].cpu(), output["iou_scores"].cpu(),
                                                           output["mask_scores"].cpu())
-                gt_instances = self._get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu())
+                gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.cfg.data.ignore_classes)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
             evaluator = ScanNetEval(self.hparams.cfg.data.class_names)
             evaluation_result = evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
-
 
     def _get_pred_instances(self, proposals_idx, semantic_scores, cls_scores, iou_scores, mask_scores):
         num_instances = cls_scores.size(0)
@@ -425,16 +370,4 @@ class SoftGroup(pl.LightningModule):
             instances.append(pred)
         return instances
 
-    def _get_gt_instances(self, semantic_labels, instance_labels):
-        """Get gt instances for evaluation."""
-        # convert to evaluation format 0: ignore, 1->N: valid
-        label_shift = len(self.hparams.cfg.data.ignore_classes)
-        semantic_labels = semantic_labels - label_shift + 1
-        semantic_labels[semantic_labels < 0] = 0
-        instance_labels += 1
-        ignore_inds = instance_labels < 0
-        # scannet encoding rule
-        gt_ins = semantic_labels * 1000 + instance_labels
-        gt_ins[ignore_inds] = 0
-        gt_ins = gt_ins
-        return gt_ins
+

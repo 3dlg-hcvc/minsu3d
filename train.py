@@ -11,7 +11,7 @@ from importlib import import_module
 import torch
 import pytorch_lightning as pl
 from lib.dataset.scannet_data_module import ScanNetDataModule
-from lib.callback import init_checkpoint_monitor, init_gpu_stats_monitor
+from lib.callback import *
 
 
 def load_conf(args):
@@ -38,15 +38,10 @@ def init_logger(cfg):
 
 
 def init_callbacks(cfg):
-    """
-        There are two ways to save checkpoints:
-        1. save the best k checkpoints (the criterion is AP_50)
-        2. save checkpoints every n epochs
-    """
     checkpoint_monitor = init_checkpoint_monitor(cfg)
     gpu_stats_monitor = init_gpu_stats_monitor()
-
-    return [checkpoint_monitor, gpu_stats_monitor]
+    gpu_cache_clean_monitor = GPUCacheCleanCallback()
+    return [checkpoint_monitor, gpu_stats_monitor, gpu_cache_clean_monitor]
 
 
 def init_trainer(cfg):
@@ -87,7 +82,7 @@ def init_model(cfg):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', type=str, default='conf/pointgroup_scannet.yaml', help='path to config file')
+    parser.add_argument('-c', '--config', type=str, help='path to config file')
     parser.add_argument('-e', '--experiment', type=str, default='', help='specify experiment')
     parser.add_argument('-n', '--num_nodes', type=int, default=1, help='specify num of gpu nodes')
     args = parser.parse_args()
