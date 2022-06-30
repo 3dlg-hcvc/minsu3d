@@ -11,27 +11,18 @@ $ cd pointgroup-minkowski
 ```shell
 $ conda create -n pointgroup python=3.8
 $ conda activate pointgroup
-$ module load LIB/CUDA/11.1 LIB/CUDNN/8.0.5-CUDA11.1
-$ conda install pytorch==1.8.0 torchvision==0.9.0 cudatoolkit=11.1 -c pytorch -c conda-forge
+$ module load LIB/CUDA/11.1
+$ conda install pytorch cudatoolkit=11.1 -c pytorch-lts -c nvidia
 $ conda install openblas-devel -c anaconda
 $ pip install -U git+https://github.com/NVIDIA/MinkowskiEngine -v --no-deps --install-option="--blas_include_dirs=${CONDA_PREFIX}/include" --install-option="--blas=openblas"
 $ conda install -c bioconda google-sparsehash
+$ export CPATH=$CONDA_PREFIX/include:$CPATH
+$ export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 $ cd lib/pointgroup_ops
 $ python setup.py develop
 $ cd ../..
 $ pip install -r requirements.txt
 ```
-
-if `conda install google-sparsehash -c bioconda` doesn’t work for installing pointgroup operations, try out one of following solutions:
-
-1. `sudo apt-get install libsparsehash-dev`. ([error: google/dense_hash_map: No such file or directory](https://github.com/facebookresearch/SparseConvNet/issues/96))
-
-2. Include the library manually to help find header files (Please see details in [issue](https://github.com/3dlg-hcvc/pointgroup-minkowski/issues/1))
-   ```
-   export CPATH=~/anaconda3/envs/pointgroup/include:$CPATH
-   export LD_LIBRARY_PATH=~/anaconda3/envs/pointgroup/lib:$LD_LIBRARY_PATH
-   ```
-
 
 ### Solar Cluster (Ubuntu 18.04.3 LTS)
 ```shell
