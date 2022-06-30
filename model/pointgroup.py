@@ -39,7 +39,6 @@ class PointGroup(pl.LightningModule):
         self.score_branch = nn.Linear(output_channel, 1)
 
     def forward(self, data_dict):
-        batch_size = len(data_dict["batch_offsets"]) - 1
         output_dict = {}
 
         backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
@@ -47,7 +46,7 @@ class PointGroup(pl.LightningModule):
 
         if self.current_epoch > self.hparams.model.prepare_epochs or self.hparams.model.freeze_backbone:
             # get prooposal clusters
-            batch_idxs = data_dict["locs_scaled"][:, 0].int()
+            batch_idxs = data_dict["vert_batch_ids"].int()
             semantic_preds = output_dict["semantic_scores"].max(1)[1]
             if not self.hparams.data.requires_gt_mask:
                 # set mask
@@ -57,7 +56,7 @@ class PointGroup(pl.LightningModule):
                 object_idxs = torch.nonzero(semantic_preds_mask).view(-1)  # exclude predicted wall and floor
 
                 batch_idxs_ = batch_idxs[object_idxs]
-                batch_offsets_ = get_batch_offsets(batch_idxs_, batch_size, self.device)
+                batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.data.batch_size, self.device)
                 coords_ = data_dict["locs"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
 

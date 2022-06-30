@@ -45,7 +45,6 @@ class SoftGroup(pl.LightningModule):
         self.iou_score = nn.Linear(output_channel, self.instance_classes + 1)
 
     def forward(self, data_dict):
-        batch_size = len(data_dict["batch_offsets"]) - 1
         output_dict = {}
         """
             Bottom-up Grouping Block
@@ -58,7 +57,7 @@ class SoftGroup(pl.LightningModule):
                 Top-down Refinement Block
             """
             semantic_scores = output_dict["semantic_scores"].softmax(dim=-1)
-            batch_idxs = data_dict["locs_scaled"][:, 0].int()
+            batch_idxs = data_dict["vert_batch_ids"].int()
 
             # hyperparameters from config
             grouping_radius = self.hparams.model.grouping_cfg.radius
@@ -78,7 +77,7 @@ class SoftGroup(pl.LightningModule):
                 if object_idxs.size(0) < self.hparams.model.test_cfg.min_npoint:
                     continue
                 batch_idxs_ = batch_idxs[object_idxs]
-                batch_offsets_ = get_batch_offsets(batch_idxs_, batch_size, self.device)
+                batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.data.batch_size, self.device)
                 coords_ = data_dict["locs"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
                 idx, start_len = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
