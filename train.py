@@ -61,8 +61,7 @@ def init_trainer(cfg):
 
 
 def init_model(cfg):
-    MODEL = getattr(import_module(cfg.model.module), cfg.model.classname)
-    model = MODEL(cfg)
+    model = getattr(import_module(cfg.model.module), cfg.model.classname)(**cfg)
 
     if cfg.model.pretrained_module:
         print("=> loading pretrained module from {} ...".format(cfg.model.pretrained_module_path))

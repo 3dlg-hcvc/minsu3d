@@ -7,11 +7,13 @@ def init_checkpoint_monitor(cfg):
         save_top_k = cfg.train.save_checkpoint_every_n_epochs * -1
         every_n_epochs = None
         monitor = cfg.train.monitor
+        save_last = True
     else:
         # save checkpoints every n epochs
         save_top_k = -1
         every_n_epochs = cfg.train.save_checkpoint_every_n_epochs
         monitor = None
+        save_last = False
 
     ckpt_base_name = f"{cfg.general.model}-{cfg.general.dataset}"
 
@@ -22,6 +24,6 @@ def init_checkpoint_monitor(cfg):
         filename=ckpt_base_name + "-{epoch}",
         save_top_k=save_top_k,
         every_n_epochs=every_n_epochs,
-        save_last=True
+        save_last=save_last
     )
     return monitor

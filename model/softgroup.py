@@ -12,44 +12,37 @@ from lib.optimizer import init_optimizer
 
 
 class SoftGroup(pl.LightningModule):
-    def __init__(self, cfg):
+    def __init__(self, **cfg):
         super().__init__()
         self.save_hyperparameters()
-
-        self.cfg = cfg
-        input_channel = cfg.model.use_coords * 3 + cfg.model.use_color * 3 + cfg.model.use_normal * 3
-        output_channel = cfg.model.m
-        semantic_classes = cfg.data.classes
-        self.instance_classes = semantic_classes - len(cfg.data.ignore_classes)
+        input_channel = cfg["model"].use_coords * 3 + cfg["model"].use_color * 3 + cfg["model"].use_normal * 3
+        output_channel = cfg["model"].m
+        semantic_classes = cfg["data"].classes
+        self.instance_classes = semantic_classes - len(cfg["data"].ignore_classes)
 
         """
             Backbone Block
         """
         self.backbone = Backbone(input_channel=input_channel,
-                                 output_channel=cfg.model.m,
-                                 block_channels=cfg.model.blocks,
-                                 block_reps=cfg.model.block_reps,
+                                 output_channel=cfg["model"].m,
+                                 block_channels=cfg["model"].blocks,
+                                 block_reps=cfg["model"].block_reps,
                                  sem_classes=semantic_classes)
 
         """
             Top-down Refinement Block
         """
-        # 3 tiny U-Net
         self.tiny_unet = TinyUnet(output_channel)
 
-        # 4.1 classification branch
         self.classification_branch = nn.Linear(output_channel, self.instance_classes + 1)
 
-        # 4.2 mask scoring branch
         self.mask_scoring_branch = nn.Sequential(
             nn.Linear(output_channel, output_channel),
             nn.ReLU(inplace=True),
             nn.Linear(output_channel, self.instance_classes + 1)
         )
 
-        # 4.3 iou scoring branch
         self.iou_score = nn.Linear(output_channel, self.instance_classes + 1)
-
 
     def forward(self, data_dict):
         batch_size = len(data_dict["batch_offsets"]) - 1
@@ -60,7 +53,7 @@ class SoftGroup(pl.LightningModule):
         backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
         output_dict.update(backbone_output_dict)
 
-        if self.current_epoch > self.hparams.cfg.model.prepare_epochs or self.hparams.cfg.model.freeze_backbone:
+        if self.current_epoch > self.hparams.model.prepare_epochs or self.hparams.model.freeze_backbone:
             """
                 Top-down Refinement Block
             """
@@ -68,21 +61,21 @@ class SoftGroup(pl.LightningModule):
             batch_idxs = data_dict["locs_scaled"][:, 0].int()
 
             # hyperparameters from config
-            grouping_radius = self.hparams.cfg.model.grouping_cfg.radius
-            grouping_mean_active = self.hparams.cfg.model.grouping_cfg.mean_active
-            grouping_num_point_threshold = self.hparams.cfg.model.grouping_cfg.npoint_thr
+            grouping_radius = self.hparams.model.grouping_cfg.radius
+            grouping_mean_active = self.hparams.model.grouping_cfg.mean_active
+            grouping_num_point_threshold = self.hparams.model.grouping_cfg.npoint_thr
 
-            class_num_point_mean = torch.tensor(self.hparams.cfg.model.grouping_cfg.class_numpoint_mean,
+            class_num_point_mean = torch.tensor(self.hparams.model.grouping_cfg.class_numpoint_mean,
                                                 dtype=torch.float32)
             proposals_offset_list = []
             proposals_idx_list = []
 
-            for class_id in range(self.hparams.cfg.data.classes):
-                if class_id in self.hparams.cfg.data.ignore_classes:
+            for class_id in range(self.hparams.data.classes):
+                if class_id in self.hparams.data.ignore_classes:
                     continue
                 scores = semantic_scores[:, class_id].contiguous()
-                object_idxs = (scores > self.hparams.cfg.model.grouping_cfg.score_thr).nonzero().view(-1)
-                if object_idxs.size(0) < self.hparams.cfg.model.test_cfg.min_npoint:
+                object_idxs = (scores > self.hparams.model.grouping_cfg.score_thr).nonzero().view(-1)
+                if object_idxs.size(0) < self.hparams.model.test_cfg.min_npoint:
                     continue
                 batch_idxs_ = batch_idxs[object_idxs]
                 batch_offsets_ = get_batch_offsets(batch_idxs_, batch_size, self.device)
@@ -107,8 +100,8 @@ class SoftGroup(pl.LightningModule):
             proposals_idx = torch.cat(proposals_idx_list, dim=0)
             proposals_offset = torch.cat(proposals_offset_list)
 
-            if proposals_offset.shape[0] > self.hparams.cfg.model.train_cfg.max_proposal_num:
-                proposals_offset = proposals_offset[:self.hparams.cfg.model.train_cfg.max_proposal_num + 1]
+            if proposals_offset.shape[0] > self.hparams.model.train_cfg.max_proposal_num:
+                proposals_offset = proposals_offset[:self.hparams.model.train_cfg.max_proposal_num + 1]
                 proposals_idx = proposals_idx[:proposals_offset[-1]]
                 assert proposals_idx.shape[0] == proposals_offset[-1]
 
@@ -122,7 +115,7 @@ class SoftGroup(pl.LightningModule):
                 coords=data_dict["locs"],
                 mode=4,
                 device=self.device,
-                **self.hparams.cfg.model.instance_voxel_cfg
+                **self.hparams.model.instance_voxel_cfg
             )
 
             feats = self.tiny_unet(inst_feats)
@@ -153,14 +146,14 @@ class SoftGroup(pl.LightningModule):
         return x
 
     def configure_optimizers(self):
-        return init_optimizer(parameters=self.parameters(), **self.cfg.train.optim)
+        return init_optimizer(parameters=self.parameters(), **self.hparams.train.optim)
 
     def _loss(self, data_dict, output_dict):
         losses = {}
         """semantic loss"""
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
-        sem_seg_criterion = SemSegLoss(self.cfg.data.ignore_label)
+        sem_seg_criterion = SemSegLoss(self.hparams.data.ignore_label)
         semantic_loss = sem_seg_criterion(output_dict["semantic_scores"], data_dict["sem_labels"])
         losses["semantic_loss"] = semantic_loss
 
@@ -170,15 +163,15 @@ class SoftGroup(pl.LightningModule):
         # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
         # instance_ids: (N), long
         gt_offsets = data_dict["instance_info"][:, 0:3] - data_dict["locs"]  # (N, 3)
-        valid = data_dict["instance_ids"] != self.cfg.data.ignore_label
+        valid = data_dict["instance_ids"] != self.hparams.data.ignore_label
         pt_offset_criterion = PTOffsetLoss()
         offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
         losses["offset_norm_loss"] = offset_norm_loss
         # losses["offset_dir_loss"] = offset_dir_loss
 
-        total_loss = self.cfg.train.loss_weight[0] * semantic_loss + self.cfg.train.loss_weight[1] * offset_norm_loss
+        total_loss = self.hparams.train.loss_weight[0] * semantic_loss + self.hparams.train.loss_weight[1] * offset_norm_loss
 
-        if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
+        if self.current_epoch > self.hparams.model.prepare_epochs:
             proposals_idx = output_dict["proposals_idx"][:, 1].cuda()
             proposals_offset = output_dict["proposals_offset"].cuda()
 
@@ -188,13 +181,13 @@ class SoftGroup(pl.LightningModule):
                                                                     data_dict["instance_num_point"])
 
             # filter out background instances
-            fg_inds = (data_dict["instance_semantic_cls"] != self.hparams.cfg.data.ignore_label)
+            fg_inds = (data_dict["instance_semantic_cls"] != self.hparams.data.ignore_label)
             fg_instance_cls = data_dict["instance_semantic_cls"][fg_inds]
             fg_ious_on_cluster = ious_on_cluster[:, fg_inds]
 
             # overlap > thr on fg instances are positive samples
             max_iou, gt_inds = fg_ious_on_cluster.max(1)
-            pos_inds = max_iou >= self.hparams.cfg.model.train_cfg.pos_iou_thr
+            pos_inds = max_iou >= self.hparams.model.train_cfg.pos_iou_thr
             pos_gt_inds = gt_inds[pos_inds]
 
             """classification loss"""
@@ -214,7 +207,7 @@ class SoftGroup(pl.LightningModule):
             mask_label = softgroup_ops.get_mask_label(proposals_idx, proposals_offset, data_dict["instance_ids"],
                                                       data_dict["instance_semantic_cls"],
                                                       data_dict["instance_num_point"], ious_on_cluster,
-                                                      self.hparams.cfg.model.train_cfg.pos_iou_thr)
+                                                      self.hparams.model.train_cfg.pos_iou_thr)
 
             mask_label_weight = (mask_label != -1).float()
             mask_label[mask_label == -1.] = 0.5  # any value is ok
@@ -235,18 +228,18 @@ class SoftGroup(pl.LightningModule):
             iou_scoring_loss = iou_scoring_criterion(iou_score_slice, gt_ious)
             iou_scoring_loss = iou_scoring_loss[iou_score_weight].sum() / (iou_score_weight.count_nonzero() + 1)
             losses["iou_scoring_loss"] = iou_scoring_loss
-            total_loss += + self.cfg.train.loss_weight[3] * classification_loss + self.cfg.train.loss_weight[
-                4] * mask_scoring_loss + self.cfg.train.loss_weight[5] * iou_scoring_loss
+            total_loss += + self.hparams.train.loss_weight[3] * classification_loss + self.hparams.train.loss_weight[
+                4] * mask_scoring_loss + self.hparams.train.loss_weight[5] * iou_scoring_loss
 
         """total loss"""
         return losses, total_loss
 
     def _feed(self, data_dict):
-        if self.cfg.model.use_coords:
+        if self.hparams.model.use_coords:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
 
         data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"], data_dict["p2v_map"],
-                                                              self.cfg.data.mode)  # (M, C), float, cuda
+                                                              self.hparams.data.mode)  # (M, C), float, cuda
         output_dict = self.forward(data_dict)
         return output_dict
 
@@ -273,9 +266,9 @@ class SoftGroup(pl.LightningModule):
         # log semantic prediction accuracy
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
         semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                       ignore_label=self.hparams.cfg.data.ignore_label)
+                                                       ignore_label=self.hparams.data.ignore_label)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                   ignore_label=self.hparams.cfg.data.ignore_label)
+                                                   ignore_label=self.hparams.data.ignore_label)
         self.log("val_accuracy/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True)
         self.log("val_accuracy/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True)
 
@@ -283,17 +276,17 @@ class SoftGroup(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         # evaluate instance predictions
-        if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
+        if self.current_epoch > self.hparams.model.prepare_epochs:
             all_pred_insts = []
             all_gt_insts = []
             for batch, output in outputs:
                 pred_instances = self._get_pred_instances(output["proposals_idx"].cpu(), output["semantic_scores"].cpu(),
                                                           output["cls_scores"].cpu(), output["iou_scores"].cpu(),
                                                           output["mask_scores"].cpu())
-                gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.cfg.data.ignore_classes)
+                gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.data.ignore_classes)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
-            evaluator = ScanNetEval(self.hparams.cfg.data.class_names)
+            evaluator = ScanNetEval(self.hparams.data.class_names)
             evaluation_result = evaluator.evaluate(all_pred_insts, all_gt_insts)
             self.log("val_accuracy/AP", evaluation_result["all_ap"], sync_dist=True)
             self.log("val_accuracy/AP_50", evaluation_result['all_ap_50%'], sync_dist=True)
@@ -311,7 +304,7 @@ class SoftGroup(pl.LightningModule):
 
     def test_epoch_end(self, results):
         # evaluate instance predictions
-        if self.current_epoch > self.hparams.cfg.model.prepare_epochs:
+        if self.current_epoch > self.hparams.model.prepare_epochs:
             all_pred_insts = []
             all_gt_insts = []
             for batch, output in results:
@@ -319,10 +312,10 @@ class SoftGroup(pl.LightningModule):
                                                           output["semantic_scores"].cpu(),
                                                           output["cls_scores"].cpu(), output["iou_scores"].cpu(),
                                                           output["mask_scores"].cpu())
-                gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.cfg.data.ignore_classes)
+                gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.data.ignore_classes)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
-            evaluator = ScanNetEval(self.hparams.cfg.data.class_names)
+            evaluator = ScanNetEval(self.hparams.data.class_names)
             evaluation_result = evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
 
     def _get_pred_instances(self, proposals_idx, semantic_scores, cls_scores, iou_scores, mask_scores):
@@ -337,19 +330,19 @@ class SoftGroup(pl.LightningModule):
             cur_mask_scores = mask_scores[:, i]
             score_pred = cur_cls_scores * cur_iou_scores.clamp(0, 1)
             mask_pred = torch.zeros((num_instances, num_points), dtype=torch.int, device="cpu")
-            mask_inds = cur_mask_scores > self.hparams.cfg.model.test_cfg.mask_score_thr
+            mask_inds = cur_mask_scores > self.hparams.model.test_cfg.mask_score_thr
             cur_proposals_idx = proposals_idx[mask_inds].long()
             mask_pred[cur_proposals_idx[:, 0], cur_proposals_idx[:, 1]] = 1
 
             # filter low score instance
-            inds = cur_cls_scores > self.hparams.cfg.model.test_cfg.cls_score_thr
+            inds = cur_cls_scores > self.hparams.model.test_cfg.cls_score_thr
             cls_pred = cls_pred[inds]
             score_pred = score_pred[inds]
             mask_pred = mask_pred[inds]
 
             # filter too small instances
             npoint = mask_pred.sum(1)
-            inds = npoint >= self.hparams.cfg.model.test_cfg.min_npoint
+            inds = npoint >= self.hparams.model.test_cfg.min_npoint
             cls_pred = cls_pred[inds]
             score_pred = score_pred[inds]
             mask_pred = mask_pred[inds]
