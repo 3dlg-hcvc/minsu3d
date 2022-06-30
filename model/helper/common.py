@@ -34,10 +34,9 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
     clusters_coords += offset
     assert clusters_coords.shape.numel() == ((clusters_coords >= 0) * (clusters_coords < spatial_shape)).sum()
 
-    clusters_coords = clusters_coords.long()
-    clusters_coords = torch.cat([clusters_idx[:, 0].view(-1, 1).long(), clusters_coords.cpu()], 1)
+    clusters_coords = clusters_coords.long().cpu()
 
-    clusters_voxel_coords, clusters_p2v_map, clusters_v2p_map = common_ops.voxelization_idx(clusters_coords, int(
+    clusters_voxel_coords, clusters_p2v_map, clusters_v2p_map = common_ops.voxelization_idx(clusters_coords, clusters_idx[:, 0].to(torch.int16), int(
         clusters_idx[-1, 0]) + 1, mode)
     clusters_voxel_feats = common_ops.voxelization(feats, clusters_v2p_map.cuda(), mode)
     clusters_voxel_feats = ME.SparseTensor(features=clusters_voxel_feats,

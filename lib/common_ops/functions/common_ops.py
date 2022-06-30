@@ -10,7 +10,7 @@ import COMMON_OPS
 
 class Voxelization_Idx(Function):
     @staticmethod
-    def forward(ctx, coords, batchsize, mode=4):
+    def forward(ctx, coords, vert_batch_idxs, batchsize, mode=4):
         '''
         :param ctx:
         :param coords:  long (N, dimension + 1) or (N, dimension) dimension = 3
@@ -27,8 +27,7 @@ class Voxelization_Idx(Function):
 
         input_map = torch.IntTensor(N).zero_()
         output_map = input_map.new()
-
-        COMMON_OPS.voxelize_idx(coords, output_coords, input_map, output_map, batchsize, mode)
+        COMMON_OPS.voxelize_idx(coords, output_coords, vert_batch_idxs, input_map, output_map, batchsize, mode)
         return output_coords, input_map, output_map
 
     @staticmethod

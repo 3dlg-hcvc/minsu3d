@@ -81,12 +81,8 @@ def sparse_collate_fn(batch):
     for i, b in enumerate(batch):
         locs.append(torch.from_numpy(b["locs"]))
 
-        locs_scaled.append(
-            torch.cat([
-                torch.full(size=(b["locs_scaled"].shape[0], 1), fill_value=i, dtype=torch.long),
-                torch.from_numpy(b["locs_scaled"]).long()
-            ], dim=1))
-        vert_batch_ids.append(torch.full(size=(b["locs_scaled"].shape[0], 1), fill_value=i, dtype=torch.uint8))
+        locs_scaled.append(torch.from_numpy(b["locs_scaled"]).long())
+        vert_batch_ids.append(torch.full((b["locs_scaled"].shape[0],), fill_value=i, dtype=torch.int16))
         feats.append(torch.from_numpy(b["feats"]))
 
         if "sem_labels" in b:
@@ -132,7 +128,7 @@ def sparse_collate_fn(batch):
         data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.long)  # long (total_nInst)
 
     # voxelize
-    data["voxel_locs"], data["v2p_map"], data["p2v_map"] = common_ops.voxelization_idx(tmp_locs_scaled,
+    data["voxel_locs"], data["v2p_map"], data["p2v_map"] = common_ops.voxelization_idx(tmp_locs_scaled, data["vert_batch_ids"],
                                                                                           len(batch),
                                                                                           4)
     return data

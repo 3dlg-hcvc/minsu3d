@@ -10,9 +10,10 @@
 #include "get_iou/get_iou.cpp"
 #include "sec_mean/sec_mean.cpp"
 
-void voxelize_idx_3d(/* long N*4 */ at::Tensor coords, /* long M*4 */ at::Tensor output_coords,
+void voxelize_idx_3d(/* long N*4 */ at::Tensor coords,/* long M*4 */ at::Tensor output_coords, at::Tensor vertBatchIdxs,
                   /* Int N */ at::Tensor input_map, /* Int M*(maxActive+1) */ at::Tensor output_map, Int batchSize, Int mode){
-    voxelize_idx<3>(coords, output_coords, input_map, output_map, batchSize, mode);
+
+    voxelize_idx<3>(coords, output_coords, vertBatchIdxs, input_map, output_map, batchSize, mode);
 }
 
 void voxelize_fp_feat(/* cuda float N*C */ at::Tensor feats, // N * 3 -> M * 3 (N >= M)
