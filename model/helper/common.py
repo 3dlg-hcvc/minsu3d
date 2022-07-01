@@ -5,16 +5,16 @@ import torch
 
 def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, mode, device):
     batch_idx = clusters_idx[:, 0].cuda().long()
-    c_idxs = clusters_idx[:, 1].cuda()
-    feats = feats[c_idxs.long()]
-    clusters_coords = coords[c_idxs.long()]
-
-    clusters_coords_mean = common_ops.sec_mean(clusters_coords, clusters_offset.cuda())  # (nCluster, 3), float
+    c_idxs = clusters_idx[:, 1].long().cuda()
+    feats = feats[c_idxs]
+    clusters_coords = coords[c_idxs]
+    clusters_offset = clusters_offset.cuda()
+    clusters_coords_mean = common_ops.sec_mean(clusters_coords, clusters_offset)  # (nCluster, 3), float
     clusters_coords_mean_all = torch.index_select(clusters_coords_mean, 0, batch_idx)  # (sumNPoint, 3), float
     clusters_coords -= clusters_coords_mean_all
 
-    clusters_coords_min = common_ops.sec_min(clusters_coords, clusters_offset.cuda())
-    clusters_coords_max = common_ops.sec_max(clusters_coords, clusters_offset.cuda())
+    clusters_coords_min = common_ops.sec_min(clusters_coords, clusters_offset)
+    clusters_coords_max = common_ops.sec_max(clusters_coords, clusters_offset)
 
     # 0.01 to ensure voxel_coords < spatial_shape
     clusters_scale = 1 / ((clusters_coords_max - clusters_coords_min) / spatial_shape).max(1)[0] - 0.01

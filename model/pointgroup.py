@@ -64,8 +64,8 @@ class PointGroup(pl.LightningModule):
 
                 idx_shift, start_len_shift = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, self.hparams.cluster.cluster_radius, self.hparams.cluster.cluster_shift_meanActive)
                 proposals_idx_shift, proposals_offset_shift = pointgroup_ops.pg_bfs_cluster(semantic_preds_cpu, idx_shift.cpu(), start_len_shift.cpu(), self.hparams.cluster.cluster_npoint_thre)
-                proposals_idx_shift[:, 1] = object_idxs[proposals_idx_shift[:, 1].long()].int()
-                proposals_batchId_shift_all = batch_idxs[proposals_idx_shift[:, 1].long()].int()
+                proposals_idx_shift[:, 1] = object_idxs.cpu()[proposals_idx_shift[:, 1].long()].int()
+                # proposals_batchId_shift_all = batch_idxs[proposals_idx_shift[:, 1].long()].int()
                 # proposals_idx_shift: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
                 # proposals_offset_shift: (nProposal + 1), int
                 # proposals_batchId_shift_all: (sumNPoint,) batch id
