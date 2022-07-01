@@ -38,7 +38,7 @@ class Backbone(pl.LightningModule):
 
     def forward(self, voxel_features, voxel_coordinates, v2p_map):
         output_dict = {}
-        x = ME.SparseTensor(features=voxel_features, coordinates=voxel_coordinates.int())
+        x = ME.SparseTensor(features=voxel_features, coordinates=voxel_coordinates)
         unet_out = self.unet(x)
         output_dict["point_features"] = unet_out.features[v2p_map.long()]
         output_dict["semantic_scores"] = self.semantic_branch(output_dict["point_features"])

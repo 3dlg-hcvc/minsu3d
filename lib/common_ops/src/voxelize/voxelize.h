@@ -17,10 +17,10 @@ void voxelize_idx(/* long N*4 */ at::Tensor coords, at::Tensor output_coords, /*
                   /* Int N */ at::Tensor input_map, /* Int M*(maxActive+1) */ at::Tensor output_map, Int batchSize, Int mode);
 
 template <Int dimension>
-void voxelize_outputmap(long *coords, int16_t *vertBatchIdxs, long *output_coords, Int *output_map, Int *rule, Int nOutputRows, Int maxActive);
+void voxelize_outputmap(Int *coords, int16_t *vertBatchIdxs, Int *output_coords, Int *output_map, Int *rule, Int nOutputRows, Int maxActive);
 
 template <Int dimension>
-Int voxelize_inputmap(SparseGrids<dimension> &SGs, Int *input_map, RuleBook &rules, Int &nActive, long *coords, uint8_t *vertBatchIdxs, Int nInputRows, Int nInputColumns, Int batchSize, Int mode);
+Int voxelize_inputmap(SparseGrids<dimension> &SGs, Int *input_map, RuleBook &rules, Int &nActive, Int *coords, uint8_t *vertBatchIdxs, Int nInputRows, Int nInputColumns, Int batchSize, Int mode);
 
 /* ================================== voxelize ================================== */
 template <typename T>

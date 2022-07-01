@@ -24,7 +24,6 @@ class Voxelization_Idx(Function):
         assert coords.is_contiguous()
         N = coords.size(0)
         output_coords = coords.new()
-
         input_map = torch.IntTensor(N).zero_()
         output_map = input_map.new()
         COMMON_OPS.voxelize_idx(coords, output_coords, vert_batch_idxs, input_map, output_map, batchsize, mode)

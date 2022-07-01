@@ -15,7 +15,7 @@ void voxelize_idx(/* long N*4 */ at::Tensor coords, /* long M*4 */ at::Tensor ou
     RuleBook voxelizeRuleBook;  // rule[1]: M voxels -> N points  output_map
     SparseGrids<dimension> inputSGs; // voxel_coords -> voxel_idx in M voxels      input_map: N points -> M voxels
     Int nActive = 0;
-    Int maxActive = voxelize_inputmap<dimension>(inputSGs, input_map.data_ptr<Int>(), voxelizeRuleBook, nActive, coords.data_ptr<long>(), vertBatchIdxs.data_ptr<int16_t>(), coords.size(0), coords.size(1), batchSize, mode);
+    Int maxActive = voxelize_inputmap<dimension>(inputSGs, input_map.data_ptr<Int>(), voxelizeRuleBook, nActive, coords.data_ptr<Int>(), vertBatchIdxs.data_ptr<int16_t>(), coords.size(0), coords.size(1), batchSize, mode);
 
     output_map.resize_({nActive, maxActive + 1});
     output_map.zero_();
@@ -24,13 +24,13 @@ void voxelize_idx(/* long N*4 */ at::Tensor coords, /* long M*4 */ at::Tensor ou
     output_coords.zero_();
 
     Int *oM = output_map.data_ptr<Int>();
-    long *oC = output_coords.data_ptr<long>();
-    voxelize_outputmap<dimension>(coords.data_ptr<long>(), vertBatchIdxs.data_ptr<int16_t>(), oC, oM, &voxelizeRuleBook[1][0], nActive, maxActive);
+    Int *oC = output_coords.data_ptr<Int>();
+    voxelize_outputmap<dimension>(coords.data_ptr<Int>(), vertBatchIdxs.data_ptr<int16_t>(), oC, oM, &voxelizeRuleBook[1][0], nActive, maxActive);
 }
 
 
 template <Int dimension>
-void voxelize_outputmap(long *coords, int16_t *vertBatchIdxs, long *output_coords, Int *output_map, Int *rule, Int nOutputRows, Int maxActive){
+void voxelize_outputmap(int *coords, int16_t *vertBatchIdxs, Int *output_coords, Int *output_map, Int *rule, Int nOutputRows, Int maxActive){
     for(Int i = 0; i < nOutputRows; i++){
         for(Int j = 0; j <= maxActive; j++)
             output_map[j] = rule[j];
@@ -38,11 +38,11 @@ void voxelize_outputmap(long *coords, int16_t *vertBatchIdxs, long *output_coord
         rule += (1 + maxActive);
         output_map += (1 + maxActive);
 
-        long *coord = coords + inputIdx * dimension;
+        int *coord = coords + inputIdx * dimension;
         int16_t *batchIdx = vertBatchIdxs + inputIdx;
-        long *output_coord  = output_coords + i * (dimension + 1);
+        Int *output_coord  = output_coords + i * (dimension + 1);
         for(Int j = 0; j < dimension; j++){
-            output_coord[0] = (long)*batchIdx;
+            output_coord[0] = (Int) *batchIdx;
             output_coord[j+1] = coord[j];
         }
     }
@@ -56,7 +56,7 @@ void voxelize_outputmap(long *coords, int16_t *vertBatchIdxs, long *output_coord
 //output: nActive
 //output: maxActive
 template <Int dimension>
-Int voxelize_inputmap(SparseGrids<dimension> &SGs, Int *input_map, RuleBook &rules, Int &nActive, long *coords, int16_t *vertBatchIdxs, Int nInputRows, Int nInputColumns, Int batchSize, Int mode){
+Int voxelize_inputmap(SparseGrids<dimension> &SGs, Int *input_map, RuleBook &rules, Int &nActive, int *coords, int16_t *vertBatchIdxs, Int nInputRows, Int nInputColumns, Int batchSize, Int mode){
     assert(nActive == 0);
     assert(rules.size() == 0);
     assert(SGs.size() == 0);

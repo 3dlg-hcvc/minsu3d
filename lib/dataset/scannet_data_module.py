@@ -81,7 +81,7 @@ def sparse_collate_fn(batch):
     for i, b in enumerate(batch):
         locs.append(torch.from_numpy(b["locs"]))
 
-        locs_scaled.append(torch.from_numpy(b["locs_scaled"]).long())
+        locs_scaled.append(torch.from_numpy(b["locs_scaled"]).int())
         vert_batch_ids.append(torch.full((b["locs_scaled"].shape[0],), fill_value=i, dtype=torch.int16))
         feats.append(torch.from_numpy(b["feats"]))
 
