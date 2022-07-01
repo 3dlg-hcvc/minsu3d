@@ -7,9 +7,10 @@ import argparse
 
 from omegaconf import OmegaConf
 from importlib import import_module
-
 import torch
 import pytorch_lightning as pl
+from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
+from pytorch_lightning.callbacks import DeviceStatsMonitor
 from lib.dataset.scannet_data_module import ScanNetDataModule
 from lib.callback import *
 
@@ -33,13 +34,16 @@ def load_conf(args):
 
 
 def init_logger(cfg):
-    logger = pl.loggers.TensorBoardLogger(cfg.general.root, name="logs", default_hp_metric=False, version=0)
+    if cfg.general.logger == "TensorBoard":
+        logger = TensorBoardLogger(cfg.general.root, name="logs", default_hp_metric=False)
+    elif cfg.general.logger == "Wandb":
+        logger = WandbLogger(project=cfg.general.model, save_dir=cfg.general.root, name="logs")
     return logger
 
 
 def init_callbacks(cfg):
     checkpoint_monitor = init_checkpoint_monitor(cfg)
-    gpu_stats_monitor = init_gpu_stats_monitor()
+    gpu_stats_monitor = DeviceStatsMonitor()
     gpu_cache_clean_monitor = GPUCacheCleanCallback()
     return [checkpoint_monitor, gpu_stats_monitor, gpu_cache_clean_monitor]
 
