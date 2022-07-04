@@ -143,7 +143,7 @@ class ScanNetEval(object):
             for oi, iou_th in enumerate(ious):
                 pred_visited = {}
                 for m in matches:
-                    for p in matches[m]['pred']:
+                    for _ in matches[m]['pred']:
                         for label_name in self.eval_class_labels:
                             for p in matches[m]['pred'][label_name]:
                                 if 'filename' in p:

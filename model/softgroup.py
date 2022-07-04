@@ -304,7 +304,8 @@ class SoftGroup(pl.LightningModule):
             all_pred_insts = []
             all_gt_insts = []
             for batch, output in results:
-                pred_instances = self._get_pred_instances(output["proposals_idx"].cpu(),
+                pred_instances = self._get_pred_instances(batch["locs"].cpu(),
+                                                          output["proposals_idx"].cpu(),
                                                           output["semantic_scores"].cpu(),
                                                           output["cls_scores"].cpu(), output["iou_scores"].cpu(),
                                                           output["mask_scores"].cpu())
@@ -314,7 +315,7 @@ class SoftGroup(pl.LightningModule):
             evaluator = ScanNetEval(self.hparams.data.class_names)
             evaluation_result = evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
 
-    def _get_pred_instances(self, proposals_idx, semantic_scores, cls_scores, iou_scores, mask_scores):
+    def _get_pred_instances(self, gt_xyz, proposals_idx, semantic_scores, cls_scores, iou_scores, mask_scores):
         num_instances = cls_scores.size(0)
         num_points = semantic_scores.size(0)
         cls_scores = cls_scores.softmax(1)
@@ -356,6 +357,8 @@ class SoftGroup(pl.LightningModule):
             pred['conf'] = score_pred[i]
             # rle encode mask to save memory
             pred['pred_mask'] = rle_encode(mask_pred[i])
+            pred_inst = gt_xyz[mask_pred[i]]
+            pred['pred_bbox'] = np.concatenate((pred_inst.min(0), pred_inst.max(0)))
             instances.append(pred)
         return instances
 
