@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode, get_gt_instances
+from lib.evaluation.object_detection_helper import evaluate_bbox_acc
 from lib.common_ops.functions import softgroup_ops
 from lib.common_ops.functions import common_ops
 from lib.loss import *
@@ -285,11 +286,18 @@ class SoftGroup(pl.LightningModule):
                 gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.data.ignore_classes)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
-            evaluator = ScanNetEval(self.hparams.data.class_names)
-            evaluation_result = evaluator.evaluate(all_pred_insts, all_gt_insts)
-            self.log("val_accuracy/AP", evaluation_result["all_ap"], sync_dist=True)
-            self.log("val_accuracy/AP_50", evaluation_result['all_ap_50%'], sync_dist=True)
-            self.log("val_accuracy/AP_25", evaluation_result["all_ap_25%"], sync_dist=True)
+
+            inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
+            inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts)
+
+            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts)
+
+            self.log("val_accuracy/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
+            self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
+            self.log("val_accuracy/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
+
+            self.log("val_accuracy/Bounding Box AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"], sync_dist=True)
+            self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.50"], sync_dist=True)
 
     def test_step(self, data_dict, idx):
         # prepare input and forward

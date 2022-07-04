@@ -37,7 +37,7 @@ def voc_ap(rec, prec, use_07_metric=False):
     return ap
 
 
-def get_iou(box_a, box_b, eps=1e-10):
+def get_iou(box_a, box_b):
     """Computes IoU of two axis aligned bboxes.
     Args:
         box_a, box_b: xyzxyz
@@ -257,18 +257,20 @@ def eval_sphere(pred_all, gt_all, ovthresh=0.25, use_07_metric=False, get_iou_fu
     return rec, prec, ap
 
 
-def evaluate_bbox_acc(class_labels, valid_class_ids, all_preds, all_gts):
+def evaluate_bbox_acc(all_preds, all_gts):
 
-    iou_threshold = 0.25  # adjust threshold here
+    iou_thresholds = [0.25, 0.5]  # adjust threshold here
 
     pred_all = {}
     gt_all = {}
     for i, preds in enumerate(all_preds):
-        img_id = uuid.uuid1() # dummy
+        img_id = uuid.uuid1()  # dummy
         pred_all[img_id] = [(pred["label_id"], pred["pred_bbox"], pred["conf"]) for pred in preds]
         gt_all[img_id] = all_gts[i]
-
-    eval_res = eval_sphere(pred_all, gt_all, ovthresh=iou_threshold)
-    aps = list(eval_res[-1].values())
-    mAP = np.mean(aps)
-    print('mAP:', mAP)
+    bbox_aps = {}
+    for iou_threshold in iou_thresholds:
+        eval_res = eval_sphere(pred_all, gt_all, ovthresh=iou_threshold)
+        aps = list(eval_res[-1].values())
+        m_ap = np.mean(aps)
+        bbox_aps[f"all_bbox_ap_{iou_threshold}"] = m_ap
+    return bbox_aps
