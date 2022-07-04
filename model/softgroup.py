@@ -276,8 +276,11 @@ class SoftGroup(pl.LightningModule):
             all_pred_insts = []
             all_gt_insts = []
             for batch, output in outputs:
-                pred_instances = self._get_pred_instances(output["proposals_idx"].cpu(), output["semantic_scores"].cpu(),
-                                                          output["cls_scores"].cpu(), output["iou_scores"].cpu(),
+                pred_instances = self._get_pred_instances(batch["locs"].cpu(),
+                                                          output["proposals_idx"].cpu(),
+                                                          output["semantic_scores"].size(0),
+                                                          output["cls_scores"].cpu(),
+                                                          output["iou_scores"].cpu(),
                                                           output["mask_scores"].cpu())
                 gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.data.ignore_classes)
                 all_pred_insts.append(pred_instances)
@@ -306,8 +309,9 @@ class SoftGroup(pl.LightningModule):
             for batch, output in results:
                 pred_instances = self._get_pred_instances(batch["locs"].cpu(),
                                                           output["proposals_idx"].cpu(),
-                                                          output["semantic_scores"].cpu(),
-                                                          output["cls_scores"].cpu(), output["iou_scores"].cpu(),
+                                                          output["semantic_scores"].size(0),
+                                                          output["cls_scores"].cpu(),
+                                                          output["iou_scores"].cpu(),
                                                           output["mask_scores"].cpu())
                 gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.data.ignore_classes)
                 all_pred_insts.append(pred_instances)
@@ -315,9 +319,8 @@ class SoftGroup(pl.LightningModule):
             evaluator = ScanNetEval(self.hparams.data.class_names)
             evaluation_result = evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
 
-    def _get_pred_instances(self, gt_xyz, proposals_idx, semantic_scores, cls_scores, iou_scores, mask_scores):
+    def _get_pred_instances(self, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores):
         num_instances = cls_scores.size(0)
-        num_points = semantic_scores.size(0)
         cls_scores = cls_scores.softmax(1)
         cls_pred_list, score_pred_list, mask_pred_list = [], [], []
         for i in range(self.instance_classes):

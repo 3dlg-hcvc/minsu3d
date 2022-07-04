@@ -199,8 +199,11 @@ class PointGroup(pl.LightningModule):
             all_pred_insts = []
             all_gt_insts = []
             for batch, output in outputs:
-                pred_instances = self._get_pred_instances(output["proposal_scores"][0].cpu(), output["proposal_scores"][1].cpu(),
-                                                     output["proposal_scores"][2].cpu(), output["semantic_scores"].cpu())
+                pred_instances = self._get_pred_instances(batch["locs"].cpu(),
+                                                          output["proposal_scores"][0].cpu(),
+                                                          output["proposal_scores"][1].cpu(),
+                                                          output["proposal_scores"].size(0) - 1,
+                                                          output["semantic_scores"].cpu())
                 gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.data.ignore_classes)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
@@ -220,16 +223,12 @@ class PointGroup(pl.LightningModule):
         output_dict = self._feed(data_dict)
         return data_dict, output_dict
 
-
-    def _get_pred_instances(self, proposals_scores, proposals_idx, proposals_offset, semantic_scores):
-
+    def _get_pred_instances(self, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores):
         semantic_pred_labels = semantic_scores.max(1)[1]
-
         proposals_score = torch.sigmoid(proposals_scores.view(-1))  # (nProposal,) float
         # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
         # proposals_offset: (nProposal + 1), int, cpu
 
-        num_proposals = proposals_offset.shape[0] - 1
         N = semantic_scores.shape[0]
 
         proposals_mask = torch.zeros((num_proposals, N), dtype=torch.int, device="cpu")  # (nProposal, N), int, cuda
@@ -268,5 +267,7 @@ class PointGroup(pl.LightningModule):
             pred['conf'] = score_pred[i]
             # rle encode mask to save memory
             pred['pred_mask'] = rle_encode(cluster_i)
+            pred_inst = gt_xyz[cluster_i]
+            pred['pred_bbox'] = np.concatenate((pred_inst.min(0), pred_inst.max(0)))
             instances.append(pred)
         return instances
