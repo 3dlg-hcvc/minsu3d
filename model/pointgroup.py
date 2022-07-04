@@ -264,7 +264,7 @@ class PointGroup(pl.LightningModule):
         for i in range(nclusters):
             cluster_i = clusters_mask[i]  # (N)
             pred = {}
-            pred['label_id'] = semantic_pred_labels[cluster_i == 1][0]
+            pred['label_id'] = semantic_pred_labels[cluster_i == 1][0].item()
             pred['conf'] = score_pred[i]
             # rle encode mask to save memory
             pred['pred_mask'] = rle_encode(cluster_i)

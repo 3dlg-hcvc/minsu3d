@@ -251,7 +251,10 @@ class ScanNetEval(object):
 
                         # prepare precision recall
                         num_examples = len(y_score_sorted)
-                        num_true_examples = y_true_sorted_cumsum[-1]
+                        if (len(y_true_sorted_cumsum) == 0):
+                            num_true_examples = 0
+                        else:
+                            num_true_examples = y_true_sorted_cumsum[-1]
                         precision = np.zeros(num_prec_recall)
                         recall = np.zeros(num_prec_recall)
 
