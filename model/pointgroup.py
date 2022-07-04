@@ -60,19 +60,19 @@ class PointGroup(pl.LightningModule):
                 coords_ = data_dict["locs"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
 
-                semantic_preds_cpu = semantic_preds[object_idxs].int().cpu()
+                semantic_preds_cpu = semantic_preds[object_idxs].cpu().int()
+                object_idxs_cpu = object_idxs.cpu()
 
                 idx_shift, start_len_shift = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, self.hparams.cluster.cluster_radius, self.hparams.cluster.cluster_shift_meanActive)
                 proposals_idx_shift, proposals_offset_shift = pointgroup_ops.pg_bfs_cluster(semantic_preds_cpu, idx_shift.cpu(), start_len_shift.cpu(), self.hparams.cluster.cluster_npoint_thre)
-                proposals_idx_shift[:, 1] = object_idxs.cpu()[proposals_idx_shift[:, 1].long()].int()
-                # proposals_batchId_shift_all = batch_idxs[proposals_idx_shift[:, 1].long()].int()
+                proposals_idx_shift[:, 1] = object_idxs_cpu[proposals_idx_shift[:, 1].long()].int()
                 # proposals_idx_shift: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
                 # proposals_offset_shift: (nProposal + 1), int
                 # proposals_batchId_shift_all: (sumNPoint,) batch id
 
                 idx, start_len = common_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_, self.hparams.cluster.cluster_radius, self.hparams.cluster.cluster_meanActive)
                 proposals_idx, proposals_offset = pointgroup_ops.pg_bfs_cluster(semantic_preds_cpu, idx.cpu(), start_len.cpu(), self.hparams.cluster.cluster_npoint_thre)
-                proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
+                proposals_idx[:, 1] = object_idxs_cpu[proposals_idx[:, 1].long()].int()
                 # proposals_idx: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
                 # proposals_offset: (nProposal + 1), int
 
@@ -80,8 +80,7 @@ class PointGroup(pl.LightningModule):
                 proposals_offset_shift += proposals_offset[-1]
                 proposals_idx = torch.cat((proposals_idx, proposals_idx_shift), dim=0)
                 proposals_offset = torch.cat((proposals_offset, proposals_offset_shift[1:]))
-                # proposals_idx = proposals_idx_shift
-                # proposals_offset = proposals_offset_shift
+
             else:
                 proposals_idx = data_dict["gt_proposals_idx"].cpu()
                 proposals_offset = data_dict["gt_proposals_offset"].cpu()
