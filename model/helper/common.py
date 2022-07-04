@@ -8,7 +8,7 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
     c_idxs = clusters_idx[:, 1].long().cuda()
     feats = feats[c_idxs]
     clusters_coords = coords[c_idxs]
-    clusters_offset = clusters_offset.cuda()
+    clusters_offset = clusters_offset
     clusters_coords_mean = common_ops.sec_mean(clusters_coords, clusters_offset)  # (nCluster, 3), float
     clusters_coords_mean_all = torch.index_select(clusters_coords_mean, 0, batch_idx)  # (sumNPoint, 3), float
     clusters_coords -= clusters_coords_mean_all
@@ -34,7 +34,7 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
     clusters_coords += offset
     assert clusters_coords.shape.numel() == ((clusters_coords >= 0) * (clusters_coords < spatial_shape)).sum()
 
-    clusters_coords = clusters_coords.int().cpu()
+    clusters_coords = clusters_coords.cpu().int()
 
     clusters_voxel_coords, clusters_p2v_map, clusters_v2p_map = common_ops.voxelization_idx(clusters_coords,
                                                                                             clusters_idx[:, 0].to(torch.int16),

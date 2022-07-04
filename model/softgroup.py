@@ -59,13 +59,7 @@ class SoftGroup(pl.LightningModule):
             semantic_scores = output_dict["semantic_scores"].softmax(dim=-1)
             batch_idxs = data_dict["vert_batch_ids"].int()
 
-            # hyperparameters from config
-            grouping_radius = self.hparams.model.grouping_cfg.radius
-            grouping_mean_active = self.hparams.model.grouping_cfg.mean_active
-            grouping_num_point_threshold = self.hparams.model.grouping_cfg.npoint_thr
 
-            class_num_point_mean = torch.tensor(self.hparams.model.grouping_cfg.class_numpoint_mean,
-                                                dtype=torch.float32)
             proposals_offset_list = []
             proposals_idx_list = []
 
@@ -81,12 +75,12 @@ class SoftGroup(pl.LightningModule):
                 coords_ = data_dict["locs"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
                 idx, start_len = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
-                                                                 grouping_radius, grouping_mean_active)
+                                                                 self.hparams.model.grouping_cfg.radius, self.hparams.model.grouping_cfg.mean_active)
 
-                proposals_idx, proposals_offset = softgroup_ops.sg_bfs_cluster(class_num_point_mean, idx.cpu(),
+                proposals_idx, proposals_offset = softgroup_ops.sg_bfs_cluster(self.hparams.model.grouping_cfg.class_numpoint_mean, idx.cpu(),
                                                                             start_len.cpu(),
-                                                                            grouping_num_point_threshold, class_id)
-                proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
+                                                                            self.hparams.model.grouping_cfg.npoint_thr, class_id)
+                proposals_idx[:, 1] = object_idxs.cpu()[proposals_idx[:, 1].long()].int()
 
                 # merge proposals
                 if len(proposals_offset_list) > 0:
@@ -104,6 +98,7 @@ class SoftGroup(pl.LightningModule):
                 proposals_idx = proposals_idx[:proposals_offset[-1]]
                 assert proposals_idx.shape[0] == proposals_offset[-1]
 
+            proposals_offset = proposals_offset.cuda()
             output_dict["proposals_idx"] = proposals_idx
             output_dict["proposals_offset"] = proposals_offset
 
@@ -117,12 +112,14 @@ class SoftGroup(pl.LightningModule):
                 **self.hparams.model.instance_voxel_cfg
             )
 
+            inst_map = inst_map.long().cuda()
+
             feats = self.tiny_unet(inst_feats)
 
             # predict mask scores
             mask_scores = self.mask_scoring_branch(feats.features)
-            output_dict["mask_scores"] = mask_scores[inst_map.long()]
-            output_dict["instance_batch_idxs"] = feats.coordinates[:, 0][inst_map.long()]
+            output_dict["mask_scores"] = mask_scores[inst_map]
+            output_dict["instance_batch_idxs"] = feats.coordinates[:, 0][inst_map]
 
             # predict instance cls and iou scores
             feats = self.global_pool(feats)
@@ -172,7 +169,7 @@ class SoftGroup(pl.LightningModule):
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             proposals_idx = output_dict["proposals_idx"][:, 1].cuda()
-            proposals_offset = output_dict["proposals_offset"].cuda()
+            proposals_offset = output_dict["proposals_offset"]
 
             # calculate iou of clustered instance
             ious_on_cluster = softgroup_ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset,

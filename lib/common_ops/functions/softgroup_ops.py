@@ -126,7 +126,7 @@ get_mask_label = GetMaskLabel.apply
 class SGBFSCluster(Function):
 
     @staticmethod
-    def forward(ctx, cluster_numpoint_mean, ball_query_idxs, start_len, threshold, class_id):
+    def forward(ctx, class_numpoint_mean, ball_query_idxs, start_len, threshold, class_id):
         '''
         :param ctx:
         :param ball_query_idxs: (nActive), int
@@ -136,12 +136,12 @@ class SGBFSCluster(Function):
         '''
 
         N = start_len.size(0)
-        assert cluster_numpoint_mean.is_contiguous()
         assert ball_query_idxs.is_contiguous()
         assert start_len.is_contiguous()
 
         cluster_idxs = ball_query_idxs.new()
         cluster_offsets = ball_query_idxs.new()
+        cluster_numpoint_mean = torch.tensor(class_numpoint_mean, dtype=torch.float32, device="cpu")
 
         COMMON_OPS.sg_bfs_cluster(cluster_numpoint_mean, ball_query_idxs, start_len, cluster_idxs,
                         cluster_offsets, N, threshold, class_id)
