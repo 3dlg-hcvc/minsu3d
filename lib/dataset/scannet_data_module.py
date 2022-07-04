@@ -25,16 +25,19 @@ class ScanNetDataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         return DataLoader(self.scannet_train, batch_size=self.cfg.data.batch_size, shuffle=True, pin_memory=True,
-                          collate_fn=sparse_collate_fn)
+                          collate_fn=sparse_collate_fn, num_workers=self.cfg.data.num_workers)
 
     def val_dataloader(self):
-        return DataLoader(self.scannet_val, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn)
+        return DataLoader(self.scannet_val, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
+                          num_workers=self.cfg.data.num_workers)
 
     def test_dataloader(self):
-        return DataLoader(self.scannet_test, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn)
+        return DataLoader(self.scannet_test, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
+                          num_workers=self.cfg.data.num_workers)
 
     def predict_dataloader(self):
-        return DataLoader(self.scannet_predict, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn)
+        return DataLoader(self.scannet_predict, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
+                          num_workers=self.cfg.data.num_workers)
 
 
 def scannet_collate_fn(batch):
@@ -128,7 +131,8 @@ def sparse_collate_fn(batch):
         data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.long)  # long (total_nInst)
 
     # voxelize
-    data["voxel_locs"], data["v2p_map"], data["p2v_map"] = common_ops.voxelization_idx(tmp_locs_scaled, data["vert_batch_ids"],
-                                                                                          len(batch),
-                                                                                          4)
+    data["voxel_locs"], data["v2p_map"], data["p2v_map"] = common_ops.voxelization_idx(tmp_locs_scaled,
+                                                                                       data["vert_batch_ids"],
+                                                                                       len(batch),
+                                                                                       4)
     return data

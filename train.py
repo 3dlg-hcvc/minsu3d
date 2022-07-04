@@ -1,28 +1,25 @@
-import warnings
 
-warnings.filterwarnings('ignore')
 
 import os
+import torch
 import argparse
-
+import warnings
+from lib.callback import *
+warnings.filterwarnings('ignore')
+import pytorch_lightning as pl
 from omegaconf import OmegaConf
 from importlib import import_module
-import torch
-import pytorch_lightning as pl
-from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 from pytorch_lightning.callbacks import DeviceStatsMonitor
 from lib.dataset.scannet_data_module import ScanNetDataModule
-from lib.callback import *
+from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 
 
 def load_conf(args):
     base_cfg = OmegaConf.load('conf/path.yaml')
     cfg = OmegaConf.load(args.config)
     cfg = OmegaConf.merge(base_cfg, cfg)
-
     cfg.general.task = 'train'
     cfg.general.experiment = args.experiment
-
     root = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.general.experiment,
                         cfg.general.task)
     os.makedirs(root, exist_ok=True)
@@ -60,13 +57,11 @@ def init_trainer(cfg):
         logger=logger,
         profiler="simple"
     )
-
     return trainer
 
 
 def init_model(cfg):
     model = getattr(import_module(cfg.model.module), cfg.model.classname)(**cfg)
-
     if cfg.model.pretrained_module:
         print("=> loading pretrained module from {} ...".format(cfg.model.pretrained_module_path))
         # for i, module_name in enumerate(cfg.model.pretrained_module):
@@ -75,11 +70,9 @@ def init_model(cfg):
         pretrained_module_dict = {k: v for k, v in ckp.items() if k.startswith(tuple(cfg.model.pretrained_module))}
         model_dict.update(pretrained_module_dict)
         model.load_state_dict(model_dict)
-
     if cfg.model.freeze_backbone:
         for param in model.unet.parameters():
             param.requires_grad = False
-
     return model
 
 
