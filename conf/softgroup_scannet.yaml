@@ -9,7 +9,6 @@ data:
   module: lib.dataset
   dataset: ScanNet
   loader: scannet_loader
-  data_root: dataset
   file_suffix: .pth
 
 
@@ -34,10 +33,6 @@ data:
     rotation: True
     elastic: True
     jitter_rgb: True
-    
-  requires_bbox: True
-  requires_gt_mask: False
-  requires_gt_feats: False
 
 
 model:
@@ -49,7 +44,6 @@ model:
   m: 16 # 16 or 32
   blocks: [1, 2, 3, 4, 5, 6, 7]
   cluster_blocks: [1, 2]
-  block_residual: True
   block_reps: 2
 
   use_coords: True
@@ -58,11 +52,6 @@ model:
   use_normal: False
   crop_bbox: False
   pred_bbox: False
-
-  num_bbox_class: 18
-  num_heading_bin: 1
-  num_size_cluster: 18
-  max_num_proposal: 128
 
   use_checkpoint: # /localhome/yza440/Research/pointgroup-minkowski/output/scannet/softgroup/train/softgroup-scannet-epoch=127.ckpt
   pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
@@ -99,7 +88,6 @@ train:
   num_sanity_val_steps: 20
   check_val_every_n_epoch: 8
   save_checkpoint_every_n_epochs: 8  # negative number n means to save the best n models
-  clear_cache_every_n_epochs: 4
   monitor: val_accuracy/AP_50
 
   optim: 
@@ -107,23 +95,4 @@ train:
     lr: 0.001
   
   loss_weight: [1, 1, 1, 1, 1, 1] # semantic_loss, offset_norm_loss, offset_dir_loss, score_loss, bbox_loss (if applies)
-
-  fg_thresh: 0.75
-  bg_thresh: 0.25
-
-
-test:
-  use_exp: #DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
-
-
-evaluation:
-  model_utils_module: data.scannet.model_util_scannet
-  gt_class_name: NYU20_CLASS_NAME
-  gt_class_idx: NYU20_CLASS_IDX
-
-  task:
-  use_model: #DETECTOR #XYZ_MULTIVIEW_NORMAL #XYZ-RGB-2021-02-10_01-53-53
-
-  detection:
-    per_class_proposal: True
 
