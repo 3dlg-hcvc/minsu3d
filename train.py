@@ -77,7 +77,7 @@ def init_model(cfg):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', default="conf/pointgroup_scannet.yaml", type=str, help='path to config file')
+    parser.add_argument('-c', '--config', type=str, help='path to config file')
     parser.add_argument('-e', '--experiment', type=str, default='', help='specify experiment')
     parser.add_argument('-n', '--num_nodes', type=int, default=1, help='specify num of gpu nodes')
     args = parser.parse_args()
