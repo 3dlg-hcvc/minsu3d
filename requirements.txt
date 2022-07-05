@@ -1,11 +1,6 @@
 plyfile
-opencv-python
-tensorboardX
-tensorboard
 tqdm
-h5py
 matplotlib
-imageio
 omegaconf
 trimesh
 pytorch-lightning
