@@ -11,3 +11,4 @@ trimesh
 pytorch-lightning
 scipy
 open3d
+wandb

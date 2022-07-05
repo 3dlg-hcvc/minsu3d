@@ -44,7 +44,7 @@ def scannet_collate_fn(batch):
     data = {}
     for key in batch[0].keys():
         if key in ['locs', 'locs_scaled', 'feats', 'sem_labels', 'instance_ids', 'num_instance', 'instance_info',
-                   'instance_num_point', "instance_semantic_cls", 'gt_proposals_idx', 'gt_proposals_offset']:
+                   'instance_num_point', "instance_semantic_cls", 'gt_proposals_idx', 'gt_proposals_offset', 'instance_bboxes']:
             continue
         if isinstance(batch[0][key], tuple):
             coords, feats = list(zip(*[sample[key] for sample in batch]))
@@ -78,6 +78,7 @@ def sparse_collate_fn(batch):
     total_num_inst = 0
     total_points = 0
     instance_cls = []  # (total_nInst), long
+    instance_bboxes = []
     gt_proposals_idx = []
     gt_proposals_offset = []
 
@@ -113,6 +114,7 @@ def sparse_collate_fn(batch):
             instance_offsets.append(instance_offsets[-1] + b["num_instance"].item())
 
             instance_cls.extend(b["instance_semantic_cls"])
+            instance_bboxes.extend(b["instance_bboxes"])
 
     tmp_locs_scaled = torch.cat(locs_scaled, dim=0)  # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
     data["locs"] = torch.cat(locs, dim=0)  # float (N, 3)
@@ -129,6 +131,7 @@ def sparse_collate_fn(batch):
         data["instance_num_point"] = torch.cat(instance_num_point, dim=0)  # (total_nInst)
         data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int32)  # int (B+1)
         data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.long)  # long (total_nInst)
+        data["instance_bboxes"] = torch.tensor(instance_bboxes, dtype=torch.float32)
 
     # voxelize
     data["voxel_locs"], data["v2p_map"], data["p2v_map"] = common_ops.voxelization_idx(tmp_locs_scaled,

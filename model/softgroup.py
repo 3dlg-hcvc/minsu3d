@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode, get_gt_instances
-from lib.evaluation.object_detection_helper import evaluate_bbox_acc
+from lib.evaluation.object_detection_helper import evaluate_bbox_acc, get_gt_bbox
 from lib.common_ops.functions import softgroup_ops
 from lib.common_ops.functions import common_ops
 from lib.loss import *
@@ -159,7 +159,7 @@ class SoftGroup(pl.LightningModule):
         # coords: (N, 3), float32
         # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
         # instance_ids: (N), long
-        gt_offsets = data_dict["instance_info"][:, 0:3] - data_dict["locs"]  # (N, 3)
+        gt_offsets = data_dict["instance_info"] - data_dict["locs"]  # (N, 3)
         valid = data_dict["instance_ids"] != self.hparams.data.ignore_label
         pt_offset_criterion = PTOffsetLoss()
         offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
@@ -276,28 +276,31 @@ class SoftGroup(pl.LightningModule):
         if self.current_epoch > self.hparams.model.prepare_epochs:
             all_pred_insts = []
             all_gt_insts = []
+            all_gt_insts_bbox = []
             for batch, output in outputs:
-                pred_instances = self._get_pred_instances(batch["locs"].cpu(),
+                pred_instances = self._get_pred_instances(batch["locs"].cpu().numpy(),
                                                           output["proposals_idx"].cpu(),
                                                           output["semantic_scores"].size(0),
                                                           output["cls_scores"].cpu(),
                                                           output["iou_scores"].cpu(),
                                                           output["mask_scores"].cpu())
                 gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.data.ignore_classes)
+                gt_instances_bbox = get_gt_bbox(batch["instance_semantic_cls"].cpu().numpy(), batch["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
+                all_gt_insts_bbox.append(gt_instances_bbox)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
 
             inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
             inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts)
 
-            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts)
+            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox)
 
             self.log("val_accuracy/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
             self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
             self.log("val_accuracy/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
 
             self.log("val_accuracy/Bounding Box AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"], sync_dist=True)
-            self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.50"], sync_dist=True)
+            self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"], sync_dist=True)
 
     def test_step(self, data_dict, idx):
         # prepare input and forward
@@ -315,7 +318,7 @@ class SoftGroup(pl.LightningModule):
             all_pred_insts = []
             all_gt_insts = []
             for batch, output in results:
-                pred_instances = self._get_pred_instances(batch["locs"].cpu(),
+                pred_instances = self._get_pred_instances(batch["locs"].cpu().numpy(),
                                                           output["proposals_idx"].cpu(),
                                                           output["semantic_scores"].size(0),
                                                           output["cls_scores"].cpu(),

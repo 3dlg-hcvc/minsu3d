@@ -84,7 +84,7 @@ def eval_det_cls(pred, gt, ovthresh=0.25, use_07_metric=False, get_iou_func=get_
     class_recs = {}  # {img_id: {'sphere': sphere list, 'det': matched list}}
     npos = 0
     for img_id in gt.keys():
-        sphere = np.array(gt[img_id])
+        sphere = np.array(gt[img_id], dtype=np.float32)
         det = [False] * len(sphere)
         npos += len(sphere)
         class_recs[img_id] = {'sphere': sphere, 'det': det}
@@ -112,8 +112,8 @@ def eval_det_cls(pred, gt, ovthresh=0.25, use_07_metric=False, get_iou_func=get_
 
     # go down dets and mark TPs and FPs
     nd = len(image_ids)
-    tp = np.zeros(nd)
-    fp = np.zeros(nd)
+    tp = np.zeros(nd, dtype=bool)
+    fp = np.zeros(nd, dtype=bool)
     for d in range(nd):
         # if d%100==0: print(d)
         R = class_recs[image_ids[d]]
@@ -132,12 +132,12 @@ def eval_det_cls(pred, gt, ovthresh=0.25, use_07_metric=False, get_iou_func=get_
         # print d, ovmax
         if ovmax > ovthresh:
             if not R['det'][jmax]:
-                tp[d] = 1.
+                tp[d] = True
                 R['det'][jmax] = 1
             else:
-                fp[d] = 1.
+                fp[d] = True
         else:
-            fp[d] = 1.
+            fp[d] = True
 
     # compute precision recall
     fp = np.cumsum(fp)
@@ -257,16 +257,25 @@ def eval_sphere(pred_all, gt_all, ovthresh=0.25, use_07_metric=False, get_iou_fu
     return rec, prec, ap
 
 
+def get_gt_bbox(instance_cls, instance_bboxes, ignored_label):
+    gt_bbox = []
+    assert instance_cls.shape[0] == instance_bboxes.shape[0]
+    for i in range(instance_cls.shape[0]):
+        if instance_cls[i] == ignored_label:
+            continue
+        gt_bbox.append((instance_cls[i], instance_bboxes[i]))
+    return gt_bbox
+
+
 def evaluate_bbox_acc(all_preds, all_gts):
-
     iou_thresholds = [0.25, 0.5]  # adjust threshold here
-
     pred_all = {}
     gt_all = {}
     for i, preds in enumerate(all_preds):
         img_id = uuid.uuid1()  # dummy
         pred_all[img_id] = [(pred["label_id"], pred["pred_bbox"], pred["conf"]) for pred in preds]
         gt_all[img_id] = all_gts[i]
+        assert len(all_gts[i]) > 0
     bbox_aps = {}
     for iou_threshold in iou_thresholds:
         eval_res = eval_sphere(pred_all, gt_all, ovthresh=iou_threshold)

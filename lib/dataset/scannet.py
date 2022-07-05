@@ -82,27 +82,28 @@ class ScanNet(Dataset):
         """
         instance_num_point = []  # (nInst), int
         unique_instance_ids = np.unique(instance_ids)
-        num_instance = np.count_nonzero(unique_instance_ids != self.cfg.data.ignore_label)
-        instance_info = np.zeros(
-            (xyz.shape[0], 12), dtype=np.float32
-        )  # (n, 12), float, (meanx, meany, meanz, cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
-        instance_cls = []
-        for i in unique_instance_ids:
-            if i == self.cfg.data.ignore_label:
-                continue
+        unique_instance_ids = unique_instance_ids[unique_instance_ids != self.cfg.data.ignore_label]
+        num_instance = unique_instance_ids.shape[0]
+        # (n, 12), float, (meanx, meany, meanz, cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
+        instance_info = np.zeros(shape=(xyz.shape[0], 3), dtype=np.float32)
+        instance_cls = np.full(shape=unique_instance_ids.shape[0], fill_value=self.cfg.data.ignore_label, dtype=np.int8)
+        instance_bboxes = np.full(shape=(unique_instance_ids.shape[0], 6), fill_value=self.cfg.data.ignore_label, dtype=np.float32)
+        for index, i in enumerate(unique_instance_ids):
+
             inst_i_idx = np.where(instance_ids == i)
             # instance_info
             xyz_i = xyz[inst_i_idx]
             min_xyz_i = xyz_i.min(0)
             max_xyz_i = xyz_i.max(0)
             mean_xyz_i = xyz_i.mean(0)
-            c_xyz_i = (max_xyz_i + min_xyz_i) / 2
-            instance_info_i = instance_info[inst_i_idx]
-            instance_info_i[:, 0:3] = mean_xyz_i
-            instance_info_i[:, 3:6] = c_xyz_i
-            instance_info_i[:, 6:9] = min_xyz_i
-            instance_info_i[:, 9:12] = max_xyz_i
-            instance_info[inst_i_idx] = instance_info_i
+            # c_xyz_i = (max_xyz_i + min_xyz_i) / 2
+
+            # offset
+            instance_info[inst_i_idx] = mean_xyz_i
+
+            # instance_info_i[:, 3:6] = c_xyz_i
+            # instance_info_i[:, 3:6] = min_xyz_i
+            # instance_info_i[:, 6:9] = max_xyz_i
 
             # instance_num_point
             instance_num_point.append(inst_i_idx[0].size)
@@ -110,11 +111,11 @@ class ScanNet(Dataset):
             # semantic label
             cls_idx = inst_i_idx[0][0]
             assert sem_labels[cls_idx] not in self.cfg.data.ignore_classes
-            instance_cls.append(sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[
-                                                                                               cls_idx] != self.cfg.data.ignore_label else
-                                sem_labels[cls_idx])
+            instance_cls[index] = sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[cls_idx] != self.cfg.data.ignore_label else sem_labels[cls_idx]
+            # bounding boxes
+            instance_bboxes[index] = np.concatenate((min_xyz_i, max_xyz_i))
 
-        return num_instance, instance_info, instance_num_point, instance_cls
+        return num_instance, instance_info, instance_num_point, instance_cls, instance_bboxes
 
     def _generate_gt_clusters(self, points, instance_ids):
         gt_proposals_idx = []
@@ -207,7 +208,7 @@ class ScanNet(Dataset):
                 sem_labels = sem_labels[valid_idxs]
                 instance_ids = self._get_cropped_inst_ids(instance_ids, valid_idxs)
 
-            num_instance, instance_info, instance_num_point, instance_semantic_cls = self._get_inst_info(
+            num_instance, instance_info, instance_num_point, instance_semantic_cls, instance_bboxes = self._get_inst_info(
                 points_augment, instance_ids.astype(np.int32), sem_labels)
 
             if self.requires_gt_mask:
@@ -225,7 +226,8 @@ class ScanNet(Dataset):
             data["num_instance"] = np.array(num_instance, dtype=np.int32)  # int
             data["instance_info"] = instance_info  # (N, 12)
             data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)  # (num_instance,)
-            data["instance_semantic_cls"] = np.array(instance_semantic_cls, dtype=np.int32)
+            data["instance_semantic_cls"] = instance_semantic_cls
+            data["instance_bboxes"] = instance_bboxes
             if self.requires_gt_mask:
                 data['gt_proposals_idx'] = gt_proposals_idx
                 data['gt_proposals_offset'] = gt_proposals_offset

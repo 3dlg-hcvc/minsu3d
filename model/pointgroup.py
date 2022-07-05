@@ -126,7 +126,7 @@ class PointGroup(pl.LightningModule):
         # coords: (N, 3), float32
         # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
         # instance_ids: (N), long
-        gt_offsets = data_dict["instance_info"][:, 0:3] - data_dict["locs"]  # (N, 3)
+        gt_offsets = data_dict["instance_info"] - data_dict["locs"]  # (N, 3)
         valid = data_dict["instance_ids"] != self.hparams.data.ignore_label
         pt_offset_criterion = PTOffsetLoss()
         offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
@@ -200,7 +200,7 @@ class PointGroup(pl.LightningModule):
             all_pred_insts = []
             all_gt_insts = []
             for batch, output in outputs:
-                pred_instances = self._get_pred_instances(batch["locs"].cpu(),
+                pred_instances = self._get_pred_instances(batch["locs"].cpu().numpy(),
                                                           output["proposal_scores"][0].cpu(),
                                                           output["proposal_scores"][1].cpu(),
                                                           output["proposal_scores"].size(0) - 1,
