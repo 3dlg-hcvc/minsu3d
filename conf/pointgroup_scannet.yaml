@@ -47,7 +47,7 @@ model:
   module: model
   classname: PointGroup
   
-  m: 16 # 16 or 32
+  m: 32 # 16 or 32
   blocks: [ 1, 2, 3, 4, 5, 6, 7 ]
   cluster_blocks: [ 1, 2 ]
   block_reps: 2
