@@ -84,7 +84,7 @@ model:
 
 
 train:
-  epochs: 512 # 480
+  epochs: 400 # 480
   num_sanity_val_steps: 20
   check_val_every_n_epoch: 8
   save_checkpoint_every_n_epochs: 8  # negative number n means to save the best n models
