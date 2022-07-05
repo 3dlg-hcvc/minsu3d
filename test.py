@@ -35,14 +35,13 @@ def init_trainer():
     trainer = pl.Trainer(
         gpus=1,  # use all available GPUs
         num_nodes=1,
-        profiler="simple",
+        max_epochs=1
     )
     return trainer
 
 
 def init_model(cfg):
-    MODEL = getattr(import_module(cfg.model.module), cfg.model.classname)
-    model = MODEL(cfg)
+    model = getattr(import_module(cfg.model.module), cfg.model.classname)(**cfg)
     return model
 
 

@@ -54,8 +54,7 @@ def init_trainer(cfg):
         num_sanity_val_steps=cfg.train.num_sanity_val_steps,
         check_val_every_n_epoch=cfg.train.check_val_every_n_epoch,
         callbacks=callbacks,
-        logger=logger,
-        profiler="simple"
+        logger=logger
     )
     return trainer
 

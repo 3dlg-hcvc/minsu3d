@@ -278,7 +278,8 @@ class SoftGroup(pl.LightningModule):
             all_gt_insts = []
             all_gt_insts_bbox = []
             for batch, output in outputs:
-                pred_instances = self._get_pred_instances(batch["locs"].cpu().numpy(),
+                pred_instances = self._get_pred_instances(batch["scan_ids"][0],
+                                                          batch["locs"].cpu().numpy(),
                                                           output["proposals_idx"].cpu(),
                                                           output["semantic_scores"].size(0),
                                                           output["cls_scores"].cpu(),
@@ -317,20 +318,31 @@ class SoftGroup(pl.LightningModule):
         if self.current_epoch > self.hparams.model.prepare_epochs:
             all_pred_insts = []
             all_gt_insts = []
+            all_gt_insts_bbox = []
             for batch, output in results:
-                pred_instances = self._get_pred_instances(batch["locs"].cpu().numpy(),
+                pred_instances = self._get_pred_instances(batch["scan_ids"][0],
+                                                          batch["locs"].cpu().numpy(),
                                                           output["proposals_idx"].cpu(),
                                                           output["semantic_scores"].size(0),
                                                           output["cls_scores"].cpu(),
                                                           output["iou_scores"].cpu(),
                                                           output["mask_scores"].cpu())
-                gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.data.ignore_classes)
+                gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(),
+                                                self.hparams.data.ignore_classes)
+
+                gt_instances_bbox = get_gt_bbox(batch["instance_semantic_cls"].cpu().numpy(),
+                                                batch["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
+
+                all_gt_insts_bbox.append(gt_instances_bbox)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
-            evaluator = ScanNetEval(self.hparams.data.class_names)
-            evaluation_result = evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
 
-    def _get_pred_instances(self, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores):
+            inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
+            self.print("==> Evaluating instance segmentation ...")
+            inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts)
+            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox)
+
+    def _get_pred_instances(self, scan_id, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores):
         num_instances = cls_scores.size(0)
         cls_scores = cls_scores.softmax(1)
         cls_pred_list, score_pred_list, mask_pred_list = [], [], []
@@ -340,7 +352,7 @@ class SoftGroup(pl.LightningModule):
             cur_iou_scores = iou_scores[:, i]
             cur_mask_scores = mask_scores[:, i]
             score_pred = cur_cls_scores * cur_iou_scores.clamp(0, 1)
-            mask_pred = torch.zeros((num_instances, num_points), dtype=torch.int, device="cpu")
+            mask_pred = torch.zeros((num_instances, num_points), dtype=torch.bool, device="cpu")
             mask_inds = cur_mask_scores > self.hparams.model.test_cfg.mask_score_thr
             cur_proposals_idx = proposals_idx[mask_inds].long()
             mask_pred[cur_proposals_idx[:, 0], cur_proposals_idx[:, 1]] = 1
@@ -367,6 +379,7 @@ class SoftGroup(pl.LightningModule):
         instances = []
         for i in range(cls_pred.shape[0]):
             pred = {}
+            pred['scan_id'] = scan_id
             pred['label_id'] = cls_pred[i]
             pred['conf'] = score_pred[i]
             # rle encode mask to save memory

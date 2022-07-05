@@ -31,17 +31,14 @@ def crop(pc, max_num_point, scale):
     Crop the points such that there are at most max_num_points points
     '''
     pc_offset = pc.copy()
-    valid_idxs = (pc_offset.min(1) >= 0)
-    assert np.count_nonzero(valid_idxs) == pc.shape[0]
-
-    max_pc_range = np.array([scale] * 3)
+    valid_idxs = pc_offset.min(1) >= 0
+    max_pc_range = np.full(shape=3, fill_value=scale, dtype=np.uint16)
     pc_range = pc.max(0) - pc.min(0)
-    while (np.count_nonzero(valid_idxs) > max_num_point):
+    while np.count_nonzero(valid_idxs) > max_num_point:
         offset = np.clip(max_pc_range - pc_range + 0.001, None, 0) * np.random.rand(3)
         pc_offset = pc + offset
         valid_idxs = (pc_offset.min(1) >= 0) * ((pc_offset < max_pc_range).sum(1) == 3)
         max_pc_range[:2] -= 32
-
     return pc_offset, valid_idxs
 
 
@@ -49,39 +46,7 @@ def crop(pc, max_num_point, scale):
 # Point cloud IO #
 ##################
 
-def read_ply(filename):
-    """ read XYZ point cloud from filename PLY file """
-    plydata = PlyData.read(filename)
-    num_verts = plydata['vertex'].count
-    pc = np.zeros(shape=[num_verts, 3], dtype=np.float32)
-    pc[:,0] = plydata['vertex'].data['x']
-    pc[:,1] = plydata['vertex'].data['y']
-    pc[:,2] = plydata['vertex'].data['z']
-    return pc
 
-
-def read_ply_rgb(filename):
-    """ read XYZ RGB for each vertex.
-    Note: RGB values are in 0-255
-    """
-    plydata = PlyData.read(filename)
-    num_verts = plydata['vertex'].count
-    pc = np.zeros(shape=[num_verts, 6], dtype=np.float32)
-    pc[:,0] = plydata['vertex'].data['x']
-    pc[:,1] = plydata['vertex'].data['y']
-    pc[:,2] = plydata['vertex'].data['z']
-    pc[:,3] = plydata['vertex'].data['red']
-    pc[:,4] = plydata['vertex'].data['green']
-    pc[:,5] = plydata['vertex'].data['blue']
-    return pc
-
-
-def write_ply(points, filename, text=True):
-    """ input: Nx3, write points to filename as PLY format. """
-    points = [(points[i,0], points[i,1], points[i,2]) for i in range(points.shape[0])]
-    vertex = np.array(points, dtype=[('x', 'f4'), ('y', 'f4'),('z', 'f4')])
-    ele = PlyElement.describe(vertex, 'vertex', comments=['vertices'])
-    PlyData([ele], text=text).write(filename)
 
 
 def write_ply_rgb(points, colors, filename, text=True, num_classes=None):

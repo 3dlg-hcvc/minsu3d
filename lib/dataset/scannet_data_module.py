@@ -81,8 +81,10 @@ def sparse_collate_fn(batch):
     instance_bboxes = []
     gt_proposals_idx = []
     gt_proposals_offset = []
+    scan_ids = []
 
     for i, b in enumerate(batch):
+        scan_ids.append(b["scan_id"])
         locs.append(torch.from_numpy(b["locs"]))
 
         locs_scaled.append(torch.from_numpy(b["locs_scaled"]).int())
@@ -117,6 +119,7 @@ def sparse_collate_fn(batch):
             instance_bboxes.extend(b["instance_bboxes"])
 
     tmp_locs_scaled = torch.cat(locs_scaled, dim=0)  # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
+    data['scan_ids'] = scan_ids
     data["locs"] = torch.cat(locs, dim=0)  # float (N, 3)
     data["vert_batch_ids"] = torch.cat(vert_batch_ids, dim=0)
     data["feats"] = torch.cat(feats, dim=0)  # .to(torch.float32)            # float (N, C)

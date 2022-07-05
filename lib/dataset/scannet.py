@@ -39,7 +39,7 @@ class ScanNet(Dataset):
         with open(self.DATA_MAP[self.split]) as f:
             self.scene_names = [line.strip() for line in f]
         self.scenes = []
-        for scene_name in tqdm(self.scene_names):
+        for scene_name in tqdm(self.scene_names, desc="Loading data from disk"):
             scene_path = os.path.join(self.root, self.split, scene_name + self.file_suffix)
             scene = torch.load(scene_path)
             scene["xyz"] -= scene["xyz"].mean(axis=0)
@@ -151,14 +151,14 @@ class ScanNet(Dataset):
         return gt_proposals_idx, gt_proposals_offset, object_ids, instance_bboxes
 
     def __getitem__(self, idx):
-        scene_id = self.scene_names[idx]
+        scan_id = self.scene_names[idx]
         scene = self.scenes[idx]
 
         points = scene["xyz"]  # (N, 3)
         colors = scene["rgb"]  # (N, 3) rgb
         normals = scene["normal"]
 
-        data = {"id": idx, "scene_id": scene_id}
+        data = {"scan_id": scan_id}
 
         if self.split != "test":
             instance_ids = scene["instance_ids"]

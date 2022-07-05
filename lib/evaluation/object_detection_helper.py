@@ -1,5 +1,4 @@
 # Modified from https://github.com/facebookresearch/votenet/blob/main/utils/eval_det.py
-import uuid
 import numpy as np
 
 
@@ -85,7 +84,7 @@ def eval_det_cls(pred, gt, ovthresh=0.25, use_07_metric=False, get_iou_func=get_
     npos = 0
     for img_id in gt.keys():
         sphere = np.array(gt[img_id], dtype=np.float32)
-        det = [False] * len(sphere)
+        det = np.zeros(shape=len(sphere), dtype=bool)
         npos += len(sphere)
         class_recs[img_id] = {'sphere': sphere, 'det': det}
     # pad empty list to all other imgids
@@ -115,7 +114,6 @@ def eval_det_cls(pred, gt, ovthresh=0.25, use_07_metric=False, get_iou_func=get_
     tp = np.zeros(nd, dtype=bool)
     fp = np.zeros(nd, dtype=bool)
     for d in range(nd):
-        # if d%100==0: print(d)
         R = class_recs[image_ids[d]]
         bb = BB[d, ...].astype(float)
         ovmax = -np.inf
@@ -140,9 +138,9 @@ def eval_det_cls(pred, gt, ovthresh=0.25, use_07_metric=False, get_iou_func=get_
             fp[d] = True
 
     # compute precision recall
-    fp = np.cumsum(fp)
-    tp = np.cumsum(tp)
-    rec = tp / float(npos)
+    fp = np.cumsum(fp, dtype=np.uint32)
+    tp = np.cumsum(tp, dtype=np.uint32)
+    rec = tp.astype(np.float32) / npos
     # print('NPOS: ', npos)
     # avoid divide by zero in case the first detection matches a difficult
     # ground truth
@@ -220,6 +218,7 @@ def eval_sphere(pred_all, gt_all, ovthresh=0.25, use_07_metric=False, get_iou_fu
     gt = {}  # map {classname: gt}
     for img_id in pred_all.keys():
         for classname, sphere, score in pred_all[img_id]:
+
             if classname not in pred:
                 pred[classname] = {}
             if img_id not in pred[classname]:
@@ -231,6 +230,7 @@ def eval_sphere(pred_all, gt_all, ovthresh=0.25, use_07_metric=False, get_iou_fu
             pred[classname][img_id].append((sphere, score))
     for img_id in gt_all.keys():
         for classname, sphere in gt_all[img_id]:
+
             if classname not in gt:
                 gt[classname] = {}
             if img_id not in gt[classname]:
@@ -271,11 +271,10 @@ def evaluate_bbox_acc(all_preds, all_gts):
     iou_thresholds = [0.25, 0.5]  # adjust threshold here
     pred_all = {}
     gt_all = {}
-    for i, preds in enumerate(all_preds):
-        img_id = uuid.uuid1()  # dummy
-        pred_all[img_id] = [(pred["label_id"], pred["pred_bbox"], pred["conf"]) for pred in preds]
+    for i in range(len(all_preds)):
+        img_id = all_preds[i][0]["scan_id"]
+        pred_all[img_id] = [(pred["label_id"] - 1, pred["pred_bbox"], pred["conf"]) for pred in all_preds[i]]
         gt_all[img_id] = all_gts[i]
-        assert len(all_gts[i]) > 0
     bbox_aps = {}
     for iou_threshold in iou_thresholds:
         eval_res = eval_sphere(pred_all, gt_all, ovthresh=iou_threshold)

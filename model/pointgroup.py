@@ -200,7 +200,8 @@ class PointGroup(pl.LightningModule):
             all_pred_insts = []
             all_gt_insts = []
             for batch, output in outputs:
-                pred_instances = self._get_pred_instances(batch["locs"].cpu().numpy(),
+                pred_instances = self._get_pred_instances(batch["scan_ids"][0],
+                                                          batch["locs"].cpu().numpy(),
                                                           output["proposal_scores"][0].cpu(),
                                                           output["proposal_scores"][1].cpu(),
                                                           output["proposal_scores"].size(0) - 1,
@@ -230,7 +231,7 @@ class PointGroup(pl.LightningModule):
         output_dict = self._feed(data_dict)
         return data_dict, output_dict
 
-    def _get_pred_instances(self, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores):
+    def _get_pred_instances(self, scan_id, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores):
         semantic_pred_labels = semantic_scores.max(1)[1]
         proposals_score = torch.sigmoid(proposals_scores.view(-1))  # (nProposal,) float
         # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
@@ -238,8 +239,8 @@ class PointGroup(pl.LightningModule):
 
         N = semantic_scores.shape[0]
 
-        proposals_mask = torch.zeros((num_proposals, N), dtype=torch.int, device="cpu")  # (nProposal, N), int, cuda
-        proposals_mask[proposals_idx[:, 0].long(), proposals_idx[:, 1].long()] = 1
+        proposals_mask = torch.zeros((num_proposals, N), dtype=torch.bool, device="cpu")  # (nProposal, N), int, cuda
+        proposals_mask[proposals_idx[:, 0].long(), proposals_idx[:, 1].long()] = True
 
         # score threshold & min_npoint mask
         proposals_npoint = proposals_mask.sum(1)
@@ -270,7 +271,8 @@ class PointGroup(pl.LightningModule):
         for i in range(nclusters):
             cluster_i = clusters_mask[i]  # (N)
             pred = {}
-            pred['label_id'] = semantic_pred_labels[cluster_i == 1][0].item()
+            pred['scan_id'] = scan_id
+            pred['label_id'] = semantic_pred_labels[cluster_i][0].item()
             pred['conf'] = score_pred[i]
             # rle encode mask to save memory
             pred['pred_mask'] = rle_encode(cluster_i)

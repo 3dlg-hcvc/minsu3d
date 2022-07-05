@@ -1,10 +1,8 @@
 # Adapted from https://github.com/ScanNet/ScanNet/blob/master/BenchmarkScripts/3d_evaluation/evaluate_semantic_instance.py  # noqa E501
 # Modified by Thang Vu
 
-import multiprocessing as mp
 from copy import deepcopy
 import numpy as np
-import uuid
 
 
 def get_instances(ids, class_ids, class_labels, id2label):
@@ -372,7 +370,7 @@ class ScanNetEval(object):
                 continue  # skip if empty
 
             pred_instance = {}
-            pred_instance['filename'] = uuid.uuid1()  # dummy
+            pred_instance['filename'] = pred['scan_id']  # dummy
             pred_instance['pred_id'] = num_pred_instances
             pred_instance['label_id'] = label_id if self.use_label else None
             pred_instance['vert_count'] = num
