@@ -23,8 +23,6 @@ class ScanNet(Dataset):
         self.max_num_point = cfg.data.max_num_point
         self.mode = cfg.data.mode
 
-        self.requires_gt_mask = cfg.data.requires_gt_mask
-
         self.DATA_MAP = {
             "train": cfg.SCANNETV2_PATH.train_list,
             "val": cfg.SCANNETV2_PATH.val_list,
@@ -211,8 +209,7 @@ class ScanNet(Dataset):
             num_instance, instance_info, instance_num_point, instance_semantic_cls, instance_bboxes = self._get_inst_info(
                 points_augment, instance_ids.astype(np.int32), sem_labels)
 
-            if self.requires_gt_mask:
-                gt_proposals_idx, gt_proposals_offset, _, _ = self._generate_gt_clusters(points, instance_ids)
+
             feats = np.zeros(shape=(len(points), 0), dtype=np.float32)
             if self.cfg.model.use_color:
                 feats = np.concatenate((feats, colors), axis=1)
@@ -228,9 +225,7 @@ class ScanNet(Dataset):
             data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)  # (num_instance,)
             data["instance_semantic_cls"] = instance_semantic_cls
             data["instance_bboxes"] = instance_bboxes
-            if self.requires_gt_mask:
-                data['gt_proposals_idx'] = gt_proposals_idx
-                data['gt_proposals_offset'] = gt_proposals_offset
+
         else:
             # scale
             points = points * self.scale
