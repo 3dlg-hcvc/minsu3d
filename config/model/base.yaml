@@ -1,0 +1,37 @@
+# Managed by Hydra
+
+log:
+  module: WandbLogger  # WandbLogger or TensorBoardLogger
+  # https://pytorch-lightning.readthedocs.io/en/stable/extensions/generated/pytorch_lightning.loggers.WandbLogger.html
+  WandbLogger:
+    project: General
+    name: run_1
+  # https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.loggers.tensorboard.html
+  TensorBoardLogger:
+    name: General
+    default_hp_metric: False
+
+
+# https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
+trainer:
+  gpus: -1  # use all available gpus
+  strategy: ddp
+  num_nodes: 1
+  max_epochs: 512
+  num_sanity_val_steps: 20
+  check_val_every_n_epoch: 8
+
+
+# https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
+checkpoint_monitor:
+  monitor: null
+  mode: max
+  save_last: False
+  save_top_k: -1
+  every_n_epochs: 8
+
+
+# https://pytorch-lightning.readthedocs.io/en/stable/common/optimization.html
+optimizer: 
+    name: Adam # Adam, AdamW or SGD
+    lr: 0.001

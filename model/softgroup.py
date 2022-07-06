@@ -13,21 +13,21 @@ from lib.optimizer import init_optimizer
 
 
 class SoftGroup(pl.LightningModule):
-    def __init__(self, **cfg):
+    def __init__(self, model, data, optimizer):
         super().__init__()
         self.save_hyperparameters()
-        input_channel = cfg["model"].use_coords * 3 + cfg["model"].use_color * 3 + cfg["model"].use_normal * 3
-        output_channel = cfg["model"].m
-        semantic_classes = cfg["data"].classes
-        self.instance_classes = semantic_classes - len(cfg["data"].ignore_classes)
+        input_channel = model.use_coord * 3 + model.use_color * 3 + model.use_normal * 3
+        output_channel = model.m
+        semantic_classes = data.classes
+        self.instance_classes = semantic_classes - len(data.ignore_classes)
 
         """
             Backbone Block
         """
         self.backbone = Backbone(input_channel=input_channel,
-                                 output_channel=cfg["model"].m,
-                                 block_channels=cfg["model"].blocks,
-                                 block_reps=cfg["model"].block_reps,
+                                 output_channel=model.m,
+                                 block_channels=model.blocks,
+                                 block_reps=model.block_reps,
                                  sem_classes=semantic_classes)
 
         """
@@ -143,7 +143,7 @@ class SoftGroup(pl.LightningModule):
         return x
 
     def configure_optimizers(self):
-        return init_optimizer(parameters=self.parameters(), **self.hparams.train.optim)
+        return init_optimizer(parameters=self.parameters(), **self.hparams.optimizer)
 
     def _loss(self, data_dict, output_dict):
         losses = {}
@@ -166,7 +166,7 @@ class SoftGroup(pl.LightningModule):
         losses["offset_norm_loss"] = offset_norm_loss
         # losses["offset_dir_loss"] = offset_dir_loss
 
-        total_loss = self.hparams.train.loss_weight[0] * semantic_loss + self.hparams.train.loss_weight[1] * offset_norm_loss
+        total_loss = self.hparams.model.loss_weight[0] * semantic_loss + self.hparams.model.loss_weight[1] * offset_norm_loss
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             proposals_idx = output_dict["proposals_idx"][:, 1].cuda()
@@ -225,18 +225,17 @@ class SoftGroup(pl.LightningModule):
             iou_scoring_loss = iou_scoring_criterion(iou_score_slice, gt_ious)
             iou_scoring_loss = iou_scoring_loss[iou_score_weight].sum() / (iou_score_weight.count_nonzero() + 1)
             losses["iou_scoring_loss"] = iou_scoring_loss
-            total_loss += + self.hparams.train.loss_weight[3] * classification_loss + self.hparams.train.loss_weight[
-                4] * mask_scoring_loss + self.hparams.train.loss_weight[5] * iou_scoring_loss
+            total_loss += + self.hparams.model.loss_weight[3] * classification_loss + self.hparams.model.loss_weight[
+                4] * mask_scoring_loss + self.hparams.model.loss_weight[5] * iou_scoring_loss
 
         """total loss"""
         return losses, total_loss
 
     def _feed(self, data_dict):
-        if self.hparams.model.use_coords:
+        if self.hparams.model.use_coord:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
 
-        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"], data_dict["p2v_map"],
-                                                              self.hparams.data.mode)  # (M, C), float, cuda
+        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"], data_dict["p2v_map"])  # (M, C), float, cuda
         output_dict = self.forward(data_dict)
         return output_dict
 

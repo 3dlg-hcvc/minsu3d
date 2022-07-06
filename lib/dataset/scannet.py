@@ -21,15 +21,12 @@ class ScanNet(Dataset):
         self.full_scale = cfg.data.full_scale
         self.scale = cfg.data.scale
         self.max_num_point = cfg.data.max_num_point
-        self.mode = cfg.data.mode
 
         self.DATA_MAP = {
             "train": cfg.SCANNETV2_PATH.train_list,
             "val": cfg.SCANNETV2_PATH.val_list,
             "test": cfg.SCANNETV2_PATH.test_list
         }
-
-        self.multiview_data = {}
 
         self._load_from_disk()
 
@@ -211,9 +208,9 @@ class ScanNet(Dataset):
 
 
             feats = np.zeros(shape=(len(points), 0), dtype=np.float32)
-            if self.cfg.model.use_color:
+            if self.cfg.model.model.use_color:
                 feats = np.concatenate((feats, colors), axis=1)
-            if self.cfg.model.use_normal:
+            if self.cfg.model.model.use_normal:
                 feats = np.concatenate((feats, normals), axis=1)
             data["locs"] = points_augment  # (N, 3)
             data["locs_scaled"] = points  # (N, 3)
@@ -236,9 +233,9 @@ class ScanNet(Dataset):
             data["locs"] = points  # (N, 3)
             data["locs_scaled"] = points  # (N, 3)
             feats = np.zeros(shape=(len(points), 0), dtype=np.float32)
-            if self.cfg.model.use_color:
+            if self.cfg.model.model.use_color:
                 feats = np.concatenate((feats, colors), axis=1)
-            if self.cfg.model.use_normal:
+            if self.cfg.model.model.use_normal:
                 feats = np.concatenate((feats, normals), axis=1)
             data["feats"] = feats  # (N, 3)
 

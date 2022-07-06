@@ -16,7 +16,7 @@ def load_conf(args):
     if args.pretrain is not None:
         cfg.model.use_checkpoint = args.pretrain
 
-    root = os.path.join(cfg.OUTPUT_PATH, cfg.general.dataset, cfg.general.model, cfg.general.experiment,
+    root = os.path.join(cfg.OUTPUT_PATH, cfg.data.dataset, cfg.model.module, cfg.general.experiment,
                         cfg.general.task)
     root = os.path.join(root, "predict")
     # os.makedirs(root, exist_ok=True)
@@ -41,7 +41,7 @@ def init_trainer():
 
 
 def init_model(cfg):
-    model = getattr(import_module(cfg.model.module), cfg.model.classname)(**cfg)
+    model = getattr(import_module(cfg.model.module), cfg.model.module)(**cfg)
     return model
 
 

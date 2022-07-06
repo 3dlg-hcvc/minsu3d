@@ -15,22 +15,22 @@ from lib.evaluation.semantic_seg_helper import *
 
 
 class PointGroup(pl.LightningModule):
-    def __init__(self, **cfg):
+    def __init__(self, model, data, optimizer):
         super().__init__()
         self.save_hyperparameters()
 
-        input_channel = cfg["model"].use_coords * 3 + cfg["model"].use_color * 3 + cfg["model"].use_normal * 3
-        output_channel = cfg["model"].m
-        semantic_classes = cfg["data"].classes
-        self.instance_classes = semantic_classes - len(cfg["data"].ignore_classes)
+        input_channel = model.use_coord * 3 + model.use_color * 3 + model.use_normal * 3
+        output_channel = model.m
+        semantic_classes = data.classes
+        self.instance_classes = semantic_classes - len(data.ignore_classes)
 
         """
             Backbone Block
         """
         self.backbone = Backbone(input_channel=input_channel,
-                                 output_channel=cfg["model"].m,
-                                 block_channels=cfg["model"].blocks,
-                                 block_reps=cfg["model"].block_reps,
+                                 output_channel=model.m,
+                                 block_channels=model.blocks,
+                                 block_reps=model.block_reps,
                                  sem_classes=semantic_classes)
 
         """
@@ -49,42 +49,39 @@ class PointGroup(pl.LightningModule):
             # get prooposal clusters
             batch_idxs = data_dict["vert_batch_ids"].int()
             semantic_preds = output_dict["semantic_scores"].max(1)[1]
-            if not self.hparams.data.requires_gt_mask:
-                # set mask
-                semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
-                for class_label in self.hparams.data.ignore_classes:
-                    semantic_preds_mask = semantic_preds_mask & (semantic_preds != class_label)
-                object_idxs = torch.nonzero(semantic_preds_mask).view(-1)  # exclude predicted wall and floor
 
-                batch_idxs_ = batch_idxs[object_idxs]
-                batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.data.batch_size, self.device)
-                coords_ = data_dict["locs"][object_idxs]
-                pt_offsets_ = output_dict["point_offsets"][object_idxs]
+            # set mask
+            semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
+            for class_label in self.hparams.data.ignore_classes:
+                semantic_preds_mask = semantic_preds_mask & (semantic_preds != class_label)
+            object_idxs = torch.nonzero(semantic_preds_mask).view(-1)  # exclude predicted wall and floor
 
-                semantic_preds_cpu = semantic_preds[object_idxs].cpu().int()
-                object_idxs_cpu = object_idxs.cpu()
+            batch_idxs_ = batch_idxs[object_idxs]
+            batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.data.batch_size, self.device)
+            coords_ = data_dict["locs"][object_idxs]
+            pt_offsets_ = output_dict["point_offsets"][object_idxs]
 
-                idx_shift, start_len_shift = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, self.hparams.cluster.cluster_radius, self.hparams.cluster.cluster_shift_meanActive)
-                proposals_idx_shift, proposals_offset_shift = pointgroup_ops.pg_bfs_cluster(semantic_preds_cpu, idx_shift.cpu(), start_len_shift.cpu(), self.hparams.cluster.cluster_npoint_thre)
-                proposals_idx_shift[:, 1] = object_idxs_cpu[proposals_idx_shift[:, 1].long()].int()
-                # proposals_idx_shift: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-                # proposals_offset_shift: (nProposal + 1), int
-                # proposals_batchId_shift_all: (sumNPoint,) batch id
+            semantic_preds_cpu = semantic_preds[object_idxs].cpu().int()
+            object_idxs_cpu = object_idxs.cpu()
 
-                idx, start_len = common_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_, self.hparams.cluster.cluster_radius, self.hparams.cluster.cluster_meanActive)
-                proposals_idx, proposals_offset = pointgroup_ops.pg_bfs_cluster(semantic_preds_cpu, idx.cpu(), start_len.cpu(), self.hparams.cluster.cluster_npoint_thre)
-                proposals_idx[:, 1] = object_idxs_cpu[proposals_idx[:, 1].long()].int()
-                # proposals_idx: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-                # proposals_offset: (nProposal + 1), int
+            idx_shift, start_len_shift = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, self.hparams.model.cluster.cluster_radius, self.hparams.model.cluster.cluster_shift_meanActive)
+            proposals_idx_shift, proposals_offset_shift = pointgroup_ops.pg_bfs_cluster(semantic_preds_cpu, idx_shift.cpu(), start_len_shift.cpu(), self.hparams.model.cluster.cluster_npoint_thre)
+            proposals_idx_shift[:, 1] = object_idxs_cpu[proposals_idx_shift[:, 1].long()].int()
+            # proposals_idx_shift: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+            # proposals_offset_shift: (nProposal + 1), int
+            # proposals_batchId_shift_all: (sumNPoint,) batch id
 
-                proposals_idx_shift[:, 0] += (proposals_offset.size(0) - 1)
-                proposals_offset_shift += proposals_offset[-1]
-                proposals_idx = torch.cat((proposals_idx, proposals_idx_shift), dim=0)
-                proposals_offset = torch.cat((proposals_offset, proposals_offset_shift[1:]))
-                proposals_offset = proposals_offset.cuda()
-            else:
-                proposals_idx = data_dict["gt_proposals_idx"].cpu()
-                proposals_offset = data_dict["gt_proposals_offset"]
+            idx, start_len = common_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_, self.hparams.model.cluster.cluster_radius, self.hparams.model.cluster.cluster_meanActive)
+            proposals_idx, proposals_offset = pointgroup_ops.pg_bfs_cluster(semantic_preds_cpu, idx.cpu(), start_len.cpu(), self.hparams.model.cluster.cluster_npoint_thre)
+            proposals_idx[:, 1] = object_idxs_cpu[proposals_idx[:, 1].long()].int()
+            # proposals_idx: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+            # proposals_offset: (nProposal + 1), int
+
+            proposals_idx_shift[:, 0] += (proposals_offset.size(0) - 1)
+            proposals_offset_shift += proposals_offset[-1]
+            proposals_idx = torch.cat((proposals_idx, proposals_idx_shift), dim=0)
+            proposals_offset = torch.cat((proposals_offset, proposals_offset_shift[1:]))
+            proposals_offset = proposals_offset.cuda()
 
             # proposals voxelization again
             proposals_voxel_feats, proposals_p2v_map = clusters_voxelization(
@@ -92,8 +89,8 @@ class PointGroup(pl.LightningModule):
                 clusters_offset=proposals_offset,
                 feats=output_dict["point_features"],
                 coords=data_dict["locs"],
-                scale=self.hparams.train.score_scale,
-                spatial_shape=self.hparams.train.score_fullscale,
+                scale=self.hparams.model.score_scale,
+                spatial_shape=self.hparams.model.score_fullscale,
                 mode=4,
                 device=self.device
             )
@@ -109,7 +106,7 @@ class PointGroup(pl.LightningModule):
         return output_dict
 
     def configure_optimizers(self):
-        return init_optimizer(parameters=self.parameters(), **self.hparams.train.optim)
+        return init_optimizer(parameters=self.parameters(), **self.hparams.optimizer)
 
     def _loss(self, data_dict, output_dict):
         losses = {}
@@ -133,8 +130,8 @@ class PointGroup(pl.LightningModule):
         losses["offset_norm_loss"] = offset_norm_loss
         losses["offset_dir_loss"] = offset_dir_loss
 
-        total_loss = self.hparams.train.loss_weight[0] * semantic_loss + self.hparams.train.loss_weight[1] * offset_norm_loss + \
-                     self.hparams.train.loss_weight[2] * offset_dir_loss
+        total_loss = self.hparams.model.loss_weight[0] * semantic_loss + self.hparams.model.loss_weight[1] * offset_norm_loss + \
+                     self.hparams.model.loss_weight[2] * offset_dir_loss
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             """score loss"""
@@ -146,19 +143,19 @@ class PointGroup(pl.LightningModule):
             # instance_pointnum: (total_nInst), int
             ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset, data_dict["instance_ids"], instance_pointnum) # (nProposal, nInstance), float
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
-            gt_scores = get_segmented_scores(gt_ious, self.hparams.train.fg_thresh, self.hparams.train.bg_thresh)
+            gt_scores = get_segmented_scores(gt_ious, self.hparams.model.fg_thresh, self.hparams.model.bg_thresh)
             score_criterion = ScoreLoss()
             score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             losses["score_loss"] = score_loss
 
-            total_loss += self.hparams.train.loss_weight[3] * score_loss
+            total_loss += self.hparams.model.loss_weight[3] * score_loss
 
         return losses, total_loss
         
     def _feed(self, data_dict):
-        if self.hparams.model.use_coords:
+        if self.hparams.model.use_coord:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
-        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"], data_dict["p2v_map"], self.hparams.data.mode) # (M, C), float, cuda
+        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"], data_dict["p2v_map"]) # (M, C), float, cuda
         output_dict = self.forward(data_dict)
         return output_dict
 
@@ -248,8 +245,8 @@ class PointGroup(pl.LightningModule):
 
         # score threshold & min_npoint mask
         proposals_npoint = proposals_mask.sum(1)
-        proposals_thres_mask = torch.logical_and(proposals_score > self.hparams.test.TEST_SCORE_THRESH,
-                                                 proposals_npoint > self.hparams.test.TEST_NPOINT_THRESH)
+        proposals_thres_mask = torch.logical_and(proposals_score > self.hparams.model.test.TEST_SCORE_THRESH,
+                                                 proposals_npoint > self.hparams.model.test.TEST_NPOINT_THRESH)
 
         proposals_score = proposals_score[proposals_thres_mask]
         proposals_mask = proposals_mask[proposals_thres_mask]
@@ -266,7 +263,7 @@ class PointGroup(pl.LightningModule):
             cross_ious = intersection / (
                     proposals_np_repeat_h + proposals_np_repeat_v - intersection)  # (nProposal, nProposal), float, cuda
             pick_idxs = get_nms_instances(cross_ious.numpy(), proposals_score.numpy(),
-                                          self.hparams.test.TEST_NMS_THRESH)  # int, (nCluster,)
+                                          self.hparams.model.test.TEST_NMS_THRESH)  # int, (nCluster,)
 
         clusters_mask = proposals_mask[pick_idxs].numpy()  # int, (nCluster, N)
         score_pred = proposals_score[pick_idxs].numpy()  # float, (nCluster,)

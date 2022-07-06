@@ -1,9 +1,9 @@
 plyfile
 tqdm
 matplotlib
-omegaconf
 trimesh
 pytorch-lightning
 scipy
 open3d
 wandb
+hydra-core

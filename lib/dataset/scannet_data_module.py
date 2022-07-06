@@ -8,36 +8,34 @@ import torch
 
 
 class ScanNetDataModule(pl.LightningDataModule):
-    def __init__(self, cfg):
+    def __init__(self, data_cfg):
         super().__init__()
-        self.cfg = cfg
+        self.data_cfg = data_cfg
 
     def setup(self, stage=None):
         if stage == "fit" or stage is None:
-            self.scannet_train = ScanNet(self.cfg, "train")
-            self.scannet_val = ScanNet(self.cfg, "val")
-
+            self.scannet_train = ScanNet(self.data_cfg, "train")
+            self.scannet_val = ScanNet(self.data_cfg, "val")
         if stage == "test" or stage is None:
-            self.scannet_test = ScanNet(self.cfg, "val")
-
+            self.scannet_test = ScanNet(self.data_cfg, "val")
         if stage == "predict" or stage is None:
-            self.scannet_predict = ScanNet(self.cfg, "test")
+            self.scannet_predict = ScanNet(self.data_cfg, "test")
 
     def train_dataloader(self):
-        return DataLoader(self.scannet_train, batch_size=self.cfg.data.batch_size, shuffle=True, pin_memory=True,
-                          collate_fn=sparse_collate_fn, num_workers=self.cfg.data.num_workers)
+        return DataLoader(self.scannet_train, batch_size=self.data_cfg.data.batch_size, shuffle=True, pin_memory=True,
+                          collate_fn=sparse_collate_fn, num_workers=self.data_cfg.data.num_workers)
 
     def val_dataloader(self):
         return DataLoader(self.scannet_val, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
-                          num_workers=self.cfg.data.num_workers)
+                          num_workers=self.data_cfg.data.num_workers)
 
     def test_dataloader(self):
         return DataLoader(self.scannet_test, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
-                          num_workers=self.cfg.data.num_workers)
+                          num_workers=self.data_cfg.data.num_workers)
 
     def predict_dataloader(self):
         return DataLoader(self.scannet_predict, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
-                          num_workers=self.cfg.data.num_workers)
+                          num_workers=self.data_cfg.data.num_workers)
 
 
 def scannet_collate_fn(batch):
@@ -65,7 +63,6 @@ def scannet_collate_fn(batch):
 
 def sparse_collate_fn(batch):
     data = scannet_collate_fn(batch)
-
     locs = []
     locs_scaled = []
     vert_batch_ids = []

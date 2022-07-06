@@ -1,59 +1,34 @@
-general:
-  manual_seed: 123
-  dataset: scannet
-  model: softgroup
-  output_root: output
-  logger: Wandb
+# Managed by Hydra
 
-data:
-  module: lib.dataset
-  dataset: ScanNet
-  loader: scannet_loader
-  file_suffix: .pth
+defaults:
+  - base
 
+log:
+  WandbLogger:
+    project: SoftGroup
+    name: run_1
+  TensorBoardLogger:
+    name: SoftGroup
 
-  classes: 20
-  ignore_label: -1 # ignored classes
-  ignore_classes: [0, 1]
-  class_names: ['cabinet', 'bed', 'chair', 'sofa', 'table', 'door', 'window', 'bookshelf', 'picture',
-               'counter', 'desk', 'curtain', 'refrigerator', 'shower curtain', 'toilet', 'sink',
-               'bathtub', 'otherfurniture']
-
-  scale: 50   # voxel_size = 1 / scale, scale 50(2cm)
-  batch_size: 4
-  num_workers: 4
-  full_scale: [128, 512]
-  max_num_point: 250000
-  max_num_instance: 128
-  mode: 4 # 4=mean
-
-  augmentation:
-    jitter_xyz: True
-    flip: True
-    rotation: True
-    elastic: True
-    jitter_rgb: True
-
+trainer:
+  max_epochs: 336
 
 model:
-  name: softgroup
-  module: model
-  classname: SoftGroup
-  
-  # input_channel: 131 # multiview + normals
+  module: SoftGroup
+
   m: 32 # 16 or 32
   blocks: [1, 2, 3, 4, 5, 6, 7]
   cluster_blocks: [1, 2]
   block_reps: 2
 
-  use_coords: True
+  use_coord: True
   use_color: True
   use_multiview: False
   use_normal: False
   crop_bbox: False
   pred_bbox: False
 
-  use_checkpoint: # /localhome/yza440/Research/pointgroup-minkowski/output/scannet/softgroup/train/softgroup-scannet-epoch=127.ckpt
+  use_checkpoint: #/home/eamonn/Research/pointgroup-minkowski/output/scannet/softgroup/train/softgroup-scannet-epoch=127.ckpt
   pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
   pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]
   pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
@@ -81,18 +56,6 @@ model:
     cls_score_thr: 0.001
     mask_score_thr: -0.5
     min_npoint: 100
-
-
-train:
-  epochs: 352 # 480
-  num_sanity_val_steps: 20
-  check_val_every_n_epoch: 8
-  save_checkpoint_every_n_epochs: 8  # negative number n means to save the best n models
-  monitor: val_accuracy/AP_50
-
-  optim: 
-    name: Adam # Adam, AdamW or SGD
-    lr: 0.001
   
   loss_weight: [1, 1, 1, 1, 1, 1] # semantic_loss, offset_norm_loss, offset_dir_loss, score_loss, bbox_loss (if applies)
 
