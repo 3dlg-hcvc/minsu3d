@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 
 sys.path.append(os.getcwd())
 from data.scannet.model_util_scannet import SCANNET_COLOR_MAP
-from lib.utils.pc import write_ply_rgb, write_ply_colorful, write_ply_rgb_face
-from lib.utils.bbox import write_cylinder_bbox
+from lib.util.pc import write_ply_rgb, write_ply_colorful, write_ply_rgb_face
+from lib.util.bbox import write_cylinder_bbox
 
 
 cfg = OmegaConf.load('conf/path.yaml')

@@ -14,8 +14,8 @@ outputs/
 temp/
 
 # pointgroup ops
-lib/pointgroup_ops/build/
-lib/pointgroup_ops/PG_OP*
+lib/common_ops/COMMON_OP*
+lib/common_ops/build/
 
 # other files
 .DS_Store

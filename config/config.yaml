@@ -1,0 +1,27 @@
+# Managed by Hydra
+
+ROOT_PATH: /home/eamonn/Research/pointgroup-minkowski #TODO
+DATA_PATH: ${ROOT_PATH}/data
+
+SCANNETV2_PATH:
+  raw_scans: /datasets/released/scannet/public/v2/scans
+
+  dir: ${DATA_PATH}/scannet
+  splited_data: ${SCANNETV2_PATH.dir}/splited_data #TODO
+  splited_gt: ${SCANNETV2_PATH.dir}/splited_gt
+  meta_data: ${SCANNETV2_PATH.dir}/meta_data
+
+  train_list: ${SCANNETV2_PATH.meta_data}/scannetv2_train.txt
+  val_list: ${SCANNETV2_PATH.meta_data}/scannetv2_val.txt
+  test_list: ${SCANNETV2_PATH.meta_data}/scannetv2_test.txt
+  combine_file: ${SCANNETV2_PATH.meta_data}/scannetv2-labels.combined.tsv
+
+defaults:
+  - data: base
+  - model: base
+
+general:
+  global_seed: 123
+  output_root: output
+
+

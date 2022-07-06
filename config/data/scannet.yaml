@@ -1,0 +1,12 @@
+# Managed by Hydra
+
+defaults:
+  - base
+
+
+dataset: scannet
+classes: 20
+ignore_classes: [0, 1]
+class_names: ['cabinet', 'bed', 'chair', 'sofa', 'table', 'door', 'window', 'bookshelf', 'picture',
+              'counter', 'desk', 'curtain', 'refrigerator', 'shower curtain', 'toilet', 'sink',
+              'bathtub', 'otherfurniture']

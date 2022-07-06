@@ -4,7 +4,6 @@ Modified from: https://github.com/facebookresearch/votenet/blob/master/scannet/s
 
 import os
 import sys
-import json
 import csv
 import numpy as np
 
@@ -68,9 +67,6 @@ def read_label_mapping(filename, label_from='raw_category', label_to='nyu40id'):
 
 def get_raw2scannetv2_label_map():
     lines = [line.rstrip() for line in open(LABEL_MAP_FILE)]
-    lines_0 = lines[0].split('\t')
-    print(lines_0)
-    print(len(lines))
     lines = lines[1:]
     raw2scannet = {}
     for i in range(len(lines)):

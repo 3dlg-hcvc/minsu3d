@@ -1,1 +1,0 @@
-from .inst_seg.pointgroup_callbacks import ParsePredictionCallback
