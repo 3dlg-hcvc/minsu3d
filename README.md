@@ -7,7 +7,7 @@ $ git clone https://github.com/3dlg-hcvc/pointgroup-minkowski.git
 $ cd pointgroup-minkowski
 ```
 
-### cs-3dlg-09 (Ubuntu 20.04 LTS)
+### Lab workstation or Solar cluster
 ```shell
 $ conda create -n pointgroup python=3.8
 $ conda activate pointgroup
