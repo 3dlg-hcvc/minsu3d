@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode, get_gt_instances
-from lib.evaluation.object_detection_helper import evaluate_bbox_acc
+from lib.evaluation.object_detection_helper import evaluate_bbox_acc, get_gt_bbox
 from lib.common_ops.functions import pointgroup_ops
 from lib.common_ops.functions import common_ops
 from lib.loss import *
@@ -199,27 +199,31 @@ class PointGroup(pl.LightningModule):
         if self.current_epoch > self.hparams.model.prepare_epochs:
             all_pred_insts = []
             all_gt_insts = []
+            all_gt_insts_bbox = []
             for batch, output in outputs:
                 pred_instances = self._get_pred_instances(batch["scan_ids"][0],
                                                           batch["locs"].cpu().numpy(),
                                                           output["proposal_scores"][0].cpu(),
                                                           output["proposal_scores"][1].cpu(),
-                                                          output["proposal_scores"].size(0) - 1,
+                                                          output["proposal_scores"][2].size(0) - 1,
                                                           output["semantic_scores"].cpu())
                 gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.data.ignore_classes)
+                gt_instances_bbox = get_gt_bbox(batch["instance_semantic_cls"].cpu().numpy(),
+                                                batch["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
+                all_gt_insts_bbox.append(gt_instances_bbox)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
             inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
             inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts)
 
-            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts)
+            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox)
 
             self.log("val_accuracy/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
             self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
             self.log("val_accuracy/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
 
             self.log("val_accuracy/Bounding Box AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"], sync_dist=True)
-            self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.50"], sync_dist=True)
+            self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"], sync_dist=True)
 
     def test_step(self, data_dict, idx):
         # prepare input and forward
@@ -272,7 +276,7 @@ class PointGroup(pl.LightningModule):
             cluster_i = clusters_mask[i]  # (N)
             pred = {}
             pred['scan_id'] = scan_id
-            pred['label_id'] = semantic_pred_labels[cluster_i][0].item()
+            pred['label_id'] = semantic_pred_labels[cluster_i][0].item() - 1
             pred['conf'] = score_pred[i]
             # rle encode mask to save memory
             pred['pred_mask'] = rle_encode(cluster_i)
