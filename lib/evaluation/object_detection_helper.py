@@ -201,7 +201,7 @@ def eval_det(pred_all, gt_all, ovthresh=0.25, use_07_metric=False, get_iou_func=
     return rec, prec, ap
 
 
-def eval_sphere(pred_all, gt_all, ovthresh=0.25, use_07_metric=False, get_iou_func=get_iou):
+def eval_sphere(pred_all, gt_all, ovthresh, use_07_metric=False, get_iou_func=get_iou):
     """Generic functions to compute precision/recall for object detection for
     multiple classes.
     Input:
@@ -267,7 +267,7 @@ def get_gt_bbox(instance_cls, instance_bboxes, ignored_label):
     return gt_bbox
 
 
-def evaluate_bbox_acc(all_preds, all_gts):
+def evaluate_bbox_acc(all_preds, all_gts, class_names, print_result):
     iou_thresholds = [0.25, 0.5]  # adjust threshold here
     pred_all = {}
     gt_all = {}
@@ -280,5 +280,43 @@ def evaluate_bbox_acc(all_preds, all_gts):
         eval_res = eval_sphere(pred_all, gt_all, ovthresh=iou_threshold)
         aps = list(eval_res[-1].values())
         m_ap = np.mean(aps)
-        bbox_aps[f"all_bbox_ap_{iou_threshold}"] = m_ap
+        eval_res[-1]["avg"] = m_ap
+        bbox_aps[f"all_bbox_ap_{iou_threshold}"] = eval_res[-1]
+    if print_result:
+        print_results(bbox_aps, class_names)
     return bbox_aps
+
+
+def print_results(bbox_aps, class_names):
+    sep = ''
+    col1 = ':'
+    lineLen = 40
+
+    print()
+    print('#' * lineLen)
+    line = ''
+    line += '{:<15}'.format('what') + sep + col1
+    line += '{:>12}'.format('BBox_AP_50%') + sep
+    line += '{:>12}'.format('BBOX_AP_25%') + sep
+    print(line)
+    print('#' * lineLen)
+
+    for (li, label_name) in enumerate(class_names):
+        ap_50o = bbox_aps['all_bbox_ap_0.5'][li]
+        ap_25o = bbox_aps['all_bbox_ap_0.25'][li]
+        line = '{:<15}'.format(label_name) + sep + col1
+        line += sep + '{:>12.3f}'.format(ap_50o) + sep
+        line += sep + '{:>12.3f}'.format(ap_25o) + sep
+        print(line)
+
+    all_ap_50o = bbox_aps['all_bbox_ap_0.5']["avg"]
+    all_ap_25o = bbox_aps['all_bbox_ap_0.25']["avg"]
+
+    print('-' * lineLen)
+    line = '{:<15}'.format('average') + sep + col1
+    line += '{:>12.3f}'.format(all_ap_50o) + sep
+    line += '{:>812.3f}'.format(all_ap_25o) + sep
+
+    print(line)
+    print('#' * lineLen)
+    print()

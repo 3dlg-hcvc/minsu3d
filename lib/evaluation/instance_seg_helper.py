@@ -402,7 +402,7 @@ class ScanNetEval(object):
 
         return gt2pred, pred2gt
 
-    def evaluate(self, pred_list, gt_list, print_result=False):
+    def evaluate(self, pred_list, gt_list, print_result):
         """
         Args:
             pred_list:

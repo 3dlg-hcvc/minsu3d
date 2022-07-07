@@ -299,8 +299,8 @@ class SoftGroup(pl.LightningModule):
             self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
             self.log("val_accuracy/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
 
-            self.log("val_accuracy/Bounding Box AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"], sync_dist=True)
-            self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"], sync_dist=True)
+            self.log("val_accuracy/Bounding Box AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"]["avg"], sync_dist=True)
+            self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"]["avg"], sync_dist=True)
 
     def test_step(self, data_dict, idx):
         # prepare input and forward
@@ -338,8 +338,8 @@ class SoftGroup(pl.LightningModule):
 
             inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
             self.print("==> Evaluating instance segmentation ...")
-            inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts)
-            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox)
+            inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
+            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=True)
 
     def _get_pred_instances(self, scan_id, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores):
         num_instances = cls_scores.size(0)

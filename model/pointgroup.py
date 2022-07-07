@@ -211,9 +211,9 @@ class PointGroup(pl.LightningModule):
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
             inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
-            inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts)
+            inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
 
-            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox)
+            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=False)
 
             self.log("val_accuracy/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
             self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
