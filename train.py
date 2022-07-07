@@ -11,22 +11,6 @@ from pytorch_lightning.callbacks import DeviceStatsMonitor, ModelCheckpoint
 from lib.dataset.scannet_data_module import ScanNetDataModule
 
 
-# def load_conf(args):
-#     base_cfg = OmegaConf.load('conf/path.yaml')
-#     cfg = OmegaConf.load(args.config)
-#     cfg = OmegaConf.merge(base_cfg, cfg)
-#     cfg.general.task = 'train'
-#     cfg.general.experiment = args.experiment
-#     root = os.path.join(cfg.OUTPUT_PATH, cfg.data.dataset, cfg.model.module, cfg.general.experiment,
-#                         cfg.general.task)
-#     os.makedirs(root, exist_ok=True)
-#     cfg.general.root = root
-#     cfg_backup_path = os.path.join(cfg.general.root, "config.yaml")
-#     OmegaConf.save(cfg, cfg_backup_path)
-#
-#     return cfg
-
-
 def init_callbacks(cfg):
     checkpoint_monitor = ModelCheckpoint(dirpath=cfg.general.output_root,
                                          filename=f"{cfg.model.model.module}-{cfg.data.dataset}" + "-{epoch}",
