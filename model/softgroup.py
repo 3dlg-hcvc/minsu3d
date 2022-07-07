@@ -291,9 +291,9 @@ class SoftGroup(pl.LightningModule):
                 all_gt_insts.append(gt_instances)
 
             inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
-            inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts)
+            inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
 
-            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox)
+            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, print_result=False)
 
             self.log("val_accuracy/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
             self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
@@ -318,7 +318,17 @@ class SoftGroup(pl.LightningModule):
             all_pred_insts = []
             all_gt_insts = []
             all_gt_insts_bbox = []
+            all_sem_acc = []
+            all_sem_miou = []
             for batch, output in results:
+                sem_labels_cpu = batch["sem_labels"].cpu()
+                semantic_predictions = output["semantic_scores"].max(1)[1].cpu().numpy()
+                semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions,
+                                                               sem_labels_cpu.numpy(),
+                                                               ignore_label=self.hparams.data.ignore_label)
+                semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, sem_labels_cpu.numpy(),
+                                                           ignore_label=self.hparams.data.ignore_label)
+
                 pred_instances = self._get_pred_instances(batch["scan_ids"][0],
                                                           batch["locs"].cpu().numpy(),
                                                           output["proposals_idx"].cpu(),
@@ -326,12 +336,14 @@ class SoftGroup(pl.LightningModule):
                                                           output["cls_scores"].cpu(),
                                                           output["iou_scores"].cpu(),
                                                           output["mask_scores"].cpu())
-                gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(),
+                gt_instances = get_gt_instances(sem_labels_cpu, batch["instance_ids"].cpu(),
                                                 self.hparams.data.ignore_classes)
 
                 gt_instances_bbox = get_gt_bbox(batch["instance_semantic_cls"].cpu().numpy(),
                                                 batch["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
 
+                all_sem_acc.append(semantic_accuracy)
+                all_sem_miou.append(semantic_mean_iou)
                 all_gt_insts_bbox.append(gt_instances_bbox)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
@@ -340,6 +352,11 @@ class SoftGroup(pl.LightningModule):
             self.print("==> Evaluating instance segmentation ...")
             inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
             obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=True)
+
+            sem_miou_avg = np.mean(np.array(all_sem_miou))
+            sem_acc_avg = np.mean(np.array(all_sem_acc))
+            self.print(f"Semantic Accuracy: {sem_acc_avg}")
+            self.print(f"Semantic mean IoU: {sem_miou_avg}")
 
     def _get_pred_instances(self, scan_id, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores):
         num_instances = cls_scores.size(0)
