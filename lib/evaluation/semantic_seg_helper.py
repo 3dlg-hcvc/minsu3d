@@ -14,7 +14,7 @@ def evaluate_semantic_accuracy(pred, gt, ignore_label):
 
 def evaluate_semantic_miou(pred, gt, ignore_label):
     assert gt.shape == pred.shape
-    valid_idx = pred != ignore_label
+    valid_idx = gt != ignore_label
     valid_pred = pred[valid_idx]
     valid_gt = gt[valid_idx]
     iou_list = []
