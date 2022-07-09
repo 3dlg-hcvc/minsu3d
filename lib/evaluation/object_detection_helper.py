@@ -290,14 +290,14 @@ def evaluate_bbox_acc(all_preds, all_gts, class_names, print_result):
 def print_results(bbox_aps, class_names):
     sep = ''
     col1 = ':'
-    lineLen = 40
+    lineLen = 46
 
     print()
     print('#' * lineLen)
     line = ''
     line += '{:<15}'.format('what') + sep + col1
-    line += '{:>12}'.format('BBox_AP_50%') + sep
-    line += '{:>12}'.format('BBOX_AP_25%') + sep
+    line += '{:>15}'.format('BBox_AP_50%') + sep
+    line += '{:>15}'.format('BBOX_AP_25%') + sep
     print(line)
     print('#' * lineLen)
 
@@ -305,8 +305,8 @@ def print_results(bbox_aps, class_names):
         ap_50o = bbox_aps['all_bbox_ap_0.5'][li]
         ap_25o = bbox_aps['all_bbox_ap_0.25'][li]
         line = '{:<15}'.format(label_name) + sep + col1
-        line += sep + '{:>12.3f}'.format(ap_50o) + sep
-        line += sep + '{:>12.3f}'.format(ap_25o) + sep
+        line += sep + '{:>15.3f}'.format(ap_50o) + sep
+        line += sep + '{:>15.3f}'.format(ap_25o) + sep
         print(line)
 
     all_ap_50o = bbox_aps['all_bbox_ap_0.5']["avg"]
@@ -314,8 +314,8 @@ def print_results(bbox_aps, class_names):
 
     print('-' * lineLen)
     line = '{:<15}'.format('average') + sep + col1
-    line += '{:>12.3f}'.format(all_ap_50o) + sep
-    line += '{:>812.3f}'.format(all_ap_25o) + sep
+    line += '{:>15.3f}'.format(all_ap_50o) + sep
+    line += '{:>15.3f}'.format(all_ap_25o) + sep
 
     print(line)
     print('#' * lineLen)
