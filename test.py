@@ -1,6 +1,6 @@
 import hydra
 from importlib import import_module
-from lib.dataset.scannet_data_module import ScanNetDataModule
+from lib.data.data_module import DataModule
 import pytorch_lightning as pl
 import os
 
@@ -19,7 +19,7 @@ def main(cfg):
     os.makedirs(cfg.general.output_root, exist_ok=True)
 
     print("==> initializing data ...")
-    data_module = ScanNetDataModule(cfg)
+    data_module = DataModule(cfg)
 
     print("=> initializing model...")
     model = init_model(cfg)

@@ -1,1 +1,0 @@
-from .scannet_data_module import ScanNetDataModule

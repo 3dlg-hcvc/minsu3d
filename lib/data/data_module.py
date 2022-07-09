@@ -2,39 +2,41 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from MinkowskiEngine.utils import sparse_collate, batched_coordinates
 from lib.common_ops.functions import common_ops
-from lib.dataset.scannet import ScanNet
+from importlib import import_module
 import numpy as np
 import torch
 
 
-class ScanNetDataModule(pl.LightningDataModule):
+class DataModule(pl.LightningDataModule):
     def __init__(self, data_cfg):
         super().__init__()
         self.data_cfg = data_cfg
+        dataset_module = import_module('lib.data.dataset')
+        self.dataset = getattr(dataset_module, data_cfg.data.dataset)
 
     def setup(self, stage=None):
         if stage == "fit" or stage is None:
-            self.scannet_train = ScanNet(self.data_cfg, "train")
-            self.scannet_val = ScanNet(self.data_cfg, "val")
+            self.train_set = self.dataset(self.data_cfg, "train")
+            self.val_set = self.dataset(self.data_cfg, "val")
         if stage == "test" or stage is None:
-            self.scannet_test = ScanNet(self.data_cfg, "val")
+            self.val_set = self.dataset(self.data_cfg, "val")
         if stage == "predict" or stage is None:
-            self.scannet_predict = ScanNet(self.data_cfg, "test")
+            self.test_set = self.dataset(self.data_cfg, "test")
 
     def train_dataloader(self):
-        return DataLoader(self.scannet_train, batch_size=self.data_cfg.data.batch_size, shuffle=True, pin_memory=True,
+        return DataLoader(self.train_set, batch_size=self.data_cfg.data.batch_size, shuffle=True, pin_memory=True,
                           collate_fn=sparse_collate_fn, num_workers=self.data_cfg.data.num_workers)
 
     def val_dataloader(self):
-        return DataLoader(self.scannet_val, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
+        return DataLoader(self.val_set, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
                           num_workers=self.data_cfg.data.num_workers)
 
     def test_dataloader(self):
-        return DataLoader(self.scannet_test, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
+        return DataLoader(self.val_set, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
                           num_workers=self.data_cfg.data.num_workers)
 
     def predict_dataloader(self):
-        return DataLoader(self.scannet_predict, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
+        return DataLoader(self.test_set, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
                           num_workers=self.data_cfg.data.num_workers)
 
 

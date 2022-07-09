@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-sys.path.append("../")  # HACK add the lib folder
+sys.path.append("../../")  # HACK add the lib folder
 
 from lib.util.pc import crop
 from lib.util.transform import jitter, flip, rotz, elastic

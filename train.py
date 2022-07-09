@@ -3,12 +3,11 @@ import hydra
 import torch
 import warnings
 from lib.callback import *
-
 warnings.filterwarnings('ignore')
 import pytorch_lightning as pl
 from importlib import import_module
 from pytorch_lightning.callbacks import DeviceStatsMonitor, ModelCheckpoint
-from lib.dataset.scannet_data_module import ScanNetDataModule
+from lib.data.data_module import DataModule
 
 
 def init_callbacks(cfg):
@@ -46,7 +45,7 @@ def main(cfg):
     os.makedirs(cfg.general.output_root, exist_ok=True)
 
     print("==> initializing data ...")
-    data_module = ScanNetDataModule(cfg)
+    data_module = DataModule(cfg)
 
     print("==> initializing logger ...")
     logger = getattr(import_module("pytorch_lightning.loggers"), cfg.model.log.module) \
