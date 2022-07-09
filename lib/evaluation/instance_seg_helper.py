@@ -370,7 +370,7 @@ class ScanNetEval(object):
                 continue  # skip if empty
 
             pred_instance = {}
-            pred_instance['filename'] = pred['scan_id']  # dummy
+            pred_instance['filename'] = '{}_{}'.format(pred['scan_id'], num_pred_instances)
             pred_instance['pred_id'] = num_pred_instances
             pred_instance['label_id'] = label_id if self.use_label else None
             pred_instance['vert_count'] = num
