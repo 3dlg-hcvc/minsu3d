@@ -1,30 +1,14 @@
 import numpy as np
-import scipy.ndimage
-import scipy.interpolate
+
 
 # Point cloud IO
 from plyfile import PlyData, PlyElement
 
 # Mesh IO
-import trimesh
-import matplotlib.pyplot as plt
-
 
 ########################
 # point cloud sampling #
 ########################
-
-def random_sampling(pc, num_sample, replace=None, return_choices=False):
-    """ Input is NxC, output is num_samplexC
-    """
-    if replace is None: replace = (pc.shape[0] < num_sample)
-    choices = np.random.choice(pc.shape[0], num_sample, replace=replace)
-    choices.sort()
-    if return_choices:
-        return pc[choices], choices
-    else:
-        return pc[choices]
-
 
 def crop(pc, max_num_point, scale):
     '''
@@ -47,8 +31,6 @@ def crop(pc, max_num_point, scale):
 ##################
 
 
-
-
 def write_ply_rgb(points, colors, filename, text=True, num_classes=None):
     """ Color (N,3) points with RGB colors (N,3) within range [0,255] as ply file """
     colors = colors.astype(int)
@@ -68,8 +50,8 @@ def write_ply_rgb_face(points, colors, faces, filename, text=True):
     ele1 = PlyElement.describe(vertex, 'vertex', comments=['vertices'])
     ele2 = PlyElement.describe(face, 'face', comments=['faces'])
     PlyData([ele1, ele2], text=text).write(filename)
-    
-    
+
+
 def write_ply_rgb_annotated(points, colors, labels, instanceIds, filename, text=True):
     colors = colors.astype(int)
     points = [(points[i,0], points[i,1], points[i,2], colors[i,0], colors[i,1], colors[i,2]) for i in range(points.shape[0])]
@@ -90,11 +72,11 @@ def write_ply_colorful(points, labels, filename, num_classes=None, colormap=None
         num_classes = np.max(labels)+1
     else:
         assert(num_classes>np.max(labels))
-    
+
     vertex = []
     if colormap is None:
         colormap = [ply.cm.jet(i/float(num_classes)) for i in range(num_classes)]
-     
+
     for i in range(N):
         if labels[i] >= 0:
             c = colormap[labels[i]]
@@ -105,7 +87,7 @@ def write_ply_colorful(points, labels, filename, num_classes=None, colormap=None
         vertex.append( (points[i,0],points[i,1],points[i,2],c[0],c[1],c[2]) )
     vertex = np.array(vertex, dtype=[('x', 'f4'), ('y', 'f4'),('z', 'f4'),('red', 'u1'), ('green', 'u1'),('blue', 'u1')])
     vertex_label = np.array(labels, dtype=[('label', 'i4')])
-    
+
     ele1 = PlyElement.describe(vertex, 'vertex', comments=['vertices'])
     ele2 = PlyElement.describe(vertex_label, 'label', comments=['labels'])
     PlyData([ele1, ele2], text=True).write(filename)
