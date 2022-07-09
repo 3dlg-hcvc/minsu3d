@@ -116,7 +116,7 @@ def eval_det_cls(pred, gt, ovthresh=0.25, use_07_metric=False, get_iou_func=get_
     for d in range(nd):
         R = class_recs[image_ids[d]]
         bb = BB[d, ...].astype(float)
-        ovmax = -np.inf
+        ovmax = np.NINF
         BBGT = R['sphere'].astype(float)
 
         if BBGT.size > 0:

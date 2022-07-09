@@ -1,12 +1,8 @@
 import os
-import sys
 from tqdm import tqdm
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-
-sys.path.append("../../")  # HACK add the lib folder
-
 from lib.util.pc import crop
 from lib.util.transform import jitter, flip, rotz, elastic
 
@@ -91,14 +87,9 @@ class ScanNet(Dataset):
             min_xyz_i = xyz_i.min(0)
             max_xyz_i = xyz_i.max(0)
             mean_xyz_i = xyz_i.mean(0)
-            # c_xyz_i = (max_xyz_i + min_xyz_i) / 2
 
             # offset
             instance_info[inst_i_idx] = mean_xyz_i
-
-            # instance_info_i[:, 3:6] = c_xyz_i
-            # instance_info_i[:, 3:6] = min_xyz_i
-            # instance_info_i[:, 6:9] = max_xyz_i
 
             # instance_num_point
             instance_num_point.append(inst_i_idx[0].size)

@@ -1,12 +1,10 @@
 import os
 import hydra
 import torch
-import warnings
 from lib.callback import *
-warnings.filterwarnings('ignore')
 import pytorch_lightning as pl
 from importlib import import_module
-from pytorch_lightning.callbacks import DeviceStatsMonitor, ModelCheckpoint
+from pytorch_lightning.callbacks import DeviceStatsMonitor, ModelCheckpoint, LearningRateMonitor
 from lib.data.data_module import DataModule
 
 
@@ -16,7 +14,8 @@ def init_callbacks(cfg):
                                          **cfg.model.checkpoint_monitor)
     gpu_stats_monitor = DeviceStatsMonitor()
     gpu_cache_clean_monitor = GPUCacheCleanCallback()
-    return [checkpoint_monitor, gpu_stats_monitor, gpu_cache_clean_monitor]
+    lr_monitor = LearningRateMonitor(logging_interval="epoch")
+    return [checkpoint_monitor, gpu_stats_monitor, gpu_cache_clean_monitor, lr_monitor]
 
 
 def init_model(cfg):
