@@ -22,7 +22,6 @@ def init_model(cfg):
     model = getattr(import_module("model"), cfg.model.model.module)(cfg.model.model, cfg.data, cfg.model.optimizer)
     if cfg.model.model.pretrained_module:
         print("=> loading pretrained module from {} ...".format(cfg.model.pretrained_module_path))
-        # for i, module_name in enumerate(cfg.model.pretrained_module):
         model_dict = model.state_dict()
         ckp = torch.load(cfg.model.pretrained_module_path)
         pretrained_module_dict = {k: v for k, v in ckp.items() if k.startswith(tuple(cfg.model.pretrained_module))}

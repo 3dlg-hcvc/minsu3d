@@ -59,8 +59,8 @@ class ScanNet(Dataset):
         """
         instance_ids = instance_ids[valid_idxs]
         j = 0
-        while (j < instance_ids.max()):
-            if (len(np.where(instance_ids == j)[0]) == 0):
+        while j < instance_ids.max():
+            if np.count_nonzero(instance_ids == j) == 0:
                 instance_ids[instance_ids == instance_ids.max()] = j
             j += 1
         return instance_ids
@@ -80,8 +80,7 @@ class ScanNet(Dataset):
         instance_cls = np.full(shape=unique_instance_ids.shape[0], fill_value=self.cfg.data.ignore_label, dtype=np.int8)
         instance_bboxes = np.full(shape=(unique_instance_ids.shape[0], 6), fill_value=self.cfg.data.ignore_label, dtype=np.float32)
         for index, i in enumerate(unique_instance_ids):
-
-            inst_i_idx = np.where(instance_ids == i)
+            inst_i_idx = instance_ids == i
             # instance_info
             xyz_i = xyz[inst_i_idx]
             min_xyz_i = xyz_i.min(0)
@@ -143,91 +142,70 @@ class ScanNet(Dataset):
         points = scene["xyz"]  # (N, 3)
         colors = scene["rgb"]  # (N, 3) rgb
         normals = scene["normal"]
-
+        instance_ids = scene["instance_ids"]
+        sem_labels = scene["sem_labels"]
         data = {"scan_id": scan_id}
 
-        if self.split != "test":
-            instance_ids = scene["instance_ids"]
-            sem_labels = scene["sem_labels"]  # {0,1,...,19}, -1 as ignored (unannotated) class
-            # augment
-            if self.split == "train":
-                aug_matrix = self._get_augmentation_matrix()
-                points_augment = np.matmul(points, aug_matrix)
-                normals = np.matmul(normals, np.transpose(np.linalg.inv(aug_matrix)))
-            else:
-                points_augment = points.copy()
-            # scale
-            points = points_augment * self.scale
-
-            # elastic
-            if self.split == "train" and self.cfg.data.augmentation.elastic:
-                points = elastic(points, 6 * self.scale // 50, 40 * self.scale / 50)
-                points = elastic(points, 20 * self.scale // 50, 160 * self.scale / 50)
-
-            # jitter rgb
-            if self.split == "train" and self.cfg.data.augmentation.jitter_rgb:
+        # augment
+        if self.split == "train":
+            aug_matrix = self._get_augmentation_matrix()
+            points = np.matmul(points, aug_matrix)
+            normals = np.matmul(normals, np.transpose(np.linalg.inv(aug_matrix)))
+            if self.cfg.data.augmentation.jitter_rgb:
+                # jitter rgb
                 colors += np.random.randn(3) * 0.1
 
-            # offset
-            points -= points.min(axis=0)
+        # scale
+        scaled_points = points * self.scale
 
-            if self.split == "train":
-                # crop
-                # HACK, in case there are few points left
-                max_tries = 10
-                valid_idxs_count = 0
-                while max_tries > 0:
-                    points_tmp, valid_idxs = crop(points, self.max_num_point, self.full_scale[1])
-                    valid_idxs_count = np.count_nonzero(valid_idxs)
-                    if valid_idxs_count >= 5000:
-                        points = points_tmp
-                        break
-                    max_tries -= 1
-                if valid_idxs_count < 5000:
-                    raise Exception("Over-cropped!")
-                # points, valid_idxs = random_sampling(points, self.max_num_point, return_choices=True)
+        # elastic
+        if self.split == "train" and self.cfg.data.augmentation.elastic:
+            scaled_points = elastic(scaled_points, 6 * self.scale // 50, 40 * self.scale / 50)
+            scaled_points = elastic(scaled_points, 20 * self.scale // 50, 160 * self.scale / 50)
 
-                points = points[valid_idxs]
-                points_augment = points_augment[valid_idxs]
-                normals = normals[valid_idxs]
-                colors = colors[valid_idxs]
-                sem_labels = sem_labels[valid_idxs]
-                instance_ids = self._get_cropped_inst_ids(instance_ids, valid_idxs)
+        # offset
+        scaled_points -= scaled_points.min(axis=0)
 
-            num_instance, instance_info, instance_num_point, instance_semantic_cls, instance_bboxes = self._get_inst_info(
-                points_augment, instance_ids.astype(np.int32), sem_labels)
+        # crop
+        if self.split == "train":
+            # HACK, in case there are few points left
+            max_tries = 10
+            valid_idxs_count = 0
+            while max_tries > 0:
+                points_tmp, valid_idxs = crop(scaled_points, self.max_num_point, self.full_scale[1])
+                valid_idxs_count = np.count_nonzero(valid_idxs)
+                if valid_idxs_count >= 5000:
+                    scaled_points = points_tmp
+                    break
+                max_tries -= 1
+            if valid_idxs_count < 5000:
+                raise Exception("Over-cropped!")
+            # points, valid_idxs = random_sampling(points, self.max_num_point, return_choices=True)
 
+            scaled_points = scaled_points[valid_idxs]
+            points = points[valid_idxs]
+            normals = normals[valid_idxs]
+            colors = colors[valid_idxs]
+            sem_labels = sem_labels[valid_idxs]
+            instance_ids = self._get_cropped_inst_ids(instance_ids, valid_idxs)
 
-            feats = np.zeros(shape=(len(points), 0), dtype=np.float32)
-            if self.cfg.model.model.use_color:
-                feats = np.concatenate((feats, colors), axis=1)
-            if self.cfg.model.model.use_normal:
-                feats = np.concatenate((feats, normals), axis=1)
-            data["locs"] = points_augment  # (N, 3)
-            data["locs_scaled"] = points  # (N, 3)
-            data["feats"] = feats  # (N, 3)
-            data["sem_labels"] = sem_labels  # (N,)
-            data["instance_ids"] = instance_ids  # (N,) 0~total_nInst, -1
-            data["num_instance"] = np.array(num_instance, dtype=np.int32)  # int
-            data["instance_info"] = instance_info  # (N, 12)
-            data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)  # (num_instance,)
-            data["instance_semantic_cls"] = instance_semantic_cls
-            data["instance_bboxes"] = instance_bboxes
+        num_instance, instance_info, instance_num_point, instance_semantic_cls, instance_bboxes = self._get_inst_info(
+            points, instance_ids.astype(np.int32), sem_labels)
 
-        else:
-            # scale
-            points = points * self.scale
+        feats = np.zeros(shape=(len(scaled_points), 0), dtype=np.float32)
+        if self.cfg.model.model.use_color:
+            feats = np.concatenate((feats, colors), axis=1)
+        if self.cfg.model.model.use_normal:
+            feats = np.concatenate((feats, normals), axis=1)
 
-            # offset
-            points -= points.min(0)
-
-            data["locs"] = points  # (N, 3)
-            data["locs_scaled"] = points  # (N, 3)
-            feats = np.zeros(shape=(len(points), 0), dtype=np.float32)
-            if self.cfg.model.model.use_color:
-                feats = np.concatenate((feats, colors), axis=1)
-            if self.cfg.model.model.use_normal:
-                feats = np.concatenate((feats, normals), axis=1)
-            data["feats"] = feats  # (N, 3)
-
+        data["locs"] = points  # (N, 3)
+        data["locs_scaled"] = scaled_points  # (N, 3)
+        data["feats"] = feats  # (N, 3)
+        data["sem_labels"] = sem_labels  # (N,)
+        data["instance_ids"] = instance_ids  # (N,) 0~total_nInst, -1
+        data["num_instance"] = np.array(num_instance, dtype=np.int32)  # int
+        data["instance_info"] = instance_info  # (N, 12)
+        data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)  # (num_instance,)
+        data["instance_semantic_cls"] = instance_semantic_cls
+        data["instance_bboxes"] = instance_bboxes
         return data

@@ -147,11 +147,9 @@ class PointGroup(pl.LightningModule):
             score_criterion = ScoreLoss()
             score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             losses["score_loss"] = score_loss
-
             total_loss += self.hparams.model.loss_weight[3] * score_loss
-
         return losses, total_loss
-        
+
     def _feed(self, data_dict):
         if self.hparams.model.use_coord:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
@@ -190,7 +188,6 @@ class PointGroup(pl.LightningModule):
 
         return data_dict, output_dict
 
-
     def validation_epoch_end(self, outputs):
         # evaluate instance predictions
         if self.current_epoch > self.hparams.model.prepare_epochs:
@@ -218,7 +215,6 @@ class PointGroup(pl.LightningModule):
             self.log("val_accuracy/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
             self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
             self.log("val_accuracy/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
-
             self.log("val_accuracy/Bounding Box AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"], sync_dist=True)
             self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"], sync_dist=True)
 
