@@ -8,4 +8,5 @@ def init_optimizer(name, parameters, **kwargs):
         raise NotImplementedError
     params = filter(lambda p: p.requires_grad, parameters)
     optimizer = getattr(torch.optim, name)(params, **kwargs)
-    return [optimizer]
+    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+    return [optimizer], [lr_scheduler]
