@@ -375,7 +375,7 @@ class SoftGroup(pl.LightningModule):
             mask_pred = torch.zeros((num_instances, num_points), dtype=torch.bool, device="cpu")
             mask_inds = cur_mask_scores > self.hparams.model.test_cfg.mask_score_thr
             cur_proposals_idx = proposals_idx[mask_inds].long()
-            mask_pred[cur_proposals_idx[:, 0], cur_proposals_idx[:, 1]] = 1
+            mask_pred[cur_proposals_idx[:, 0], cur_proposals_idx[:, 1]] = True
 
             # filter low score instance
             inds = cur_cls_scores > self.hparams.model.test_cfg.cls_score_thr
