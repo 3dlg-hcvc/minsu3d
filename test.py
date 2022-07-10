@@ -25,7 +25,7 @@ def main(cfg):
     model = init_model(cfg)
 
     print("=> start inference...")
-    trainer.test(model=model, datamodule=data_module, ckpt_path=cfg.model.ckpt_path)
+    trainer.test(model=model, datamodule=data_module, ckpt_path=cfg.model.ckpt_path, logger=False)
 
 
 if __name__ == '__main__':
