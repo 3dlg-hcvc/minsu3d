@@ -44,7 +44,7 @@ def scannet_collate_fn(batch):
     data = {}
     for key in batch[0].keys():
         if key in ['locs', 'locs_scaled', 'feats', 'sem_labels', 'instance_ids', 'num_instance', 'instance_info',
-                   'instance_num_point', "instance_semantic_cls", 'gt_proposals_idx', 'gt_proposals_offset', 'instance_bboxes']:
+                   'instance_num_point', "instance_semantic_cls", 'instance_bboxes']:
             continue
         if isinstance(batch[0][key], tuple):
             coords, feats = list(zip(*[sample[key] for sample in batch]))
@@ -78,8 +78,6 @@ def sparse_collate_fn(batch):
     total_points = 0
     instance_cls = []  # (total_nInst), long
     instance_bboxes = []
-    gt_proposals_idx = []
-    gt_proposals_offset = []
     scan_ids = []
 
     for i, b in enumerate(batch):
@@ -90,50 +88,35 @@ def sparse_collate_fn(batch):
         vert_batch_ids.append(torch.full((b["locs_scaled"].shape[0],), fill_value=i, dtype=torch.int16))
         feats.append(torch.from_numpy(b["feats"]))
 
-        if "sem_labels" in b:
-            if "gt_proposals_idx" in b:
-                gt_proposals_idx_i = b["gt_proposals_idx"]
-                gt_proposals_idx_i[:, 0] += total_num_inst
-                gt_proposals_idx_i[:, 1] += total_points
-                gt_proposals_idx.append(torch.from_numpy(b["gt_proposals_idx"]))
-                if gt_proposals_offset != []:
-                    gt_proposals_offset_i = b["gt_proposals_offset"]
-                    gt_proposals_offset_i += gt_proposals_offset[-1][-1].item()
-                    gt_proposals_offset.append(torch.from_numpy(gt_proposals_offset_i[1:]))
-                else:
-                    gt_proposals_offset.append(torch.from_numpy(b["gt_proposals_offset"]))
-            instance_ids_i = b["instance_ids"]
-            instance_ids_i[np.where(instance_ids_i != -1)] += total_num_inst
-            total_num_inst += b["num_instance"].item()
-            total_points += len(instance_ids_i)
-            instance_ids.append(torch.from_numpy(instance_ids_i))
 
-            sem_labels.append(torch.from_numpy(b["sem_labels"]))
+        instance_ids_i = b["instance_ids"]
+        instance_ids_i[np.where(instance_ids_i != -1)] += total_num_inst
+        total_num_inst += b["num_instance"].item()
+        total_points += len(instance_ids_i)
+        instance_ids.append(torch.from_numpy(instance_ids_i))
 
-            instance_info.append(torch.from_numpy(b["instance_info"]))
-            instance_num_point.append(torch.from_numpy(b["instance_num_point"]))
-            instance_offsets.append(instance_offsets[-1] + b["num_instance"].item())
+        sem_labels.append(torch.from_numpy(b["sem_labels"]))
 
-            instance_cls.extend(b["instance_semantic_cls"])
-            instance_bboxes.extend(b["instance_bboxes"])
+        instance_info.append(torch.from_numpy(b["instance_info"]))
+        instance_num_point.append(torch.from_numpy(b["instance_num_point"]))
+        instance_offsets.append(instance_offsets[-1] + b["num_instance"].item())
+
+        instance_cls.extend(b["instance_semantic_cls"])
+        instance_bboxes.extend(b["instance_bboxes"])
 
     tmp_locs_scaled = torch.cat(locs_scaled, dim=0)  # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
     data['scan_ids'] = scan_ids
     data["locs"] = torch.cat(locs, dim=0)  # float (N, 3)
     data["vert_batch_ids"] = torch.cat(vert_batch_ids, dim=0)
     data["feats"] = torch.cat(feats, dim=0)  # .to(torch.float32)            # float (N, C)
-
-    if len(sem_labels) != 0:
-        if len(gt_proposals_idx) != 0:
-            data["gt_proposals_idx"] = torch.cat(gt_proposals_idx, dim=0).to(torch.int32)
-            data["gt_proposals_offset"] = torch.cat(gt_proposals_offset, dim=0).to(torch.int32)
-        data["sem_labels"] = torch.cat(sem_labels, dim=0).long()  # long (N,)
-        data["instance_ids"] = torch.cat(instance_ids, dim=0).long()  # long, (N,)
-        data["instance_info"] = torch.cat(instance_info, dim=0)  # float (total_nInst, 12)
-        data["instance_num_point"] = torch.cat(instance_num_point, dim=0)  # (total_nInst)
-        data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int32)  # int (B+1)
-        data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.long)  # long (total_nInst)
-        data["instance_bboxes"] = torch.tensor(instance_bboxes, dtype=torch.float32)
+        
+    data["sem_labels"] = torch.cat(sem_labels, dim=0).long()  # long (N,)
+    data["instance_ids"] = torch.cat(instance_ids, dim=0).long()  # long, (N,)
+    data["instance_info"] = torch.cat(instance_info, dim=0)  # float (total_nInst, 12)
+    data["instance_num_point"] = torch.cat(instance_num_point, dim=0)  # (total_nInst)
+    data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int32)  # int (B+1)
+    data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.long)  # long (total_nInst)
+    data["instance_bboxes"] = torch.tensor(instance_bboxes, dtype=torch.float32)
 
     # voxelize
     data["voxel_locs"], data["v2p_map"], data["p2v_map"] = common_ops.voxelization_idx(tmp_locs_scaled,
