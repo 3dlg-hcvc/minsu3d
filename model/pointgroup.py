@@ -10,7 +10,7 @@ from model.helper import clusters_voxelization, get_batch_offsets
 from lib.loss.utils import get_segmented_scores
 from lib.util.eval import get_nms_instances
 from model.module import Backbone, TinyUnet
-from lib.optimizer import init_optimizer
+from lib.optimizer import init_optimizer, cosine_lr_decay
 from lib.evaluation.semantic_seg_helper import *
 
 
