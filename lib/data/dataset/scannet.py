@@ -80,7 +80,7 @@ class ScanNet(Dataset):
         instance_cls = np.full(shape=unique_instance_ids.shape[0], fill_value=self.cfg.data.ignore_label, dtype=np.int8)
         instance_bboxes = np.full(shape=(unique_instance_ids.shape[0], 6), fill_value=self.cfg.data.ignore_label, dtype=np.float32)
         for index, i in enumerate(unique_instance_ids):
-            inst_i_idx = instance_ids == i
+            inst_i_idx = np.where(instance_ids == i)[0]
             # instance_info
             xyz_i = xyz[inst_i_idx]
             min_xyz_i = xyz_i.min(0)
@@ -91,10 +91,10 @@ class ScanNet(Dataset):
             instance_info[inst_i_idx] = mean_xyz_i
 
             # instance_num_point
-            instance_num_point.append(inst_i_idx[0].size)
+            instance_num_point.append(inst_i_idx.size)
 
             # semantic label
-            cls_idx = inst_i_idx[0][0]
+            cls_idx = inst_i_idx[0]
             assert sem_labels[cls_idx] not in self.cfg.data.ignore_classes
             instance_cls[index] = sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[cls_idx] != self.cfg.data.ignore_label else sem_labels[cls_idx]
             # bounding boxes
