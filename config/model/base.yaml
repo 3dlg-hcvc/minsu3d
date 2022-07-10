@@ -19,9 +19,9 @@ trainer:
   gpus: -1  # use all available gpus
   strategy: ddp
   num_nodes: 1
-  max_epochs: 512
+  max_epochs: 496
   num_sanity_val_steps: 20
-  check_val_every_n_epoch: 8
+  check_val_every_n_epoch: 4
 
 
 # https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
@@ -34,6 +34,10 @@ checkpoint_monitor:
 
 
 # https://pytorch-lightning.readthedocs.io/en/stable/common/optimization.html
-optimizer: 
+optimizer:
     name: Adam # Adam, AdamW or SGD
-    lr: 0.001
+    lr: 0.0015
+
+lr_decay:
+  decay_start_epoch: 128
+  decay_stop_epoch: 496

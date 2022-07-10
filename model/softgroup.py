@@ -9,11 +9,11 @@ from lib.loss import *
 from lib.evaluation.semantic_seg_helper import *
 from model.module import Backbone, TinyUnet
 from model.helper import clusters_voxelization, get_batch_offsets
-from lib.optimizer import init_optimizer
+from lib.optimizer import init_optimizer, cosine_lr_decay
 
 
 class SoftGroup(pl.LightningModule):
-    def __init__(self, model, data, optimizer):
+    def __init__(self, model, data, optimizer, lr_decay):
         super().__init__()
         self.save_hyperparameters()
         input_channel = model.use_coord * 3 + model.use_color * 3 + model.use_normal * 3
@@ -145,6 +145,7 @@ class SoftGroup(pl.LightningModule):
     def configure_optimizers(self):
         return init_optimizer(parameters=self.parameters(), **self.hparams.optimizer)
 
+
     def _loss(self, data_dict, output_dict):
         losses = {}
         """semantic loss"""
@@ -188,7 +189,6 @@ class SoftGroup(pl.LightningModule):
             pos_gt_inds = gt_inds[pos_inds]
 
             """classification loss"""
-
             # follow detection convention: 0 -> K - 1 are fg, K is bg
             labels = fg_instance_cls.new_full((fg_ious_on_cluster.size(0),), self.instance_classes)
             labels[pos_inds] = fg_instance_cls[pos_gt_inds]
@@ -247,7 +247,11 @@ class SoftGroup(pl.LightningModule):
         self.log("train/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
         for key, value in losses.items():
             self.log(f"train/{key}", value, on_step=False, on_epoch=True, sync_dist=True)
+
         return total_loss
+
+    def training_epoch_end(self, training_step_outputs):
+        cosine_lr_decay(self.trainer.optimizers[0], self.hparams.optimizer.lr, self.current_epoch, self.hparams.lr_decay.decay_start_epoch, self.hparams.lr_decay.decay_stop_epoch, 1e-6)
 
     def validation_step(self, data_dict, idx):
         # prepare input and forward
@@ -293,7 +297,7 @@ class SoftGroup(pl.LightningModule):
             inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
             inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
 
-            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, print_result=False)
+            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=False)
 
             self.log("val_accuracy/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
             self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)

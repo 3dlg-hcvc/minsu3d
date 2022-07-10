@@ -89,7 +89,7 @@ class GetMaskLabel(Function):
     @staticmethod
     def forward(ctx, proposals_idx, proposals_offset, instance_labels, instance_cls,
                 instance_pointnum, proposals_iou, iou_thr):
-        '''
+        """
         :param ctx:
         :param proposals_idx: (sumNPoint), int
         :param proposals_offset: (nProposal + 1), int
@@ -99,7 +99,7 @@ class GetMaskLabel(Function):
 
         :return: proposals_iou: (nProposal, total_nInst), float
         :return mask_label:
-        '''
+        """
 
         nInstance = instance_pointnum.size(0)
         nProposal = proposals_offset.size(0) - 1
@@ -127,13 +127,13 @@ class SGBFSCluster(Function):
 
     @staticmethod
     def forward(ctx, class_numpoint_mean, ball_query_idxs, start_len, threshold, class_id):
-        '''
+        """
         :param ctx:
         :param ball_query_idxs: (nActive), int
         :param start_len: (N, 2), int
         :return: cluster_idxs:  int (sumNPoint, 2), dim 0 for cluster_id, dim 1 for point idxs in N
         :return: cluster_offsets: int (nCluster + 1)
-        '''
+        """
 
         N = start_len.size(0)
         assert ball_query_idxs.is_contiguous()
@@ -160,12 +160,12 @@ class GlobalAvgPool(Function):
 
     @staticmethod
     def forward(ctx, feats, proposals_offset):
-        '''
+        """
         :param ctx:
         :param feats: (sumNPoint, C) float
         :param proposals_offset: (nProposal + 1) int
         :return: output_feats (nProposal, C) float
-        '''
+        """
         nProposal = proposals_offset.size(0) - 1
         sumNPoint, C = feats.size()
 

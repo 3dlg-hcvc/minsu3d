@@ -13,6 +13,9 @@ log:
 trainer:
   max_epochs: 336
 
+lr_decay:
+  decay_stop_epoch: 336
+
 model:
   module: SoftGroup
 

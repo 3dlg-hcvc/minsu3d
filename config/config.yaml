@@ -17,6 +17,7 @@ SCANNETV2_PATH:
   combine_file: ${SCANNETV2_PATH.meta_data}/scannetv2-labels.combined.tsv
 
 defaults:
+  - _self_
   - data: base
   - model: base
 

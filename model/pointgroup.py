@@ -15,7 +15,7 @@ from lib.evaluation.semantic_seg_helper import *
 
 
 class PointGroup(pl.LightningModule):
-    def __init__(self, model, data, optimizer):
+    def __init__(self, model, data, optimizer, lr_decay):
         super().__init__()
         self.save_hyperparameters()
 
@@ -165,6 +165,10 @@ class PointGroup(pl.LightningModule):
         for key, value in losses.items():
             self.log(f"train/{key}", value, on_step=False, on_epoch=True, sync_dist=True)
         return total_loss
+
+    def training_epoch_end(self, training_step_outputs):
+        cosine_lr_decay(self.trainer.optimizers[0], self.hparams.optimizer.lr, self.current_epoch,
+                        self.hparams.lr_decay.decay_start_epoch, self.hparams.lr_decay.decay_stop_epoch, 1e-6)
 
 
     def validation_step(self, data_dict, idx):
