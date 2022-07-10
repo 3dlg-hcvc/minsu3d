@@ -24,7 +24,7 @@ class Voxelization_Idx(Function):
         assert coords.is_contiguous()
         N = coords.size(0)
         output_coords = coords.new()
-        input_map = torch.IntTensor(N).zero_()
+        input_map = torch.zeros(N, dtype=torch.int32, device="cpu")
         output_map = input_map.new()
         COMMON_OPS.voxelize_idx(coords, output_coords, vert_batch_idxs, input_map, output_map, batchsize, mode)
         return output_coords, input_map, output_map
@@ -51,7 +51,7 @@ class Voxelization(Function):
         N, C = feats.size()
         M = map_rule.size(0)
         maxActive = map_rule.size(1) - 1
-        output_feats = torch.cuda.FloatTensor(M, C).zero_()
+        output_feats = torch.zeros((M, C), dtype=torch.float32, device="cuda")
         ctx.for_backwards = (map_rule, mode, maxActive, N)
         COMMON_OPS.voxelize_fp(feats, output_feats, map_rule, mode, M, maxActive, C)
         return output_feats
@@ -60,7 +60,7 @@ class Voxelization(Function):
     def backward(ctx, d_output_feats):
         map_rule, mode, maxActive, N = ctx.for_backwards
         M, C = d_output_feats.size()
-        d_feats = torch.cuda.FloatTensor(N, C).zero_()
+        d_feats = torch.zeros((N, C), dtype=torch.float32, device="cuda")
         COMMON_OPS.voxelize_bp(d_output_feats.contiguous(), d_feats, map_rule, mode, M, maxActive, C)
         return d_feats, None, None
 
@@ -89,8 +89,8 @@ class BallQueryBatchP(Function):
         assert batch_offsets.is_contiguous() and batch_offsets.is_cuda
 
         while True:
-            idx = torch.cuda.IntTensor(n * meanActive).zero_()
-            start_len = torch.cuda.IntTensor(n, 2).zero_()
+            idx = torch.zeros(n * meanActive, dtype=torch.int32, device="cuda")
+            start_len = torch.zeros((n, 2), dtype=torch.int32, device="cuda")
             nActive = COMMON_OPS.ballquery_batch_p(coords, batch_idxs, batch_offsets, idx, start_len, n, meanActive, radius)
             if nActive <= n * meanActive:
                 break
@@ -122,7 +122,7 @@ class SecMean(Function):
         assert inp.is_contiguous()
         assert offsets.is_contiguous()
 
-        out = torch.cuda.FloatTensor(nProposal, C).zero_()
+        out = torch.zeros((nProposal, C), dtype=torch.float32, device="cuda")
 
         COMMON_OPS.sec_mean(inp, offsets, out, nProposal, C)
 
@@ -151,7 +151,7 @@ class SecMin(Function):
         assert inp.is_contiguous()
         assert offsets.is_contiguous()
 
-        out = torch.cuda.FloatTensor(nProposal, C).zero_()
+        out = torch.zeros((nProposal, C), dtype=torch.float32, device="cuda")
 
         COMMON_OPS.sec_min(inp, offsets, out, nProposal, C)
 
@@ -180,7 +180,7 @@ class SecMax(Function):
         assert inp.is_contiguous()
         assert offsets.is_contiguous()
 
-        out = torch.cuda.FloatTensor(nProposal, C).zero_()
+        out = torch.zeros((nProposal, C), dtype=torch.float32, device="cuda")
 
         COMMON_OPS.sec_max(inp, offsets, out, nProposal, C)
 

@@ -21,7 +21,7 @@ def crop(pc, max_num_point, scale):
     while np.count_nonzero(valid_idxs) > max_num_point:
         offset = np.clip(max_pc_range - pc_range + 0.001, None, 0) * np.random.rand(3)
         pc_offset = pc + offset
-        valid_idxs = (pc_offset.min(1) >= 0) * ((pc_offset < max_pc_range).sum(1) == 3)
+        valid_idxs = np.logical_and(pc_offset.min(1) >= 0, np.all(pc_offset < max_pc_range, axis=1))
         max_pc_range[:2] -= 32
     return pc_offset, valid_idxs
 

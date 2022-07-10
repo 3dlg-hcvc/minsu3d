@@ -51,8 +51,8 @@ class RoiPool(Function):
         assert feats.is_contiguous()
         assert proposals_offset.is_contiguous()
 
-        output_feats = torch.cuda.FloatTensor(nProposal, C).zero_()
-        output_maxidx = torch.cuda.IntTensor(nProposal, C).zero_()
+        output_feats = torch.zeros((nProposal, C), dtype=torch.float32, device="cuda")
+        output_maxidx = torch.zeros((nProposal, C), dtype=torch.int32, device="cuda")
 
         COMMON_OPS.roipool_fp(feats, proposals_offset, output_feats, output_maxidx, nProposal, C)
 
@@ -66,7 +66,7 @@ class RoiPool(Function):
 
         output_maxidx, proposals_offset, sumNPoint = ctx.for_backwards
 
-        d_feats = torch.cuda.FloatTensor(sumNPoint, C).zero_()
+        d_feats = torch.zeros((sumNPoint, C), dtype=torch.float32, device="cuda")
 
         COMMON_OPS.roipool_bp(d_feats, proposals_offset, output_maxidx, d_output_feats.contiguous(), nProposal, C)
 
@@ -95,7 +95,7 @@ class GetIoU(Function):
         assert instance_labels.is_contiguous() and instance_labels.is_cuda
         assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
 
-        proposals_iou = torch.cuda.FloatTensor(nProposal, nInstance).zero_()
+        proposals_iou = torch.zeros((nProposal, nInstance), dtype=torch.float32, device="cuda")
 
         COMMON_OPS.get_iou(proposals_idx, proposals_offset, instance_labels, instance_pointnum, proposals_iou, nInstance,
                       nProposal)
@@ -125,7 +125,7 @@ class PointRecover(Function):
         M, C = feats.size()
         maxActive = map_rule.size(1) - 1
 
-        output_feats = torch.cuda.FloatTensor(nPoint, C).zero_()
+        output_feats = torch.zeros((nPoint, C), dtype=torch.float32, device="cuda")
 
         ctx.for_backwards = (map_rule, maxActive, M)
 
@@ -138,7 +138,7 @@ class PointRecover(Function):
         map_rule, maxActive, M = ctx.for_backwards
         N, C = d_output_feats.size()
 
-        d_feats = torch.cuda.FloatTensor(M, C).zero_()
+        d_feats = torch.zeros((M, C), dtype=torch.float32, device="cuda")
 
         COMMON_OPS.point_recover_bp(d_output_feats.contiguous(), d_feats, map_rule, M, maxActive, C)
 

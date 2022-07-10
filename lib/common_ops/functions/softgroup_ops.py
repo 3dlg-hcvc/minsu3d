@@ -22,7 +22,7 @@ class GetMaskIoUOnCluster(Function):
 
         nInstance = instance_pointnum.size(0)
         nProposal = proposals_offset.size(0) - 1
-        proposals_iou = torch.cuda.FloatTensor(nProposal, nInstance).zero_()
+        proposals_iou = torch.zeros((nProposal, nInstance), dtype=torch.float32, device="cuda")
 
         assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
         assert proposals_offset.is_contiguous() and proposals_offset.is_cuda
@@ -62,7 +62,7 @@ class GetMaskIoUOnPred(Function):
 
         nInstance = instance_pointnum.size(0)
         nProposal = proposals_offset.size(0) - 1
-        proposals_iou = torch.cuda.FloatTensor(nProposal, nInstance).zero_()
+        proposals_iou = torch.zeros((nProposal, nInstance), dtype=torch.float32, device="cuda")
 
         assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
         assert proposals_offset.is_contiguous() and proposals_offset.is_cuda
@@ -103,7 +103,7 @@ class GetMaskLabel(Function):
 
         nInstance = instance_pointnum.size(0)
         nProposal = proposals_offset.size(0) - 1
-        mask_label = torch.cuda.FloatTensor(proposals_idx.shape).zero_() - 1.
+        mask_label = torch.full(proposals_idx.shape, fill_value=-1, dtype=torch.float32, device="cuda")
 
         assert proposals_iou.is_contiguous() and proposals_iou.is_cuda
         assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
@@ -141,7 +141,7 @@ class SGBFSCluster(Function):
 
         cluster_idxs = ball_query_idxs.new()
         cluster_offsets = ball_query_idxs.new()
-        cluster_numpoint_mean = torch.tensor(class_numpoint_mean, dtype=torch.float32, device="cpu")
+        cluster_numpoint_mean = torch.tensor(class_numpoint_mean, dtype=torch.float32)
 
         COMMON_OPS.sg_bfs_cluster(cluster_numpoint_mean, ball_query_idxs, start_len, cluster_idxs,
                         cluster_offsets, N, threshold, class_id)
@@ -172,7 +172,7 @@ class GlobalAvgPool(Function):
         assert feats.is_contiguous()
         assert proposals_offset.is_contiguous()
 
-        output_feats = torch.cuda.FloatTensor(nProposal, C).zero_()
+        output_feats = torch.zeros((nProposal, C), dtype=torch.float32, device="cuda")
 
         COMMON_OPS.global_avg_pool_fp(feats, proposals_offset, output_feats, nProposal, C)
 
@@ -186,7 +186,7 @@ class GlobalAvgPool(Function):
 
         proposals_offset, sumNPoint = ctx.for_backwards
 
-        d_feats = torch.cuda.FloatTensor(sumNPoint, C).zero_()
+        d_feats = torch.zeros((sumNPoint, C), dtype=torch.float32, device="cuda")
 
         COMMON_OPS.global_avg_pool_bp(d_feats, proposals_offset, d_output_feats.contiguous(), nProposal, C)
 

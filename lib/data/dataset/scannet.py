@@ -75,7 +75,7 @@ class ScanNet(Dataset):
         unique_instance_ids = np.unique(instance_ids)
         unique_instance_ids = unique_instance_ids[unique_instance_ids != self.cfg.data.ignore_label]
         num_instance = unique_instance_ids.shape[0]
-        # (n, 12), float, (meanx, meany, meanz, cx, cy, cz, minx, miny, minz, maxx, maxy, maxz)
+        # (n, 3), float, (meanx, meany, meanz)
         instance_info = np.zeros(shape=(xyz.shape[0], 3), dtype=np.float32)
         instance_cls = np.full(shape=unique_instance_ids.shape[0], fill_value=self.cfg.data.ignore_label, dtype=np.int8)
         instance_bboxes = np.full(shape=(unique_instance_ids.shape[0], 6), fill_value=self.cfg.data.ignore_label, dtype=np.float32)
@@ -101,39 +101,6 @@ class ScanNet(Dataset):
             instance_bboxes[index] = np.concatenate((min_xyz_i, max_xyz_i))
 
         return num_instance, instance_info, instance_num_point, instance_cls, instance_bboxes
-
-    def _generate_gt_clusters(self, points, instance_ids):
-        gt_proposals_idx = []
-        gt_proposals_offset = [0]
-        unique_instance_ids = np.unique(instance_ids)
-        num_instance = len(unique_instance_ids) - 1 if -1 in unique_instance_ids else len(unique_instance_ids)
-        instance_bboxes = np.zeros((num_instance, 6))
-
-        object_ids = []
-        for cid, i_ in enumerate(unique_instance_ids, -1):
-            if i_ < 0:
-                continue
-            object_ids.append(i_)
-            inst_i_idx = np.where(instance_ids == i_)[0]
-            inst_i_points = points[inst_i_idx]
-            xmin = np.min(inst_i_points[:, 0])
-            ymin = np.min(inst_i_points[:, 1])
-            zmin = np.min(inst_i_points[:, 2])
-            xmax = np.max(inst_i_points[:, 0])
-            ymax = np.max(inst_i_points[:, 1])
-            zmax = np.max(inst_i_points[:, 2])
-            bbox = np.array(
-                [(xmin + xmax) / 2, (ymin + ymax) / 2, (zmin + zmax) / 2, xmax - xmin, ymax - ymin, zmax - zmin])
-            instance_bboxes[cid, :] = bbox
-
-            proposals_idx_i = np.vstack((np.ones(len(inst_i_idx)) * cid, inst_i_idx)).transpose().astype(np.int32)
-            gt_proposals_idx.append(proposals_idx_i)
-            gt_proposals_offset.append(len(inst_i_idx) + gt_proposals_offset[-1])
-
-        gt_proposals_idx = np.concatenate(gt_proposals_idx, axis=0).astype(np.int32)
-        gt_proposals_offset = np.array(gt_proposals_offset).astype(np.int32)
-
-        return gt_proposals_idx, gt_proposals_offset, object_ids, instance_bboxes
 
     def __getitem__(self, idx):
         scan_id = self.scene_names[idx]
