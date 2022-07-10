@@ -1,5 +1,7 @@
 # Managed by Hydra
 
+ckpt_path: null
+
 log:
   module: WandbLogger  # WandbLogger or TensorBoardLogger
   # https://pytorch-lightning.readthedocs.io/en/stable/extensions/generated/pytorch_lightning.loggers.WandbLogger.html

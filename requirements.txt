@@ -1,6 +1,5 @@
 plyfile
 tqdm
-matplotlib
 trimesh
 pytorch-lightning
 scipy

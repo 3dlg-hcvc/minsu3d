@@ -28,7 +28,6 @@ model:
   crop_bbox: False
   pred_bbox: False
 
-  use_checkpoint: #/home/eamonn/Research/pointgroup-minkowski/output/scannet/softgroup/train/softgroup-scannet-epoch=127.ckpt
   pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
   pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]
   pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth

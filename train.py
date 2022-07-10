@@ -59,7 +59,7 @@ def main(cfg):
     model = init_model(cfg)
 
     print("==> start training ...")
-    trainer.fit(model=model, datamodule=data_module, ckpt_path=cfg.model.model.use_checkpoint)
+    trainer.fit(model=model, datamodule=data_module, ckpt_path=cfg.model.ckpt_path)
 
 
 if __name__ == '__main__':

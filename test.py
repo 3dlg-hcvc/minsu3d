@@ -24,8 +24,8 @@ def main(cfg):
     print("=> initializing model...")
     model = init_model(cfg)
 
-    print("=> start inferencing...")
-    trainer.test(model=model, datamodule=data_module, ckpt_path=cfg.model.model.use_checkpoint)
+    print("=> start inference...")
+    trainer.test(model=model, datamodule=data_module, ckpt_path=cfg.model.ckpt_path)
 
 
 if __name__ == '__main__':
