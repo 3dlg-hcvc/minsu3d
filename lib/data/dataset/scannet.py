@@ -13,12 +13,10 @@ class ScanNet(Dataset):
         self.split = split
         self.root = cfg.SCANNETV2_PATH.splited_data
         self.file_suffix = cfg.data.file_suffix
-
         self.full_scale = cfg.data.full_scale
         self.scale = cfg.data.scale
         self.max_num_point = cfg.data.max_num_point
-
-        self.DATA_MAP = {
+        self.data_map = {
             "train": cfg.SCANNETV2_PATH.train_list,
             "val": cfg.SCANNETV2_PATH.val_list,
             "test": cfg.SCANNETV2_PATH.test_list
@@ -27,10 +25,10 @@ class ScanNet(Dataset):
         self._load_from_disk()
 
     def _load_from_disk(self):
-        with open(self.DATA_MAP[self.split]) as f:
+        with open(self.data_map[self.split]) as f:
             self.scene_names = [line.strip() for line in f]
         self.scenes = []
-        for scene_name in tqdm(self.scene_names, desc="Loading data from disk"):
+        for scene_name in tqdm(self.scene_names, desc=f"Loading {self.split} data from disk"):
             scene_path = os.path.join(self.root, self.split, scene_name + self.file_suffix)
             scene = torch.load(scene_path)
             scene["xyz"] -= scene["xyz"].mean(axis=0)
@@ -76,7 +74,7 @@ class ScanNet(Dataset):
         unique_instance_ids = unique_instance_ids[unique_instance_ids != self.cfg.data.ignore_label]
         num_instance = unique_instance_ids.shape[0]
         # (n, 3), float, (meanx, meany, meanz)
-        instance_info = np.zeros(shape=(xyz.shape[0], 3), dtype=np.float32)
+        instance_info = np.empty(shape=(xyz.shape[0], 3), dtype=np.float32)
         instance_cls = np.full(shape=unique_instance_ids.shape[0], fill_value=self.cfg.data.ignore_label, dtype=np.int8)
         instance_bboxes = np.full(shape=(unique_instance_ids.shape[0], 6), fill_value=self.cfg.data.ignore_label, dtype=np.float32)
         for index, i in enumerate(unique_instance_ids):
@@ -107,7 +105,7 @@ class ScanNet(Dataset):
         scene = self.scenes[idx]
 
         points = scene["xyz"]  # (N, 3)
-        colors = scene["rgb"]  # (N, 3) rgb
+        colors = scene["rgb"]  # (N, 3)
         normals = scene["normal"]
         instance_ids = scene["instance_ids"]
         sem_labels = scene["sem_labels"]

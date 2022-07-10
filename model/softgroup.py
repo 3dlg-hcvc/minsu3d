@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from lib.evaluation.instance_seg_helper import ScanNetEval, rle_encode, get_gt_instances
+from lib.evaluation.instance_seg_helper import ScanNetEval, get_gt_instances
 from lib.evaluation.object_detection_helper import evaluate_bbox_acc, get_gt_bbox
 from lib.common_ops.functions import softgroup_ops
 from lib.common_ops.functions import common_ops
@@ -398,8 +398,7 @@ class SoftGroup(pl.LightningModule):
             pred['scan_id'] = scan_id
             pred['label_id'] = cls_pred[i]
             pred['conf'] = score_pred[i]
-            # rle encode mask to save memory
-            pred['pred_mask'] = rle_encode(mask_pred[i])
+            pred['pred_mask'] = np.nonzero(mask_pred[i])[0]
             pred_inst = gt_xyz[mask_pred[i]]
             pred['pred_bbox'] = np.concatenate((pred_inst.min(0), pred_inst.max(0)))
             instances.append(pred)

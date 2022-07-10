@@ -1,5 +1,4 @@
-# Adapted from https://github.com/ScanNet/ScanNet/blob/master/BenchmarkScripts/3d_evaluation/evaluate_semantic_instance.py  # noqa E501
-# Modified by Thang Vu
+# Adapted from https://github.com/ScanNet/ScanNet/blob/master/BenchmarkScripts/3d_evaluation/evaluate_semantic_instance.py
 
 from copy import deepcopy
 import numpy as np
@@ -17,43 +16,6 @@ def get_instances(ids, class_ids, class_labels, id2label):
         if inst.label_id in class_ids:
             instances[id2label[inst.label_id]].append(inst.to_dict())
     return instances
-
-
-def rle_encode(mask):
-    """Encode RLE (Run-length-encode) from 1D binary mask.
-
-    Args:
-        mask (np.ndarray): 1D binary mask
-    Returns:
-        rle (dict): encoded RLE
-    """
-    length = mask.shape[0]
-    mask = np.concatenate([[0], mask, [0]])
-    runs = np.where(mask[1:] != mask[:-1])[0] + 1
-    runs[1::2] -= runs[::2]
-    counts = ' '.join(str(x) for x in runs)
-    rle = dict(length=length, counts=counts)
-    return rle
-
-
-def rle_decode(rle):
-    """Decode rle to get binary mask.
-
-    Args:
-        rle (dict): rle of encoded mask
-    Returns:
-        mask (np.ndarray): decoded mask
-    """
-    length = rle['length']
-    counts = rle['counts']
-    s = counts.split()
-    starts, nums = [np.asarray(x, dtype=np.int32) for x in (s[0:][::2], s[1:][::2])]
-    starts -= 1
-    ends = starts + nums
-    mask = np.zeros(length, dtype=np.uint8)
-    for lo, hi in zip(starts, ends):
-        mask[lo:hi] = 1
-    return mask
 
 
 def get_gt_instances(semantic_labels, instance_labels, ignored_classes):
@@ -79,7 +41,7 @@ class Instance(object):
     dist_conf = 0.0
 
     def __init__(self, mesh_vert_instances, instance_id):
-        if (instance_id == -1):
+        if instance_id == -1:
             return
         self.instance_id = int(instance_id)
         self.label_id = int(self.get_label_id(instance_id))
@@ -92,16 +54,12 @@ class Instance(object):
         return np.count_nonzero(mesh_vert_instances == instance_id)
 
     def to_dict(self):
-        dict = {}
-        dict['instance_id'] = self.instance_id
-        dict['label_id'] = self.label_id
-        dict['vert_count'] = self.vert_count
-        dict['med_dist'] = self.med_dist
-        dict['dist_conf'] = self.dist_conf
+        dict = {'instance_id': self.instance_id, 'label_id': self.label_id, 'vert_count': self.vert_count,
+                'med_dist': self.med_dist, 'dist_conf': self.dist_conf}
         return dict
 
     def __str__(self):
-        return '(' + str(self.instance_id) + ')'
+        return f"({self.instance_id})"
 
 
 class ScanNetEval(object):
@@ -357,17 +315,16 @@ class ScanNetEval(object):
             else:
                 label_name = self.eval_class_labels[0]  # class agnostic label
             conf = pred['conf']
+
             pred_mask = pred['pred_mask']
-            # pred_mask can be np.array or rle dict
-            if isinstance(pred_mask, dict):
-                pred_mask = rle_decode(pred_mask)
-            assert pred_mask.shape[0] == gts.shape[0]
 
             # convert to binary
-            pred_mask = np.not_equal(pred_mask, 0)
-            num = np.count_nonzero(pred_mask)
+            num = len(pred_mask)
+
             if num < self.min_region_sizes[0]:
                 continue  # skip if empty
+
+            pred_mask = np.zeros_like(gts, dtype=bool)[pred_mask] = True
 
             pred_instance = {}
             pred_instance['filename'] = '{}_{}'.format(pred['scan_id'], num_pred_instances)
