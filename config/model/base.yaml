@@ -2,6 +2,7 @@
 
 ckpt_path: null
 
+
 log:
   module: WandbLogger  # WandbLogger or TensorBoardLogger
   # https://pytorch-lightning.readthedocs.io/en/stable/extensions/generated/pytorch_lightning.loggers.WandbLogger.html
@@ -38,6 +39,13 @@ optimizer:
     name: Adam # Adam, AdamW or SGD
     lr: 0.0015
 
+
 lr_decay:
   decay_start_epoch: 128
   decay_stop_epoch: 496
+
+
+inference:
+  evaluate: True
+  save_predictions: True
+  output_dir: prediction

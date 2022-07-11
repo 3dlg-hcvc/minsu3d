@@ -1,19 +1,22 @@
+import os
+
+import numpy as np
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from lib.evaluation.instance_seg_helper import ScanNetEval, get_gt_instances
-from lib.evaluation.object_detection_helper import evaluate_bbox_acc, get_gt_bbox
+from lib.evaluation.instance_segmentation import ScanNetEval, get_gt_instances
+from lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
 from lib.common_ops.functions import softgroup_ops
 from lib.common_ops.functions import common_ops
 from lib.loss import *
-from lib.evaluation.semantic_seg_helper import *
+from lib.evaluation.semantic_segmentation import *
 from model.module import Backbone, TinyUnet
 from model.helper import clusters_voxelization, get_batch_offsets
 from lib.optimizer import init_optimizer, cosine_lr_decay
 
 
 class SoftGroup(pl.LightningModule):
-    def __init__(self, model, data, optimizer, lr_decay):
+    def __init__(self, model, data, optimizer, lr_decay, inference=None):
         super().__init__()
         self.save_hyperparameters()
         input_channel = model.use_coord * 3 + model.use_color * 3 + model.use_normal * 3
@@ -352,15 +355,31 @@ class SoftGroup(pl.LightningModule):
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
 
-            inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
-            self.print("==> Evaluating instance segmentation ...")
-            inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
-            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=True)
+            if self.hparams.inference.save_predictions:
+                inst_pred_path = os.path.join(self.hparams.inference.output_dir, "instance")
+                inst_pred_masks_path = os.path.join(inst_pred_path, "predicted_masks")
+                os.makedirs(inst_pred_masks_path, exist_ok=True)
+                scan_instance_count = {}
 
-            sem_miou_avg = np.mean(np.array(all_sem_miou))
-            sem_acc_avg = np.mean(np.array(all_sem_acc))
-            self.print(f"Semantic Accuracy: {sem_acc_avg}")
-            self.print(f"Semantic mean IoU: {sem_miou_avg}")
+                for pred in all_pred_insts:
+                    scan_id = pred["scan_id"]
+                    if scan_id not in scan_instance_count:
+                        scan_instance_count[scan_id] = 0
+                    with open(os.path.join(inst_pred_path, f"{scan_id}.txt"), "a") as f:
+                        f.write(f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {pred['label_id']} {pred['conf']:.4f}\n")
+                    np.savetxt(os.path.join(inst_pred_masks_path, f"{scan_id}_{scan_instance_count[scan_id]:03d}.txt"), pred["pred_mask"], fmt="%d")
+                    scan_instance_count[scan_id] += 1
+
+            if self.hparams.inference.evaluate:
+                inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
+                self.print("==> Evaluating instance segmentation ...")
+                inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
+                obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=True)
+
+                sem_miou_avg = np.mean(np.array(all_sem_miou))
+                sem_acc_avg = np.mean(np.array(all_sem_acc))
+                self.print(f"Semantic Accuracy: {sem_acc_avg}")
+                self.print(f"Semantic mean IoU: {sem_miou_avg}")
 
     def _get_pred_instances(self, scan_id, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores):
         num_instances = cls_scores.size(0)

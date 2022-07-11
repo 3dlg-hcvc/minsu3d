@@ -19,7 +19,7 @@ def init_callbacks(cfg):
 
 
 def init_model(cfg):
-    model = getattr(import_module("model"), cfg.model.model.module)(cfg.model.model, cfg.data, cfg.model.optimizer, cfg.model.lr_decay)
+    model = getattr(import_module("model"), cfg.model.model.module)(cfg.model.model, cfg.data, cfg.model.optimizer, cfg.model.lr_decay, None)
     if cfg.model.model.pretrained_module:
         print("=> loading pretrained module from {} ...".format(cfg.model.pretrained_module_path))
         model_dict = model.state_dict()

@@ -1,8 +1,9 @@
+import os
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from lib.evaluation.instance_seg_helper import ScanNetEval, get_gt_instances
-from lib.evaluation.object_detection_helper import evaluate_bbox_acc, get_gt_bbox
+from lib.evaluation.instance_segmentation import ScanNetEval, get_gt_instances
+from lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
 from lib.common_ops.functions import pointgroup_ops
 from lib.common_ops.functions import common_ops
 from lib.loss import *
@@ -11,7 +12,7 @@ from lib.loss.utils import get_segmented_scores
 from lib.util.eval import get_nms_instances
 from model.module import Backbone, TinyUnet
 from lib.optimizer import init_optimizer, cosine_lr_decay
-from lib.evaluation.semantic_seg_helper import *
+from lib.evaluation.semantic_segmentation import *
 
 
 class PointGroup(pl.LightningModule):
@@ -233,6 +234,55 @@ class PointGroup(pl.LightningModule):
         # prepare input and forward
         output_dict = self._feed(data_dict)
         return data_dict, output_dict
+
+    def test_epoch_end(self, results):
+        # evaluate instance predictions
+        if self.current_epoch > self.hparams.model.prepare_epochs:
+            all_pred_insts = []
+            all_gt_insts = []
+            all_gt_insts_bbox = []
+            all_sem_acc = []
+            all_sem_miou = []
+            for batch, output in results:
+                pred_instances = self._get_pred_instances(batch["scan_ids"][0],
+                                                          batch["locs"].cpu().numpy(),
+                                                          output["proposal_scores"][0].cpu(),
+                                                          output["proposal_scores"][1].cpu(),
+                                                          output["proposal_scores"][2].size(0) - 1,
+                                                          output["semantic_scores"].cpu())
+                gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(),
+                                                self.hparams.data.ignore_classes)
+                gt_instances_bbox = get_gt_bbox(batch["instance_semantic_cls"].cpu().numpy(),
+                                                batch["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
+                all_gt_insts_bbox.append(gt_instances_bbox)
+                all_pred_insts.append(pred_instances)
+                all_gt_insts.append(gt_instances)
+
+            if self.hparams.inference.save_predictions:
+                inst_pred_path = os.path.join(self.hparams.inference.output_dir, "instance")
+                inst_pred_masks_path = os.path.join(inst_pred_path, "predicted_masks")
+                os.makedirs(inst_pred_masks_path, exist_ok=True)
+                scan_instance_count = {}
+
+                for pred in all_pred_insts:
+                    scan_id = pred["scan_id"]
+                    if scan_id not in scan_instance_count:
+                        scan_instance_count[scan_id] = 0
+                    with open(os.path.join(inst_pred_path, f"{scan_id}.txt"), "a") as f:
+                        f.write(f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {pred['label_id']} {pred['conf']:.4f}\n")
+                    np.savetxt(os.path.join(inst_pred_masks_path, f"{scan_id}_{scan_instance_count[scan_id]:03d}.txt"), pred["pred_mask"], fmt="%d")
+                    scan_instance_count[scan_id] += 1
+
+            if self.hparams.inference.evaluate:
+                inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
+                self.print("==> Evaluating instance segmentation ...")
+                inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
+                obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=True)
+
+                sem_miou_avg = np.mean(np.array(all_sem_miou))
+                sem_acc_avg = np.mean(np.array(all_sem_acc))
+                self.print(f"Semantic Accuracy: {sem_acc_avg}")
+                self.print(f"Semantic mean IoU: {sem_miou_avg}")
 
     def _get_pred_instances(self, scan_id, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores):
         semantic_pred_labels = semantic_scores.max(1)[1]
