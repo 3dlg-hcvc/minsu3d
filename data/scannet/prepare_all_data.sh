@@ -4,7 +4,7 @@ PTH_SCRIPT=prepare_one_scan_pth.py
 GT_SCRIPT=prepare_one_scan_gt.py
 TRAIN_IDS=meta_data/scannetv2_train.txt
 VAL_IDS=meta_data/scannetv2_val.txt
-CONFIG_PATH=../../conf/path.yaml
+CONFIG_PATH=../../conf/config.yaml
 PARALLEL_N=14
 
 echo "===================================="
