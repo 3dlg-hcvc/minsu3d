@@ -56,26 +56,26 @@ python setup.py develop
 1. Download the [ScanNet v2](http://www.scan-net.org/) dataset.
 2. Preprocess the data
 ```shell
-    cd data/scannet
-    sh prepare_all_data.sh
+cd data/scannet
+sh prepare_all_data.sh
 ```
 
 ## Training, Inference and Evaluation
 Note: Configuration files are managed by [Hydra](https://hydra.cc/), you can easily add or override any configuration attributes by passing them as arguments.
 ```shell
-    # train a model from scratch
-    python train.py --model={model_name} --data={dataset_name}
-    
-    # train a model from a checkpoint
-    python train.py --model={model_name} --data={dataset_name} --model.ckpt_path={checkpoint_path}
-    
-    # test and evaluate a pretrained model
-    python test.py --model={model_name} --data={dataset_name} --model.ckpt_path={pretrained_model_path}
-    
-    # examples:
-    # python train.py --model=pointgroup --dataset=scannet
-    # python train.py --model=pointgroup --dataset=multiscan --model.trainer.max_epochs=480
-    # python test.py --model=softgroup --dataset=multiscan --model.ckpt_path=pretrained.ckpt
+# train a model from scratch
+python train.py --model={model_name} --data={dataset_name}
+
+# train a model from a checkpoint
+python train.py --model={model_name} --data={dataset_name} --model.ckpt_path={checkpoint_path}
+
+# test and evaluate a pretrained model
+python test.py --model={model_name} --data={dataset_name} --model.ckpt_path={pretrained_model_path}
+
+# examples:
+# python train.py --model=pointgroup --dataset=scannet
+# python train.py --model=pointgroup --dataset=multiscan --model.trainer.max_epochs=480
+# python test.py --model=softgroup --dataset=multiscan --model.ckpt_path=pretrained.ckpt
 ```
 
 ## Pretrained Models
