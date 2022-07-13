@@ -361,14 +361,16 @@ class SoftGroup(pl.LightningModule):
                 os.makedirs(inst_pred_masks_path, exist_ok=True)
                 scan_instance_count = {}
 
-                for pred in all_pred_insts:
-                    scan_id = pred["scan_id"]
-                    if scan_id not in scan_instance_count:
-                        scan_instance_count[scan_id] = 0
-                    with open(os.path.join(inst_pred_path, f"{scan_id}.txt"), "a") as f:
-                        f.write(f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {pred['label_id']} {pred['conf']:.4f}\n")
-                    np.savetxt(os.path.join(inst_pred_masks_path, f"{scan_id}_{scan_instance_count[scan_id]:03d}.txt"), pred["pred_mask"], fmt="%d")
-                    scan_instance_count[scan_id] += 1
+                for preds in all_pred_insts:
+                    for pred in preds:
+                        scan_id = pred["scan_id"]
+                        if scan_id not in scan_instance_count:
+                            scan_instance_count[scan_id] = 0
+                        with open(os.path.join(inst_pred_path, f"{scan_id}.txt"), "a") as f:
+                            f.write(f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {pred['label_id']} {pred['conf']:.4f}\n")
+                        np.savetxt(os.path.join(inst_pred_masks_path, f"{scan_id}_{scan_instance_count[scan_id]:03d}.txt"), pred["pred_mask"], fmt="%d")
+                        scan_instance_count[scan_id] += 1
+                self.print(f"\nPredictions saved at {inst_pred_path}\n")
 
             if self.hparams.inference.evaluate:
                 inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
@@ -421,7 +423,7 @@ class SoftGroup(pl.LightningModule):
             pred['scan_id'] = scan_id
             pred['label_id'] = cls_pred[i]
             pred['conf'] = score_pred[i]
-            pred['pred_mask'] = np.nonzero(mask_pred[i])[0]
+            pred['pred_mask'] = mask_pred[i]
             pred_inst = gt_xyz[mask_pred[i]]
             pred['pred_bbox'] = np.concatenate((pred_inst.min(0), pred_inst.max(0)))
             instances.append(pred)

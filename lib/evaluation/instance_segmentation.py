@@ -319,12 +319,9 @@ class ScanNetEval(object):
             pred_mask = pred['pred_mask']
 
             # convert to binary
-            num = len(pred_mask)
-
+            num = np.count_nonzero(pred_mask)
             if num < self.min_region_sizes[0]:
                 continue  # skip if empty
-
-            pred_mask = np.zeros_like(gts, dtype=bool)[pred_mask] = True
 
             pred_instance = {}
             pred_instance['filename'] = '{}_{}'.format(pred['scan_id'], num_pred_instances)
