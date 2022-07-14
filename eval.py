@@ -29,7 +29,7 @@ def read_pred_files_from_disk(data_path, gt_xyz):
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg):
     split = cfg.model.model.inference.split
-    cfg.general.output_root = os.path.join(cfg.ROOT_PATH, cfg.general.output_root,
+    cfg.general.output_root = os.path.join(cfg.project_root_path, cfg.general.output_root,
                                            cfg.data.dataset, cfg.model.model.module,
                                            cfg.model.model.experiment_name, "inference", split)
 

@@ -3,8 +3,16 @@
 defaults:
   - base
 
-
 dataset: ScanNet
+dataset_path: ${data.dataset_root_path}/scannet
+
+metadata:
+  metadata_path: ${data.dataset_path}/meta_data
+  train_list: ${data.metadata.metadata_path}/scannetv2_train.txt
+  val_list: ${data.metadata.metadata_path}/scannetv2_val.txt
+  test_list: ${data.metadata.metadata_path}/scannetv2_test.txt
+  combine_file: ${data.metadata.metadata_path}/scannetv2-labels.combined.tsv
+
 classes: 20
 ignore_classes: [0, 1]
 class_names: ['cabinet', 'bed', 'chair', 'sofa', 'table', 'door', 'window', 'bookshelf', 'picture',

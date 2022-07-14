@@ -3,8 +3,9 @@
 defaults:
   - base
 
-
 dataset: MultiScan_Obj
+dataset_path: ${dataset_root_path}/multiscan_part
+
 classes: 5
 ignore_classes: []
 class_names: ['static_part', 'door', 'drawer', 'window', 'lid']

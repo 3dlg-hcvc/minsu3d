@@ -15,9 +15,9 @@ def main(cfg):
     print("=> initializing trainer...")
     trainer = pl.Trainer(gpus=1, num_nodes=1, max_epochs=1, logger=False)
 
-    cfg.general.output_root = os.path.join(cfg.ROOT_PATH, cfg.general.output_root,
+    cfg.general.output_root = os.path.join(cfg.project_root_path, cfg.general.output_root,
                                            cfg.data.dataset, cfg.model.model.module,
-                                           cfg.model.model.experiment_name, "inference", cfg.model.model.inference.split)
+                                           cfg.model.model.experiment_name, "inference", cfg.model.inference.split)
     cfg.model.inference.output_dir = os.path.join(cfg.general.output_root, "predictions")
     os.makedirs(cfg.model.inference.output_dir, exist_ok=True)
 

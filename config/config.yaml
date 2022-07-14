@@ -1,6 +1,6 @@
 # Managed by Hydra
 
-ROOT_PATH: /localhome/yza440/Research/pointgroup-minkowski #TODO
+project_root_path: ${hydra:runtime.cwd}
 DATA_PATH: ${ROOT_PATH}/data
 
 SCANNETV2_PATH:

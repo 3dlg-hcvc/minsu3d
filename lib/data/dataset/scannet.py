@@ -11,15 +11,15 @@ class ScanNet(Dataset):
     def __init__(self, cfg, split):
         self.cfg = cfg
         self.split = split
-        self.root = cfg.SCANNETV2_PATH.splited_data
+        self.dataset_root_path = cfg.data.dataset_path
         self.file_suffix = cfg.data.file_suffix
         self.full_scale = cfg.data.full_scale
         self.scale = cfg.data.scale
         self.max_num_point = cfg.data.max_num_point
         self.data_map = {
-            "train": cfg.SCANNETV2_PATH.train_list,
-            "val": cfg.SCANNETV2_PATH.val_list,
-            "test": cfg.SCANNETV2_PATH.test_list
+            "train": cfg.data.metadata.train_list,
+            "val": cfg.data.metadata.val_list,
+            "test": cfg.data.metadata.test_list
         }
 
         self._load_from_disk()
@@ -29,7 +29,7 @@ class ScanNet(Dataset):
             self.scene_names = [line.strip() for line in f]
         self.scenes = []
         for scene_name in tqdm(self.scene_names, desc=f"Loading {self.split} data from disk"):
-            scene_path = os.path.join(self.root, self.split, scene_name + self.file_suffix)
+            scene_path = os.path.join(self.dataset_root_path, self.split, scene_name + self.file_suffix)
             scene = torch.load(scene_path)
             scene["xyz"] -= scene["xyz"].mean(axis=0)
             scene["rgb"] = scene["rgb"].astype(np.float32) / 127.5 - 1
