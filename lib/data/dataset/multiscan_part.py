@@ -1,6 +1,6 @@
 from lib.data.dataset import GeneralDataset
 
 
-class ScanNet(GeneralDataset):
+class MultiScanPart(GeneralDataset):
     def __int__(self, cfg, split):
         super().__init__(cfg, split)
