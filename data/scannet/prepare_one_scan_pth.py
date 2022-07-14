@@ -195,5 +195,5 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     cfg = OmegaConf.load(opt.cfg)
     cfg.split = opt.split
-    os.makedirs(os.path.join(cfg.SCANNETV2_PATH.splited_data, cfg.split), exist_ok=True)
+    os.makedirs(os.path.join(cfg.SCANNETV2_PATH, cfg.split), exist_ok=True)
     process_one_scan(opt.id, cfg)
