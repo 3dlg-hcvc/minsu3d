@@ -1,6 +1,7 @@
-from lib.evaluation.instance_segmentation import ScanNetEval, get_gt_instances
+from lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
 from lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
 from lib.evaluation.semantic_segmentation import *
+import pytorch_lightning as pl
 import torch
 import hydra
 import os
@@ -28,12 +29,16 @@ def read_pred_files_from_disk(data_path, gt_xyz):
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg):
-    split = cfg.model.model.inference.split
-    cfg.general.output_root = os.path.join(cfg.project_root_path, cfg.general.output_root,
-                                           cfg.data.dataset, cfg.model.model.module,
-                                           cfg.model.model.experiment_name, "inference", split)
 
-    cfg.model.inference.output_dir = os.path.join(cfg.general.output_root, "predictions")
+    # fix the seed
+    pl.seed_everything(cfg.global_seed, workers=True)
+
+    split = cfg.model.model.inference.split
+    output_path = os.path.join(cfg.exp_output_root_path, cfg.data.dataset,
+                               cfg.model.model.module, cfg.model.model.experiment_name,
+                               "inference", split)
+
+    cfg.model.inference.output_dir = os.path.join(output_path, "predictions")
 
     if not os.path.exists(cfg.model.inference.output_dir):
         print("Error: prediction files do not exist.")
@@ -42,15 +47,15 @@ def main(cfg):
     print(f"==> start evaluating {split} set ...")
 
     print("==> Evaluating instance segmentation ...")
-    inst_seg_evaluator = ScanNetEval(cfg.data.class_names)
+    inst_seg_evaluator = GeneralDatasetEvaluator(cfg.data.class_names)
 
     all_pred_insts = []
     all_gt_insts = []
 
     data_map = {
-        "train": cfg.SCANNETV2_PATH.train_list,
-        "val": cfg.SCANNETV2_PATH.val_list,
-        "test": cfg.SCANNETV2_PATH.test_list
+        "train": cfg.data.metadata.train_list,
+        "val": cfg.data.metadata.val_list,
+        "test": cfg.data.metadata.test_list
     }
 
     for scan_id in data_map[split]:

@@ -12,13 +12,16 @@ def init_model(cfg):
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg):
+
+    # fix the seed
+    pl.seed_everything(cfg.global_seed, workers=True)
+
     print("=> initializing trainer...")
     trainer = pl.Trainer(gpus=1, num_nodes=1, max_epochs=1, logger=False)
 
-    cfg.general.output_root = os.path.join(cfg.project_root_path, cfg.general.output_root,
-                                           cfg.data.dataset, cfg.model.model.module,
-                                           cfg.model.model.experiment_name, "inference", cfg.model.inference.split)
-    cfg.model.inference.output_dir = os.path.join(cfg.general.output_root, "predictions")
+    output_path = os.path.join(cfg.exp_output_root_path, cfg.data.dataset, cfg.model.model.module,
+                               cfg.model.model.experiment_name, "inference", cfg.model.inference.split)
+    cfg.model.inference.output_dir = os.path.join(output_path, "predictions")
     os.makedirs(cfg.model.inference.output_dir, exist_ok=True)
 
     print("==> initializing data ...")

@@ -9,7 +9,7 @@ from lib.data.data_module import DataModule
 
 
 def init_callbacks(cfg):
-    checkpoint_monitor = ModelCheckpoint(dirpath=cfg.general.output_root,
+    checkpoint_monitor = ModelCheckpoint(dirpath=cfg.exp_output_root_path,
                                          filename=f"{cfg.model.model.module}-{cfg.data.dataset}" + "-{epoch}",
                                          **cfg.model.checkpoint_monitor)
     gpu_stats_monitor = DeviceStatsMonitor()
@@ -19,7 +19,8 @@ def init_callbacks(cfg):
 
 
 def init_model(cfg):
-    model = getattr(import_module("model"), cfg.model.model.module)(cfg.model.model, cfg.data, cfg.model.optimizer, cfg.model.lr_decay, None)
+    model = getattr(import_module("model"), cfg.model.model.module) \
+        (cfg.model.model, cfg.data, cfg.model.optimizer, cfg.model.lr_decay, None)
     if cfg.model.model.pretrained_module:
         print("=> loading pretrained module from {} ...".format(cfg.model.pretrained_module_path))
         model_dict = model.state_dict()
@@ -37,19 +38,18 @@ def init_model(cfg):
 def main(cfg):
 
     # fix the seed
-    pl.seed_everything(cfg.general.global_seed, workers=True)
+    pl.seed_everything(cfg.global_seed, workers=True)
 
-    cfg.general.output_root = os.path.join(cfg.project_root_path, cfg.general.output_root,
-                                           cfg.data.dataset, cfg.model.model.module,
-                                           cfg.model.model.experiment_name, "train")
-    os.makedirs(cfg.general.output_root, exist_ok=True)
+    output_path = os.path.join(cfg.exp_output_root_path, cfg.data.dataset,
+                               cfg.model.model.module, cfg.model.model.experiment_name, "training")
+    os.makedirs(output_path, exist_ok=True)
 
     print("==> initializing data ...")
     data_module = DataModule(cfg)
 
     print("==> initializing logger ...")
     logger = getattr(import_module("pytorch_lightning.loggers"), cfg.model.log.module) \
-        (save_dir=cfg.general.output_root, **cfg.model.log[cfg.model.log.module])
+        (save_dir=output_path, **cfg.model.log[cfg.model.log.module])
 
     print("==> initializing monitor ...")
     callbacks = init_callbacks(cfg)

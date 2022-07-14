@@ -2,7 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from lib.evaluation.instance_segmentation import ScanNetEval, get_gt_instances
+from lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
 from lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
 from lib.common_ops.functions import softgroup_ops
 from lib.common_ops.functions import common_ops
@@ -295,7 +295,7 @@ class SoftGroup(pl.LightningModule):
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
 
-            inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
+            inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names)
             inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
 
             obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=False)
@@ -371,7 +371,7 @@ class SoftGroup(pl.LightningModule):
                 self.print(f"\nPredictions saved at {inst_pred_path}\n")
 
             if self.hparams.inference.evaluate:
-                inst_seg_evaluator = ScanNetEval(self.hparams.data.class_names)
+                inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names)
                 self.print("==> Evaluating instance segmentation ...")
                 inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
                 obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=True)

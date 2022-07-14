@@ -64,7 +64,7 @@ class Instance(object):
         return f"({self.instance_id})"
 
 
-class ScanNetEval(object):
+class GeneralDatasetEvaluator(object):
 
     def __init__(self, class_labels, iou_type=None, use_label=True):
         self.valid_class_labels = class_labels
