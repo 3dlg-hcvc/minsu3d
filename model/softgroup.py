@@ -11,6 +11,7 @@ from lib.evaluation.semantic_segmentation import *
 from model.module import Backbone, TinyUnet
 from model.helper import clusters_voxelization, get_batch_offsets
 from lib.optimizer import init_optimizer, cosine_lr_decay
+from tqdm import tqdm
 
 
 class SoftGroup(pl.LightningModule):
@@ -359,7 +360,7 @@ class SoftGroup(pl.LightningModule):
                 os.makedirs(inst_pred_masks_path, exist_ok=True)
                 scan_instance_count = {}
 
-                for preds in all_pred_insts:
+                for preds in tqdm(all_pred_insts, desc="==> Saving predictions ..."):
                     for pred in preds:
                         scan_id = pred["scan_id"]
                         if scan_id not in scan_instance_count:
