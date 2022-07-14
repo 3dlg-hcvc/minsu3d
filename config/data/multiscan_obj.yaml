@@ -1,0 +1,11 @@
+# Managed by Hydra
+
+defaults:
+  - base
+
+
+dataset: MultiScan_Obj
+classes: 20
+ignore_classes: [0, 1, 2]
+class_names: ['door', 'table', 'chair', 'cabinet', 'window', 'sofa', 'microwave', 'pillow',
+              'tv_monitor', 'curtain', 'trash_can', 'suitcase', 'sink', 'backpack', 'bed', 'refrigerator','toilet']

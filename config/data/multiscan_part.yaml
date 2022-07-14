@@ -1,0 +1,10 @@
+# Managed by Hydra
+
+defaults:
+  - base
+
+
+dataset: MultiScan_Obj
+classes: 5
+ignore_classes: []
+class_names: ['static_part', 'door', 'drawer', 'window', 'lid']
