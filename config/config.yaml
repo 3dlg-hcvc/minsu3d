@@ -1,6 +1,6 @@
 # Managed by Hydra
 
-ROOT_PATH: /home/eamonn/Research/pointgroup-minkowski #TODO
+ROOT_PATH: /localhome/yza440/Research/pointgroup-minkowski #TODO
 DATA_PATH: ${ROOT_PATH}/data
 
 SCANNETV2_PATH:

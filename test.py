@@ -6,7 +6,8 @@ import os
 
 
 def init_model(cfg):
-    return getattr(import_module("model"), cfg.model.model.module)(cfg.model.model, cfg.data, cfg.model.optimizer, cfg.model.lr_decay, cfg.model.inference)
+    return getattr(import_module("model"), cfg.model.model.module) \
+        (cfg.model.model, cfg.data, cfg.model.optimizer, cfg.model.lr_decay, cfg.model.inference)
 
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
@@ -14,10 +15,11 @@ def main(cfg):
     print("=> initializing trainer...")
     trainer = pl.Trainer(gpus=1, num_nodes=1, max_epochs=1, logger=False)
 
-    cfg.general.output_root = os.path.join(cfg.ROOT_PATH, cfg.general.output_root, cfg.data.dataset,
-                                           cfg.model.model.module, "test")
+    cfg.general.output_root = os.path.join(cfg.ROOT_PATH, cfg.general.output_root,
+                                           cfg.data.dataset, cfg.model.model.module,
+                                           cfg.model.model.experiment_name, "inference", cfg.model.model.inference.split)
     cfg.model.inference.output_dir = os.path.join(cfg.general.output_root, "predictions")
-    os.makedirs(cfg.general.output_root, exist_ok=True)
+    os.makedirs(cfg.model.inference.output_dir, exist_ok=True)
 
     print("==> initializing data ...")
     data_module = DataModule(cfg)

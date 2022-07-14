@@ -40,7 +40,8 @@ def main(cfg):
     pl.seed_everything(cfg.general.global_seed, workers=True)
 
     cfg.general.output_root = os.path.join(cfg.ROOT_PATH, cfg.general.output_root,
-                                           cfg.data.dataset, cfg.model.model.module, "train")
+                                           cfg.data.dataset, cfg.model.model.module,
+                                           cfg.model.model.experiment_name, "train")
     os.makedirs(cfg.general.output_root, exist_ok=True)
 
     print("==> initializing data ...")

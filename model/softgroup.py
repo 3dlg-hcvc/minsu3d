@@ -1,6 +1,4 @@
 import os
-
-import numpy as np
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
@@ -417,16 +415,12 @@ class SoftGroup(pl.LightningModule):
         score_pred = torch.cat(score_pred_list).numpy()
         mask_pred = torch.cat(mask_pred_list).numpy()
 
-        instances = []
+        pred_instances = []
         for i in range(cls_pred.shape[0]):
-            pred = {}
-            pred['scan_id'] = scan_id
-            pred['label_id'] = cls_pred[i]
-            pred['conf'] = score_pred[i]
-            pred['pred_mask'] = mask_pred[i]
-            pred_inst = gt_xyz[mask_pred[i]]
-            pred['pred_bbox'] = np.concatenate((pred_inst.min(0), pred_inst.max(0)))
-            instances.append(pred)
-        return instances
+            pred = {'scan_id': scan_id, 'label_id': cls_pred[i], 'conf': score_pred[i], 'pred_mask': mask_pred[i]}
+            pred_xyz = gt_xyz[mask_pred[i]]
+            pred['pred_bbox'] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
+            pred_instances.append(pred)
+        return pred_instances
 
 

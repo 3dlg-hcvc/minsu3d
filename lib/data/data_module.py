@@ -18,7 +18,7 @@ class DataModule(pl.LightningDataModule):
             self.train_set = self.dataset(self.data_cfg, "train")
             self.val_set = self.dataset(self.data_cfg, "val")
         if stage == "test" or stage is None:
-            self.val_set = self.dataset(self.data_cfg, "val")
+            self.val_set = self.dataset(self.data_cfg, self.data_cfg.model.model.inference.split)
         if stage == "predict" or stage is None:
             self.test_set = self.dataset(self.data_cfg, "test")
 

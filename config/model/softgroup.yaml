@@ -6,7 +6,7 @@ defaults:
 log:
   WandbLogger:
     project: SoftGroup
-    name: run_1
+    name: ${model.experiment_name}
   TensorBoardLogger:
     name: SoftGroup
 
@@ -18,6 +18,7 @@ lr_decay:
 
 model:
   module: SoftGroup
+  experiment_name: run_1
 
   m: 32 # 16 or 32
   blocks: [1, 2, 3, 4, 5, 6, 7]
@@ -28,8 +29,6 @@ model:
   use_color: True
   use_multiview: False
   use_normal: False
-  crop_bbox: False
-  pred_bbox: False
 
   pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
   pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]

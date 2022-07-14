@@ -6,15 +6,16 @@ defaults:
 log:
   WandbLogger:
     project: PointGroup
-    name: run_1
+    name: ${model.experiment_name}
   TensorBoardLogger:
     name: PointGroup
 
 trainer:
-  max_epochs: 512
+  max_epochs: 496
 
 model:
   module: PointGroup
+  experiment_name: run_1
 
   m: 16 # 16 or 32
   blocks: [1, 2, 3, 4, 5, 6, 7]
@@ -25,8 +26,6 @@ model:
   use_color: True
   use_multiview: False
   use_normal: False
-  crop_bbox: False
-  pred_bbox: False
 
   fg_thresh: 0.75
   bg_thresh: 0.25
