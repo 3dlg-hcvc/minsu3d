@@ -1,25 +1,43 @@
-'''
+"""
 REFERENCE TO https://github.com/facebookresearch/votenet/blob/master/scannet/load_scannet_data.py
-'''
+"""
 
 import json, argparse, os
 from omegaconf import OmegaConf
 import numpy as np
 import torch
-import scannet_utils
 from plyfile import PlyData
 import open3d as o3d
 
 IGNORE_CLASS_IDS = np.array([1, 2, 22])  # exclude wall, floor and ceiling
 
 LABEL_MAP_FILE = 'meta_data/scannetv2-labels.combined.tsv'
+G_LABEL_NAMES = ['unannotated', 'wall', 'floor', 'chair', 'table', 'desk', 'bed', 'bookshelf', 'sofa', 'sink', 'bathtub', 'toilet', 'curtain', 'counter', 'door', 'window', 'shower curtain', 'refridgerator', 'picture', 'cabinet', 'otherfurniture']
 
-OBJECT_MAPPING = scannet_utils.get_raw2scannetv2_label_map()
 
 # Map relevant classes to {0,1,...,19}, and ignored classes to -1
 remapper = np.full(shape=150, fill_value=-1, dtype=np.int32)
 for label, nyu40id in enumerate([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39]):
     remapper[nyu40id] = label
+
+
+def get_raw2scannetv2_label_map():
+    lines = [line.rstrip() for line in open(LABEL_MAP_FILE)]
+    lines = lines[1:]
+    raw2scannet = {}
+    for i in range(len(lines)):
+        label_classes_set = set(G_LABEL_NAMES)
+        elements = lines[i].split('\t')
+        raw_name = elements[1]
+        nyu40_name = elements[7]
+        if nyu40_name not in label_classes_set:
+            raw2scannet[raw_name] = 'unannotated'
+        else:
+            raw2scannet[raw_name] = nyu40_name
+    return raw2scannet
+
+
+OBJECT_MAPPING = get_raw2scannetv2_label_map()
 
 
 def read_mesh_file(mesh_file, axis_align_matrix):
