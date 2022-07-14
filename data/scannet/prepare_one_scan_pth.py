@@ -2,12 +2,14 @@
 REFERENCE TO https://github.com/facebookresearch/votenet/blob/master/scannet/load_scannet_data.py
 """
 
-import json, argparse, os
-from omegaconf import OmegaConf
+import json, os
+import hydra
 import numpy as np
 import torch
 from plyfile import PlyData
 import open3d as o3d
+from multiprocessing import Pool
+from functools import partial
 
 IGNORE_CLASS_IDS = np.array([1, 2, 22])  # exclude wall, floor and ceiling
 
@@ -113,7 +115,6 @@ def get_instance_ids(objectId2segs, seg2verts, sem_labels):
         if objectId not in object_id2label_id:
             object_id2label_id[objectId] = sem_labels[verts][0]
 
-        # assert(len(np.unique(sem_labels[pointids])) == 1)
     return instance_ids, object_id2label_id
 
 
@@ -139,11 +140,11 @@ def get_instance_bboxes(xyz, instance_ids, object_id2label_id):
 
 
 def export(scene, cfg):
-    mesh_file_path = os.path.join(cfg.SCANNETV2_PATH.raw_scans, scene, scene + '_vh_clean_2.ply')
-    label_file_path = os.path.join(cfg.SCANNETV2_PATH.raw_scans, scene, scene + '_vh_clean_2.labels.ply')
-    agg_file_path = os.path.join(cfg.SCANNETV2_PATH.raw_scans, scene, scene + '.aggregation.json')
-    seg_file_path = os.path.join(cfg.SCANNETV2_PATH.raw_scans, scene, scene + '_vh_clean_2.0.010000.segs.json')
-    meta_file_path = os.path.join(cfg.SCANNETV2_PATH.raw_scans, scene, scene + '.txt')
+    mesh_file_path = os.path.join(cfg.raw_scan_path, scene, scene + '_vh_clean_2.ply')
+    label_file_path = os.path.join(cfg.raw_scan_path, scene, scene + '_vh_clean_2.labels.ply')
+    agg_file_path = os.path.join(cfg.raw_scan_path, scene, scene + '.aggregation.json')
+    seg_file_path = os.path.join(cfg.raw_scan_path, scene, scene + '_vh_clean_2.0.010000.segs.json')
+    meta_file_path = os.path.join(cfg.raw_scan_path, scene, scene + '.txt')
 
     # read meta_file
     axis_align_matrix = read_axis_align_matrix(meta_file_path)
@@ -169,31 +170,42 @@ def export(scene, cfg):
         # print("use placeholders")
         sem_labels = np.zeros(shape=num_verts, dtype=np.int32)  # 0: unannotated
         instance_ids = np.full(shape=num_verts, fill_value=-1, dtype=np.int32)  # -1: unannotated
-        aligned_instance_bboxes = np.zeros((1, 8))
+        aligned_instance_bboxes = np.zeros(shape=(1, 8), dtype=np.float32)
     sem_labels = remapper[sem_labels]
     return xyz, rgb, normal, sem_labels, instance_ids, aligned_instance_bboxes
 
 
-def process_one_scan(scan, cfg):
+def process_one_scan(scan, cfg, split):
     xyz, rgb, normal, sem_labels, instance_ids, aligned_instance_bboxes = export(scan, cfg)
 
-    if aligned_instance_bboxes.shape[0] > 1:
-        bbox_mask = np.logical_not(np.in1d(aligned_instance_bboxes[:, -2],
-                                           IGNORE_CLASS_IDS))  # match the mesh2cap; not care wall, floor and ceiling for instances
-        aligned_instance_bboxes = aligned_instance_bboxes[bbox_mask, :]
+    # match the mesh2cap; not care wall, floor and ceiling for instances
+    bbox_mask = np.logical_not(np.in1d(aligned_instance_bboxes[:, -2], IGNORE_CLASS_IDS))
+    aligned_instance_bboxes = aligned_instance_bboxes[bbox_mask, :]
 
     torch.save({'xyz': xyz, 'rgb': rgb, 'normal': normal, 'sem_labels': sem_labels, 'instance_ids': instance_ids,
                 'aligned_instance_bboxes': aligned_instance_bboxes},
-               os.path.join(cfg.SCANNETV2_PATH.splited_data, cfg.split, scan + '.pth'))
+               os.path.join(cfg.data.dataset_path, split, f"{scan}.pth"))
+
+
+@hydra.main(version_base=None, config_path="../../config", config_name="config")
+def main(cfg):
+    cfg.project_root_path = cfg.project_root_path.rsplit("/", 2)[0]  # hack the root path
+
+    os.makedirs(os.path.join(cfg.data.dataset_path, "train"), exist_ok=True)
+    os.makedirs(os.path.join(cfg.data.dataset_path, "val"), exist_ok=True)
+
+    with open(cfg.data.metadata.train_list) as f:
+        train_list = [line.strip() for line in f]
+
+    with open(cfg.data.metadata.val_list) as f:
+        val_list = [line.strip() for line in f]
+
+    with Pool() as pool:
+        print("==> Processing train split ...")
+        pool.map(partial(process_one_scan, cfg=cfg, split="train"), train_list)
+        print("==> Processing val split ...")
+        pool.map(partial(process_one_scan, cfg=cfg, split="val"), val_list)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--id', help='scan id', required=True)
-    parser.add_argument('-s', '--split', help='data split (train / val / test)', default='train')
-    parser.add_argument('-c', '--cfg', help='configuration YAML file', default='../../conf/path.yaml')
-    opt = parser.parse_args()
-    cfg = OmegaConf.load(opt.cfg)
-    cfg.split = opt.split
-    os.makedirs(os.path.join(cfg.SCANNETV2_PATH, cfg.split), exist_ok=True)
-    process_one_scan(opt.id, cfg)
+    main()

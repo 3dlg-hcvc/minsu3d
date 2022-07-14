@@ -1,5 +1,8 @@
 # Managed by Hydra
 
+hydra:
+  output_subdir: null
+
 defaults:
   - _self_
   - data: base
