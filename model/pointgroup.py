@@ -13,6 +13,7 @@ from lib.util.eval import get_nms_instances
 from model.module import Backbone, TinyUnet
 from lib.optimizer import init_optimizer, cosine_lr_decay
 from lib.evaluation.semantic_segmentation import *
+from tqdm import tqdm
 
 
 class PointGroup(pl.LightningModule):
@@ -264,18 +265,21 @@ class PointGroup(pl.LightningModule):
                 os.makedirs(inst_pred_masks_path, exist_ok=True)
                 scan_instance_count = {}
 
-                for preds in all_pred_insts:
+                for preds in tqdm(all_pred_insts, desc="==> Saving predictions ..."):
+                    tmp_info = []
+                    scan_id = preds[0]["scan_id"]
                     for pred in preds:
-                        scan_id = pred["scan_id"]
                         if scan_id not in scan_instance_count:
                             scan_instance_count[scan_id] = 0
-                        with open(os.path.join(inst_pred_path, f"{scan_id}.txt"), "a") as f:
-                            f.write(
-                                f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {pred['label_id']} {pred['conf']:.4f}\n")
+                        tmp_info.append(
+                            f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {pred['label_id']} {pred['conf']:.4f}\n")
                         np.savetxt(
                             os.path.join(inst_pred_masks_path, f"{scan_id}_{scan_instance_count[scan_id]:03d}.txt"),
                             pred["pred_mask"], fmt="%d")
                         scan_instance_count[scan_id] += 1
+                    with open(os.path.join(inst_pred_path, f"{scan_id}.txt"), "w") as f:
+                        for mask_info in tmp_info:
+                            f.write(mask_info)
                 self.print(f"\nPredictions saved at {inst_pred_path}\n")
 
             if self.hparams.inference.evaluate:
