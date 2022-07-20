@@ -12,6 +12,7 @@ metadata:
   val_list: ${data.metadata.metadata_path}/scannetv2_val.txt
   test_list: ${data.metadata.metadata_path}/scannetv2_test.txt
   combine_file: ${data.metadata.metadata_path}/scannetv2-labels.combined.tsv
+  multiview_file: ${data.dataset_path}/enet_feats_maxpool.hdf5
 
 classes: 20
 ignore_classes: [0, 1]

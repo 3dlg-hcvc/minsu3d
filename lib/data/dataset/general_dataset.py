@@ -2,6 +2,7 @@ import os
 from tqdm import tqdm
 import numpy as np
 import torch
+import h5py
 from torch.utils.data import Dataset
 from lib.util.pc import crop
 from lib.util.transform import jitter, flip, rotz, elastic
@@ -107,6 +108,8 @@ class GeneralDataset(Dataset):
         points = scene["xyz"]  # (N, 3)
         colors = scene["rgb"]  # (N, 3)
         normals = scene["normal"]
+        if self.cfg.model.model.use_multiview:
+            multiviews = h5py.File(self.cfg.data.metadata.multiview_file, "r", libver="latest")
         instance_ids = scene["instance_ids"]
         sem_labels = scene["sem_labels"]
         data = {"scan_id": scan_id}
@@ -162,6 +165,8 @@ class GeneralDataset(Dataset):
             feats = np.concatenate((feats, colors), axis=1)
         if self.cfg.model.model.use_normal:
             feats = np.concatenate((feats, normals), axis=1)
+        if self.cfg.model.model.use_multiview:
+            feats = np.concatenate((feats, multiviews), axis=1)
 
         data["locs"] = points  # (N, 3)
         data["locs_scaled"] = scaled_points  # (N, 3)
