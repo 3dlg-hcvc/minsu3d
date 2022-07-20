@@ -18,7 +18,7 @@ class SoftGroup(pl.LightningModule):
     def __init__(self, model, data, optimizer, lr_decay, inference=None):
         super().__init__()
         self.save_hyperparameters()
-        input_channel = model.use_coord * 3 + model.use_color * 3 + model.use_normal * 3
+        input_channel = model.use_coord * 3 + model.use_color * 3 + model.use_normal * 3 + model.use_multiview * 128
         output_channel = model.m
         semantic_classes = data.classes
         self.instance_classes = semantic_classes - len(data.ignore_classes)
