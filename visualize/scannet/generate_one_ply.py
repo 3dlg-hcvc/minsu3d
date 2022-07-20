@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import colorsys
 import random
 
-# both functions referenced from https://github.com/choumin/ncolors/blob/master/ncolors.py
+# The following two functions referenced from https://github.com/choumin/ncolors/blob/master/ncolors.py
 def get_n_hls_colors(num):
     hls_colors = []
     i = 0
@@ -25,7 +25,6 @@ def get_n_hls_colors(num):
         _hlsc = [h / 360.0, l / 100.0, s / 100.0]
         hls_colors.append(_hlsc)
         i += step
-
     return hls_colors
 def ncolors(num):
     rgb_colors = []
