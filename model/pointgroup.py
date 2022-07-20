@@ -229,7 +229,7 @@ class PointGroup(pl.LightningModule):
     def test_step(self, data_dict, idx):
         # prepare input and forward
         output_dict = self._feed(data_dict)
-        return output_dict
+        return data_dict, output_dict
 
     def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
         # prepare input and forward
