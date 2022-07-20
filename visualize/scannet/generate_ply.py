@@ -34,4 +34,5 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output_dir', type=str, default='output_ply', help='Spiciy the directory of the output ply')
     args = parser.parse_args()
     args.rgb_file_dir = os.path.join(args.rgb_file_dir, args.split)
+    args.output_dir = os.path.join(args.output_dir, args.mode)
     generate_pred_inst_ply(args)

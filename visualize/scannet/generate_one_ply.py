@@ -88,7 +88,7 @@ SEMANTIC_IDX2NAME = {
 }
 
 def generate_single_ply(args):
-    args.output_dir = os.path.join(args.output_dir, args.mode)
+
     os.makedirs(args.output_dir, exist_ok=True)
     rgb_file = os.path.join(args.rgb_file_dir, f'{args.scene_id}.pth')
     pred_sem_file = os.path.join(args.predict_dir, f'{args.scene_id}.txt')
@@ -149,4 +149,5 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--type', type=str, default='pointcloud', help='specify type of ply: pointcloud | mesh')
     parser.add_argument('-o', '--output_dir', type=str, default='output_ply', help='Spiciy the directory of the output ply')
     args = parser.parse_args()
+    args.output_dir = os.path.join(args.output_dir, args.mode)
     generate_pred_inst_ply(args)
