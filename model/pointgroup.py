@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 
 class PointGroup(pl.LightningModule):
-    def __init__(self, model, data, optimizer, lr_decay):
+    def __init__(self, model, data, optimizer, lr_decay, inference=None):
         super().__init__()
         self.save_hyperparameters()
 
