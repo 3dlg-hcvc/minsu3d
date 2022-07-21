@@ -4,7 +4,7 @@ import torch
 from lib.callback import *
 import pytorch_lightning as pl
 from importlib import import_module
-from pytorch_lightning.callbacks import DeviceStatsMonitor, ModelCheckpoint, LearningRateMonitor
+from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from lib.data.data_module import DataModule
 
 
@@ -12,10 +12,9 @@ def init_callbacks(cfg):
     checkpoint_monitor = ModelCheckpoint(dirpath=cfg.exp_output_root_path,
                                          filename=f"{cfg.model.model.module}-{cfg.data.dataset}" + "-{epoch}",
                                          **cfg.model.checkpoint_monitor)
-    gpu_stats_monitor = DeviceStatsMonitor()
     gpu_cache_clean_monitor = GPUCacheCleanCallback()
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
-    return [checkpoint_monitor, gpu_stats_monitor, gpu_cache_clean_monitor, lr_monitor]
+    return [checkpoint_monitor, gpu_cache_clean_monitor, lr_monitor]
 
 
 def init_model(cfg):
