@@ -172,23 +172,10 @@ class PointGroup(pl.LightningModule):
         cosine_lr_decay(self.trainer.optimizers[0], self.hparams.optimizer.lr, self.current_epoch,
                         self.hparams.lr_decay.decay_start_epoch, self.hparams.lr_decay.decay_stop_epoch, 1e-6)
 
-
     def validation_step(self, data_dict, idx):
         # prepare input and forward
         output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
-
-        # save tensor in cpu for evaluation
-        for key, value in output_dict.items():
-            output_dict[key] = value.cpu()
-
-        cpu_data_dict = {}
-        cpu_data_dict["scan_ids"] = data_dict["scan_ids"]
-        cpu_data_dict["locs"] = data_dict["locs"].cpu()
-        cpu_data_dict["sem_labels"] = data_dict["sem_labels"].cpu()
-        cpu_data_dict["instance_ids"] = data_dict["instance_ids"].cpu()
-        cpu_data_dict["instance_semantic_cls"] = data_dict["instance_semantic_cls"].cpu()
-        cpu_data_dict["instance_bboxes"] = data_dict["instance_bboxes"].cpu()
 
         # log losses
         self.log("val/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
@@ -196,15 +183,26 @@ class PointGroup(pl.LightningModule):
             self.log(f"val/{key}", value, on_step=False, on_epoch=True, sync_dist=True)
 
         # log semantic prediction accuracy
-        semantic_predictions = output_dict["semantic_scores"].max(1)[1].numpy()
-        semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, cpu_data_dict["sem_labels"].numpy(),
+        semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
+        semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
                                                        ignore_label=self.hparams.data.ignore_label)
-        semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, cpu_data_dict["sem_labels"].numpy(),
+        semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
                                                    ignore_label=self.hparams.data.ignore_label)
         self.log("val_accuracy/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True)
         self.log("val_accuracy/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True)
 
-        return cpu_data_dict, output_dict
+        if self.current_epoch > self.hparams.model.prepare_epochs:
+            pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
+                                                      data_dict["locs"].cpu().numpy(),
+                                                      output_dict["proposal_scores"][0].cpu(),
+                                                      output_dict["proposal_scores"][1].cpu(),
+                                                      output_dict["proposal_scores"][2].size(0) - 1,
+                                                      output_dict["semantic_scores"].cpu())
+            gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(), self.hparams.data.ignore_classes)
+            gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
+                                            data_dict["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
+
+            return pred_instances, gt_instances, gt_instances_bbox
 
     def validation_epoch_end(self, outputs):
         # evaluate instance predictions
@@ -212,16 +210,7 @@ class PointGroup(pl.LightningModule):
             all_pred_insts = []
             all_gt_insts = []
             all_gt_insts_bbox = []
-            for batch, output in outputs:
-                pred_instances = self._get_pred_instances(batch["scan_ids"][0],
-                                                          batch["locs"].numpy(),
-                                                          output["proposal_scores"][0],
-                                                          output["proposal_scores"][1],
-                                                          output["proposal_scores"][2].size(0) - 1,
-                                                          output["semantic_scores"])
-                gt_instances = get_gt_instances(batch["sem_labels"], batch["instance_ids"], self.hparams.data.ignore_classes)
-                gt_instances_bbox = get_gt_bbox(batch["instance_semantic_cls"].numpy(),
-                                                batch["instance_bboxes"].numpy(), self.hparams.data.ignore_label)
+            for pred_instances, gt_instances, gt_instances_bbox in outputs:
                 all_gt_insts_bbox.append(gt_instances_bbox)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
@@ -242,37 +231,32 @@ class PointGroup(pl.LightningModule):
         # prepare input and forward
         output_dict = self._feed(data_dict)
 
-        # save tensor in cpu for evaluation
-        for key, value in output_dict.items():
-            output_dict[key] = value.cpu()
+        sem_labels_cpu = data_dict["sem_labels"].cpu()
+        semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
+        semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions,
+                                                       sem_labels_cpu.numpy(),
+                                                       ignore_label=self.hparams.data.ignore_label)
+        semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, sem_labels_cpu.numpy(),
+                                                   ignore_label=self.hparams.data.ignore_label)
 
-        cpu_data_dict = {}
-        cpu_data_dict["scan_ids"] = data_dict["scan_ids"]
-        cpu_data_dict["locs"] = data_dict["locs"].cpu()
-        cpu_data_dict["sem_labels"] = data_dict["sem_labels"].cpu()
-        cpu_data_dict["instance_ids"] = data_dict["instance_ids"].cpu()
-        cpu_data_dict["instance_semantic_cls"] = data_dict["instance_semantic_cls"].cpu()
-        cpu_data_dict["instance_bboxes"] = data_dict["instance_bboxes"].cpu()
+        if self.current_epoch > self.hparams.model.prepare_epochs:
+            pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
+                                                      data_dict["locs"].cpu().numpy(),
+                                                      output_dict["proposal_scores"][0].cpu(),
+                                                      output_dict["proposal_scores"][1].cpu(),
+                                                      output_dict["proposal_scores"][2].size(0) - 1,
+                                                      output_dict["semantic_scores"].cpu())
+            gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
+                                            self.hparams.data.ignore_classes)
+            gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
+                                            data_dict["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
 
-        return cpu_data_dict, output_dict
+            return semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox
 
     def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
         # prepare input and forward
         output_dict = self._feed(data_dict)
 
-        # save tensor in cpu for evaluation
-        for key, value in output_dict.items():
-            output_dict[key] = value.cpu()
-
-        cpu_data_dict = {}
-        cpu_data_dict["scan_ids"] = data_dict["scan_ids"]
-        cpu_data_dict["locs"] = data_dict["locs"].cpu()
-        cpu_data_dict["sem_labels"] = data_dict["sem_labels"].cpu()
-        cpu_data_dict["instance_ids"] = data_dict["instance_ids"].cpu()
-        cpu_data_dict["instance_semantic_cls"] = data_dict["instance_semantic_cls"].cpu()
-        cpu_data_dict["instance_bboxes"] = data_dict["instance_bboxes"].cpu()
-
-        return cpu_data_dict, output_dict
 
     def test_epoch_end(self, results):
         # evaluate instance predictions
@@ -282,17 +266,9 @@ class PointGroup(pl.LightningModule):
             all_gt_insts_bbox = []
             all_sem_acc = []
             all_sem_miou = []
-            for batch, output in results:
-                pred_instances = self._get_pred_instances(batch["scan_ids"][0],
-                                                          batch["locs"].numpy(),
-                                                          output["proposal_scores"][0],
-                                                          output["proposal_scores"][1],
-                                                          output["proposal_scores"][2].size(0) - 1,
-                                                          output["semantic_scores"])
-                gt_instances = get_gt_instances(batch["sem_labels"], batch["instance_ids"],
-                                                self.hparams.data.ignore_classes)
-                gt_instances_bbox = get_gt_bbox(batch["instance_semantic_cls"].numpy(),
-                                                batch["instance_bboxes"].numpy(), self.hparams.data.ignore_label)
+            for semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox in results:
+                all_sem_acc.append(semantic_accuracy)
+                all_sem_miou.append(semantic_mean_iou)
                 all_gt_insts_bbox.append(gt_instances_bbox)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
