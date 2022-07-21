@@ -161,7 +161,7 @@ class GeneralDataset(Dataset):
             instance_ids = self._get_cropped_inst_ids(instance_ids, valid_idxs)
 
         num_instance, instance_info, instance_num_point, instance_semantic_cls, instance_bboxes = self._get_inst_info(
-            points, instance_ids.astype(np.int32), sem_labels)
+            points, instance_ids, sem_labels)
 
         feats = np.zeros(shape=(len(scaled_points), 0), dtype=np.float32)
         if self.cfg.model.model.use_color:

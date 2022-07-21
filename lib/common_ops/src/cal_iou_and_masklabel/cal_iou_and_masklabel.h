@@ -11,17 +11,17 @@ Get the IoU between predictions and gt masks
 
 void get_mask_iou_on_cluster_cuda(int nInstance, int nProposal,
                                   int *proposals_idx, int *proposals_offset,
-                                  long *instance_labels, int *instance_pointnum,
+                                  int *instance_labels, int *instance_pointnum,
                                   float *proposals_iou);
 
 void get_mask_iou_on_pred_cuda(int nInstance, int nProposal, int *proposals_idx,
-                               int *proposals_offset, long *instance_labels,
+                               int *proposals_offset, int *instance_labels,
                                int *instance_pointnum, float *proposals_iou,
                                float *mask_scores_sigmoid);
 
 void get_mask_label_cuda(int nInstance, int nProposal, float iou_thr,
                          int *proposals_idx, int *proposals_offset,
-                         long *instance_labels, long *instance_cls,
+                         int *instance_labels, int *instance_cls,
                          float *proposals_iou, float *mask_label);
 
 void get_mask_iou_on_cluster(at::Tensor proposals_idx_tensor,

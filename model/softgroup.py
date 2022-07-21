@@ -154,7 +154,7 @@ class SoftGroup(pl.LightningModule):
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
         sem_seg_criterion = SemSegLoss(self.hparams.data.ignore_label)
-        semantic_loss = sem_seg_criterion(output_dict["semantic_scores"], data_dict["sem_labels"])
+        semantic_loss = sem_seg_criterion(output_dict["semantic_scores"], data_dict["sem_labels"].long())
         losses["semantic_loss"] = semantic_loss
 
         """offset loss"""
@@ -283,10 +283,10 @@ class SoftGroup(pl.LightningModule):
                                                       output_dict["iou_scores"].cpu(),
                                                       output_dict["mask_scores"].cpu())
             gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(), self.hparams.data.ignore_classes)
-            gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(), data_dict["instance_bboxes"].cpu().numpy(),
-                                            self.hparams.data.ignore_label)
+            # gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(), data_dict["instance_bboxes"].cpu().numpy(),
+            #                                 self.hparams.data.ignore_label)
 
-            return pred_instances, gt_instances, gt_instances_bbox
+            return pred_instances, gt_instances
 
     def validation_epoch_end(self, outputs):
         # evaluate instance predictions
@@ -299,17 +299,17 @@ class SoftGroup(pl.LightningModule):
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
 
-            inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names)
-            inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
-
-            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=False)
-
-            self.log("val_accuracy/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
-            self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
-            self.log("val_accuracy/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
-
-            self.log("val_accuracy/Bounding Box AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"]["avg"], sync_dist=True)
-            self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"]["avg"], sync_dist=True)
+            # inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names)
+            # inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
+            #
+            # obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=False)
+            #
+            # self.log("val_accuracy/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
+            # self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
+            # self.log("val_accuracy/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
+            #
+            # self.log("val_accuracy/Bounding Box AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"]["avg"], sync_dist=True)
+            # self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"]["avg"], sync_dist=True)
 
     def test_step(self, data_dict, idx):
         # prepare input and forward

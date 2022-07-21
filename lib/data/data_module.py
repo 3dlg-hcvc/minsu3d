@@ -107,12 +107,12 @@ def sparse_collate_fn(batch):
     data["vert_batch_ids"] = torch.cat(vert_batch_ids, dim=0)
     data["feats"] = torch.cat(feats, dim=0)
 
-    data["sem_labels"] = torch.cat(sem_labels, dim=0).long()  # long (N,)
-    data["instance_ids"] = torch.cat(instance_ids, dim=0).long()  # long, (N,)
+    data["sem_labels"] = torch.cat(sem_labels, dim=0)  # int (N,)
+    data["instance_ids"] = torch.cat(instance_ids, dim=0)  # int, (N,)
     data["instance_info"] = torch.cat(instance_info, dim=0)  # float (total_nInst, 3)
     data["instance_num_point"] = torch.cat(instance_num_point, dim=0)  # (total_nInst)
     data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int32)  # int (B+1)
-    data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.long)  # long (total_nInst)
+    data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.int32)  # long (total_nInst)
     data["instance_bboxes"] = torch.tensor(instance_bboxes, dtype=torch.float32)
 
     # voxelize

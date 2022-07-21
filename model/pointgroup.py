@@ -117,7 +117,7 @@ class PointGroup(pl.LightningModule):
         # semantic_scores: (N, nClass), float32, cuda
         # semantic_labels: (N), long, cuda
         sem_seg_criterion = SemSegLoss(self.hparams.data.ignore_label)
-        semantic_loss = sem_seg_criterion(output_dict["semantic_scores"], data_dict["sem_labels"])
+        semantic_loss = sem_seg_criterion(output_dict["semantic_scores"], data_dict["sem_labels"].long())
         losses["semantic_loss"] = semantic_loss
 
         """offset loss"""
