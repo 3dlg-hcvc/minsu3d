@@ -178,13 +178,17 @@ class PointGroup(pl.LightningModule):
         output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
 
+        # save tensor in cpu for evaluation
+        for key, value in output_dict.items():
+            output_dict[key] = value.cpu()
+
         # log losses
         self.log("val/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
         for key, value in losses.items():
             self.log(f"val/{key}", value, on_step=False, on_epoch=True, sync_dist=True)
 
         # log semantic prediction accuracy
-        semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
+        semantic_predictions = output_dict["semantic_scores"].max(1)[1].numpy()
         semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
                                                        ignore_label=self.hparams.data.ignore_label)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
@@ -203,10 +207,10 @@ class PointGroup(pl.LightningModule):
             for batch, output in outputs:
                 pred_instances = self._get_pred_instances(batch["scan_ids"][0],
                                                           batch["locs"].cpu().numpy(),
-                                                          output["proposal_scores"][0].cpu(),
-                                                          output["proposal_scores"][1].cpu(),
+                                                          output["proposal_scores"][0],
+                                                          output["proposal_scores"][1],
                                                           output["proposal_scores"][2].size(0) - 1,
-                                                          output["semantic_scores"].cpu())
+                                                          output["semantic_scores"])
                 gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.data.ignore_classes)
                 gt_instances_bbox = get_gt_bbox(batch["instance_semantic_cls"].cpu().numpy(),
                                                 batch["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
@@ -229,11 +233,21 @@ class PointGroup(pl.LightningModule):
     def test_step(self, data_dict, idx):
         # prepare input and forward
         output_dict = self._feed(data_dict)
+
+        # save tensor in cpu for evaluation
+        for key, value in output_dict.items():
+            output_dict[key] = value.cpu()
+
         return data_dict, output_dict
 
     def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
         # prepare input and forward
         output_dict = self._feed(data_dict)
+
+        # save tensor in cpu for evaluation
+        for key, value in output_dict.items():
+            output_dict[key] = value.cpu()
+
         return data_dict, output_dict
 
     def test_epoch_end(self, results):
@@ -247,10 +261,10 @@ class PointGroup(pl.LightningModule):
             for batch, output in results:
                 pred_instances = self._get_pred_instances(batch["scan_ids"][0],
                                                           batch["locs"].cpu().numpy(),
-                                                          output["proposal_scores"][0].cpu(),
-                                                          output["proposal_scores"][1].cpu(),
+                                                          output["proposal_scores"][0],
+                                                          output["proposal_scores"][1],
                                                           output["proposal_scores"][2].size(0) - 1,
-                                                          output["semantic_scores"].cpu())
+                                                          output["semantic_scores"])
                 gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(),
                                                 self.hparams.data.ignore_classes)
                 gt_instances_bbox = get_gt_bbox(batch["instance_semantic_cls"].cpu().numpy(),

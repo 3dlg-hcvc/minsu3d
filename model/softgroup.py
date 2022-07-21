@@ -260,6 +260,10 @@ class SoftGroup(pl.LightningModule):
         output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
 
+        # save tensor in cpu for evaluation
+        for key, value in output_dict.items():
+            output_dict[key] = value.cpu()
+
         # log losses
         self.log("val/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
         for key, value in losses.items():
@@ -285,11 +289,11 @@ class SoftGroup(pl.LightningModule):
             for batch, output in outputs:
                 pred_instances = self._get_pred_instances(batch["scan_ids"][0],
                                                           batch["locs"].cpu().numpy(),
-                                                          output["proposals_idx"].cpu(),
+                                                          output["proposals_idx"],
                                                           output["semantic_scores"].size(0),
-                                                          output["cls_scores"].cpu(),
-                                                          output["iou_scores"].cpu(),
-                                                          output["mask_scores"].cpu())
+                                                          output["cls_scores"],
+                                                          output["iou_scores"],
+                                                          output["mask_scores"])
                 gt_instances = get_gt_instances(batch["sem_labels"].cpu(), batch["instance_ids"].cpu(), self.hparams.data.ignore_classes)
                 gt_instances_bbox = get_gt_bbox(batch["instance_semantic_cls"].cpu().numpy(), batch["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
                 all_gt_insts_bbox.append(gt_instances_bbox)
@@ -311,11 +315,21 @@ class SoftGroup(pl.LightningModule):
     def test_step(self, data_dict, idx):
         # prepare input and forward
         output_dict = self._feed(data_dict)
+
+        # save tensor in cpu for evaluation
+        for key, value in output_dict.items():
+            output_dict[key] = value.cpu()
+
         return data_dict, output_dict
 
     def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
         # prepare input and forward
         output_dict = self._feed(data_dict)
+
+        # save tensor in cpu for evaluation
+        for key, value in output_dict.items():
+            output_dict[key] = value.cpu()
+
         return data_dict, output_dict
 
     def test_epoch_end(self, results):
@@ -328,7 +342,7 @@ class SoftGroup(pl.LightningModule):
             all_sem_miou = []
             for batch, output in results:
                 sem_labels_cpu = batch["sem_labels"].cpu()
-                semantic_predictions = output["semantic_scores"].max(1)[1].cpu().numpy()
+                semantic_predictions = output["semantic_scores"].max(1)[1].numpy()
                 semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions,
                                                                sem_labels_cpu.numpy(),
                                                                ignore_label=self.hparams.data.ignore_label)
@@ -337,11 +351,11 @@ class SoftGroup(pl.LightningModule):
 
                 pred_instances = self._get_pred_instances(batch["scan_ids"][0],
                                                           batch["locs"].cpu().numpy(),
-                                                          output["proposals_idx"].cpu(),
+                                                          output["proposals_idx"],
                                                           output["semantic_scores"].size(0),
-                                                          output["cls_scores"].cpu(),
-                                                          output["iou_scores"].cpu(),
-                                                          output["mask_scores"].cpu())
+                                                          output["cls_scores"],
+                                                          output["iou_scores"],
+                                                          output["mask_scores"])
                 gt_instances = get_gt_instances(sem_labels_cpu, batch["instance_ids"].cpu(),
                                                 self.hparams.data.ignore_classes)
 
