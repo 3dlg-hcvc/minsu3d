@@ -8,8 +8,8 @@ from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from lib.data.data_module import DataModule
 
 
-def init_callbacks(cfg):
-    checkpoint_monitor = ModelCheckpoint(dirpath=cfg.exp_output_root_path,
+def init_callbacks(cfg, output_path):
+    checkpoint_monitor = ModelCheckpoint(dirpath=output_path,
                                          filename=f"{cfg.model.model.module}-{cfg.data.dataset}" + "-{epoch}",
                                          **cfg.model.checkpoint_monitor)
     gpu_cache_clean_monitor = GPUCacheCleanCallback()
@@ -51,7 +51,7 @@ def main(cfg):
         (save_dir=output_path, **cfg.model.log[cfg.model.log.module])
 
     print("==> initializing monitor ...")
-    callbacks = init_callbacks(cfg)
+    callbacks = init_callbacks(cfg, output_path)
 
     print("==> initializing trainer ...")
     trainer = pl.Trainer(callbacks=callbacks, logger=logger, **cfg.model.trainer)
