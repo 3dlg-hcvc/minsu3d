@@ -22,8 +22,9 @@ class GeneralDataset(Dataset):
             "val": cfg.data.metadata.val_list,
             "test": cfg.data.metadata.test_list
         }
-
         self._load_from_disk()
+        if cfg.model.model.use_multiview:
+            self.multiview_hdf5_file = h5py.File(self.cfg.data.metadata.multiview_file, "r", libver="latest")
 
     def _load_from_disk(self):
         with open(self.data_map[self.split]) as f:
@@ -102,17 +103,17 @@ class GeneralDataset(Dataset):
         return num_instance, instance_info, instance_num_point, instance_cls, instance_bboxes
 
     def __getitem__(self, idx):
-        scan_id = self.scene_names[idx]
+        scene_id = self.scene_names[idx]
         scene = self.scenes[idx]
 
         points = scene["xyz"]  # (N, 3)
         colors = scene["rgb"]  # (N, 3)
         normals = scene["normal"]
         if self.cfg.model.model.use_multiview:
-            multiviews = h5py.File(self.cfg.data.metadata.multiview_file, "r", libver="latest")
+            multiviews = self.multiview_hdf5_file[scene_id]
         instance_ids = scene["instance_ids"]
         sem_labels = scene["sem_labels"]
-        data = {"scan_id": scan_id}
+        data = {"scan_id": scene_id}
 
         # augment
         if self.split == "train":
@@ -154,6 +155,8 @@ class GeneralDataset(Dataset):
             points = points[valid_idxs]
             normals = normals[valid_idxs]
             colors = colors[valid_idxs]
+            if self.cfg.model.model.use_multiview:
+                multiviews = np.asarray(multiviews)[valid_idxs]
             sem_labels = sem_labels[valid_idxs]
             instance_ids = self._get_cropped_inst_ids(instance_ids, valid_idxs)
 

@@ -26,9 +26,9 @@ model:
   block_reps: 2
 
   use_coord: True
-  use_color: True
-  use_multiview: False
-  use_normal: False
+  use_color: False
+  use_multiview: True
+  use_normal: True
 
   pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
   pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]
