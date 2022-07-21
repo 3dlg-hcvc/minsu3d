@@ -6,7 +6,7 @@ defaults:
 log:
   WandbLogger:
     project: PointGroup
-    name: ${model.experiment_name}
+    name: ${model.model.experiment_name}
   TensorBoardLogger:
     name: PointGroup
 
