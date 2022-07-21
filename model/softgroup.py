@@ -195,7 +195,7 @@ class SoftGroup(pl.LightningModule):
             labels = fg_instance_cls.new_full((fg_ious_on_cluster.size(0),), self.instance_classes)
             labels[pos_inds] = fg_instance_cls[pos_gt_inds]
             classification_criterion = ClassificationLoss()
-            classification_loss = classification_criterion(output_dict["cls_scores"], labels)
+            classification_loss = classification_criterion(output_dict["cls_scores"], labels.long())
             losses["classification_loss"] = classification_loss
 
             """mask scoring loss"""
