@@ -2,7 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
+from lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances, rle_encode
 from lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
 from lib.common_ops.functions import softgroup_ops
 from lib.common_ops.functions import common_ops
@@ -272,8 +272,8 @@ class SoftGroup(pl.LightningModule):
                                                        ignore_label=self.hparams.data.ignore_label)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
                                                    ignore_label=self.hparams.data.ignore_label)
-        self.log("val_accuracy/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True)
-        self.log("val_accuracy/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True)
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
@@ -284,10 +284,10 @@ class SoftGroup(pl.LightningModule):
                                                       output_dict["iou_scores"].cpu(),
                                                       output_dict["mask_scores"].cpu())
             gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(), self.hparams.data.ignore_classes)
-            # gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(), data_dict["instance_bboxes"].cpu().numpy(),
-            #                                 self.hparams.data.ignore_label)
+            gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(), data_dict["instance_bboxes"].cpu().numpy(),
+                                            self.hparams.data.ignore_label)
 
-            return pred_instances, gt_instances
+            return pred_instances, gt_instances, gt_instances_bbox
 
     def validation_epoch_end(self, outputs):
         # evaluate instance predictions
@@ -300,17 +300,17 @@ class SoftGroup(pl.LightningModule):
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
 
-            # inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names)
-            # inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
-            #
-            # obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=False)
-            #
-            # self.log("val_accuracy/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
-            # self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
-            # self.log("val_accuracy/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
-            #
-            # self.log("val_accuracy/Bounding Box AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"]["avg"], sync_dist=True)
-            # self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"]["avg"], sync_dist=True)
+            inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names)
+            inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
+
+            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=False)
+
+            self.log("val_eval/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
+            self.log("val_eval/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
+            self.log("val_eval/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
+
+            self.log("val_eval/BBox AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"]["avg"], sync_dist=True)
+            self.log("val_eval/BBox AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"]["avg"], sync_dist=True)
 
     def test_step(self, data_dict, idx):
         # prepare input and forward
@@ -372,7 +372,7 @@ class SoftGroup(pl.LightningModule):
                         if scan_id not in scan_instance_count:
                             scan_instance_count[scan_id] = 0
                         tmp_info.append(f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {pred['label_id']} {pred['conf']:.4f}\n")
-                        np.savetxt(os.path.join(inst_pred_masks_path, f"{scan_id}_{scan_instance_count[scan_id]:03d}.txt"), pred["pred_mask"], fmt="%d")
+                        np.savetxt(os.path.join(inst_pred_masks_path, f"{scan_id}_{scan_instance_count[scan_id]:03d}.txt"), rle_decode(pred["pred_mask"]), fmt="%d")
                         scan_instance_count[scan_id] += 1
                     with open(os.path.join(inst_pred_path, f"{scan_id}.txt"), "w") as f:
                         for mask_info in tmp_info:
@@ -426,7 +426,7 @@ class SoftGroup(pl.LightningModule):
 
         pred_instances = []
         for i in range(cls_pred.shape[0]):
-            pred = {'scan_id': scan_id, 'label_id': cls_pred[i], 'conf': score_pred[i], 'pred_mask': mask_pred[i]}
+            pred = {'scan_id': scan_id, 'label_id': cls_pred[i], 'conf': score_pred[i], 'pred_mask': rle_encode(mask_pred[i])}
             pred_xyz = gt_xyz[mask_pred[i]]
             pred['pred_bbox'] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
             pred_instances.append(pred)

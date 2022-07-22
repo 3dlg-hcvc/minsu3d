@@ -2,14 +2,13 @@ import os
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
+from lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances, rle_encode, rle_decode
 from lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
 from lib.common_ops.functions import pointgroup_ops
 from lib.common_ops.functions import common_ops
 from lib.loss import *
 from model.helper import clusters_voxelization, get_batch_offsets
 from lib.loss.utils import get_segmented_scores
-from lib.util.eval import get_nms_instances
 from model.module import Backbone, TinyUnet
 from lib.optimizer import init_optimizer, cosine_lr_decay
 from lib.evaluation.semantic_segmentation import *
@@ -188,8 +187,8 @@ class PointGroup(pl.LightningModule):
                                                        ignore_label=self.hparams.data.ignore_label)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
                                                    ignore_label=self.hparams.data.ignore_label)
-        self.log("val_accuracy/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True)
-        self.log("val_accuracy/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True)
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
@@ -219,12 +218,12 @@ class PointGroup(pl.LightningModule):
 
             obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=False)
 
-            self.log("val_accuracy/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
-            self.log("val_accuracy/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
-            self.log("val_accuracy/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
-            self.log("val_accuracy/Bounding Box AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"]["avg"],
+            self.log("val_eval/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
+            self.log("val_eval/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
+            self.log("val_eval/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
+            self.log("val_eval/BBox AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"]["avg"],
                      sync_dist=True)
-            self.log("val_accuracy/Bounding Box AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"]["avg"],
+            self.log("val_eval/BBox AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"]["avg"],
                      sync_dist=True)
 
     def test_step(self, data_dict, idx):
@@ -289,7 +288,7 @@ class PointGroup(pl.LightningModule):
                             f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {pred['label_id']} {pred['conf']:.4f}\n")
                         np.savetxt(
                             os.path.join(inst_pred_masks_path, f"{scan_id}_{scan_instance_count[scan_id]:03d}.txt"),
-                            pred["pred_mask"], fmt="%d")
+                            rle_decode(pred["pred_mask"]), fmt="%d")
                         scan_instance_count[scan_id] += 1
                     with open(os.path.join(inst_pred_path, f"{scan_id}.txt"), "w") as f:
                         for mask_info in tmp_info:
@@ -306,6 +305,29 @@ class PointGroup(pl.LightningModule):
                 sem_acc_avg = np.mean(np.array(all_sem_acc))
                 self.print(f"Semantic Accuracy: {sem_acc_avg}")
                 self.print(f"Semantic mean IoU: {sem_miou_avg}")
+
+    def _get_nms_instances(self, cross_ious, scores, threshold):
+        """ non max suppression for 3D instance proposals based on cross ious and scores
+
+        Args:
+            ious (np.array): cross ious, (n, n)
+            scores (np.array): scores for each proposal, (n,)
+            threshold (float): iou threshold
+
+        Returns:
+            np.array: idx of picked instance proposals
+        """
+        ixs = np.argsort(-scores)  # descending order
+        pick = []
+        while len(ixs) > 0:
+            i = ixs[0]
+            pick.append(i)
+            ious = cross_ious[i, ixs[1:]]
+            remove_ixs = np.where(ious > threshold)[0] + 1
+            ixs = np.delete(ixs, remove_ixs)
+            ixs = np.delete(ixs, 0)
+
+        return np.array(pick, dtype=np.int32)
 
     def _get_pred_instances(self, scan_id, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores):
         semantic_pred_labels = semantic_scores.max(1)[1]
@@ -337,7 +359,7 @@ class PointGroup(pl.LightningModule):
             proposals_np_repeat_v = proposals_npoint.unsqueeze(0).repeat(proposals_npoint.shape[0], 1)
             cross_ious = intersection / (
                     proposals_np_repeat_h + proposals_np_repeat_v - intersection)  # (nProposal, nProposal), float, cuda
-            pick_idxs = get_nms_instances(cross_ious.numpy(), proposals_score.numpy(),
+            pick_idxs = self._get_nms_instances(cross_ious.numpy(), proposals_score.numpy(),
                                           self.hparams.model.test.TEST_NMS_THRESH)  # int, (nCluster,)
 
         clusters_mask = proposals_mask[pick_idxs].numpy()  # int, (nCluster, N)
@@ -350,7 +372,7 @@ class PointGroup(pl.LightningModule):
             pred['scan_id'] = scan_id
             pred['label_id'] = semantic_pred_labels[cluster_i][0].item() - 1
             pred['conf'] = score_pred[i]
-            pred['pred_mask'] =cluster_i
+            pred['pred_mask'] = rle_encode(cluster_i)
             pred_inst = gt_xyz[cluster_i]
             pred['pred_bbox'] = np.concatenate((pred_inst.min(0), pred_inst.max(0)))
             instances.append(pred)
