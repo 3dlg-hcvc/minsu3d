@@ -70,7 +70,7 @@ void get_mask_label(at::Tensor proposals_idx_tensor,
   int *instance_labels = instance_labels_tensor.data_ptr<int>();
   int *instance_cls = instance_cls_tensor.data_ptr<int>();
   float *proposals_iou = proposals_iou_tensor.data_ptr<float>();
-  float *mask_label = mask_labels_tensor.data_ptr<float>();
+  int8_t *mask_label = mask_labels_tensor.data_ptr<int8_t>();
 
   // input: nInstance (1,), int
   // input: nProposal (1,), int

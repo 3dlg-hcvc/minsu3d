@@ -22,7 +22,7 @@ void get_mask_iou_on_pred_cuda(int nInstance, int nProposal, int *proposals_idx,
 void get_mask_label_cuda(int nInstance, int nProposal, int ignored_label, float iou_thr,
                          int *proposals_idx, int *proposals_offset,
                          int *instance_labels, int *instance_cls,
-                         float *proposals_iou, float *mask_label);
+                         float *proposals_iou, int8_t *mask_label);
 
 void get_mask_iou_on_cluster(at::Tensor proposals_idx_tensor,
                              at::Tensor proposals_offset_tensor,

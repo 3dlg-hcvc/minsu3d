@@ -103,7 +103,7 @@ class GetMaskLabel(Function):
 
         nInstance = instance_pointnum.size(0)
         nProposal = proposals_offset.size(0) - 1
-        mask_label = torch.full(proposals_idx.shape, fill_value=-1, dtype=torch.float32, device="cuda")
+        mask_label = torch.full(proposals_idx.shape, fill_value=-1, dtype=torch.int8, device="cuda")
 
         assert proposals_iou.is_contiguous() and proposals_iou.is_cuda
         assert proposals_idx.is_contiguous() and proposals_idx.is_cuda

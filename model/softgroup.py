@@ -209,10 +209,10 @@ class SoftGroup(pl.LightningModule):
                                                       data_dict["instance_num_point"], ious_on_cluster, self.hparams.data.ignore_label,
                                                       self.hparams.model.train_cfg.pos_iou_thr)
 
-            mask_label_weight = (mask_label != -1).float()
-            mask_label[mask_label == -1.] = 0.5  # any value is ok
+            mask_label_weight = mask_label != -1
+            mask_label[mask_label == -1] = 2  # any value is ok
             mask_scoring_criterion = MaskScoringLoss(weight=mask_label_weight, reduction='sum')
-            mask_scoring_loss = mask_scoring_criterion(mask_scores_sigmoid_slice, mask_label)
+            mask_scoring_loss = mask_scoring_criterion(mask_scores_sigmoid_slice, mask_label.float())
             mask_scoring_loss /= (mask_label_weight.sum() + 1)
             losses["mask_scoring_loss"] = mask_scoring_loss
             """iou scoring loss"""
