@@ -180,7 +180,7 @@ def process_one_scan(scan, cfg, split):
     # match the mesh2cap; not care wall, floor and ceiling for instances
     bbox_mask = np.logical_not(np.in1d(aligned_instance_bboxes[:, -2], IGNORE_CLASS_IDS))
     aligned_instance_bboxes = aligned_instance_bboxes[bbox_mask, :]
-    np.save(os.path.join(cfg.data.dataset_path, split, f"{scan}.pth"), {'xyz': xyz, 'rgb': rgb, 'normal': normal, 'sem_labels': sem_labels, 'instance_ids': instance_ids,
+    np.save(os.path.join(cfg.data.dataset_path, split, f"{scan}{cfg.data.file_suffix}"), {'xyz': xyz, 'rgb': rgb, 'normal': normal, 'sem_labels': sem_labels, 'instance_ids': instance_ids,
                 'aligned_instance_bboxes': aligned_instance_bboxes})
 
 
