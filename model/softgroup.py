@@ -204,16 +204,15 @@ class SoftGroup(pl.LightningModule):
             slice_inds = torch.arange(0, mask_cls_label.size(0), dtype=torch.long, device=mask_cls_label.device)
             mask_scores_sigmoid_slice = output_dict["mask_scores"].sigmoid()[slice_inds, mask_cls_label]
 
-            mask_label = softgroup_ops.get_mask_label(proposals_idx, proposals_offset, data_dict["instance_ids"],
+            mask_label, mask_label_mask = softgroup_ops.get_mask_label(proposals_idx, proposals_offset, data_dict["instance_ids"],
                                                       data_dict["instance_semantic_cls"],
                                                       data_dict["instance_num_point"], ious_on_cluster, self.hparams.data.ignore_label,
                                                       self.hparams.model.train_cfg.pos_iou_thr)
 
-            mask_label_weight = mask_label != -1
-            mask_label[mask_label == -1] = 2  # any value is ok
+            mask_label_weight = mask_label_mask != False
             mask_scoring_criterion = MaskScoringLoss(weight=mask_label_weight, reduction='sum')
             mask_scoring_loss = mask_scoring_criterion(mask_scores_sigmoid_slice, mask_label.float())
-            mask_scoring_loss /= (mask_label_weight.sum() + 1)
+            mask_scoring_loss /= (torch.count_nonzero(mask_label_weight) + 1)
             losses["mask_scoring_loss"] = mask_scoring_loss
             """iou scoring loss"""
             ious = softgroup_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],

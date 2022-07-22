@@ -103,7 +103,8 @@ class GetMaskLabel(Function):
 
         nInstance = instance_pointnum.size(0)
         nProposal = proposals_offset.size(0) - 1
-        mask_label = torch.full(proposals_idx.shape, fill_value=-1, dtype=torch.int8, device="cuda")
+        mask_label = torch.full(proposals_idx.shape, fill_value=0, dtype=torch.bool, device="cuda")
+        mask_label_mask = torch.full(proposals_idx.shape, fill_value=0, dtype=torch.bool, device="cuda")
 
         assert proposals_iou.is_contiguous() and proposals_iou.is_cuda
         assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
@@ -112,9 +113,9 @@ class GetMaskLabel(Function):
         assert instance_cls.is_contiguous() and instance_cls.is_cuda
 
         COMMON_OPS.get_mask_label(proposals_idx, proposals_offset, instance_labels, instance_cls,
-                           proposals_iou, nInstance, nProposal, ignored_label, iou_thr, mask_label)
+                           proposals_iou, nInstance, nProposal, ignored_label, iou_thr, mask_label, mask_label_mask)
 
-        return mask_label
+        return mask_label, mask_label_mask
 
     @staticmethod
     def backward(ctx, a=None):
