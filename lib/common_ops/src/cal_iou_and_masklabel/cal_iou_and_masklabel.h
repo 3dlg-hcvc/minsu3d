@@ -19,7 +19,7 @@ void get_mask_iou_on_pred_cuda(int nInstance, int nProposal, int *proposals_idx,
                                int *instance_pointnum, float *proposals_iou,
                                float *mask_scores_sigmoid);
 
-void get_mask_label_cuda(int nInstance, int nProposal, float iou_thr,
+void get_mask_label_cuda(int nInstance, int nProposal, int ignored_label, float iou_thr,
                          int *proposals_idx, int *proposals_offset,
                          int *instance_labels, int *instance_cls,
                          float *proposals_iou, float *mask_label);
@@ -43,7 +43,7 @@ void get_mask_label(at::Tensor proposals_idx_tensor,
                     at::Tensor instance_labels_tensor,
                     at::Tensor instance_cls_tensor,
                     at::Tensor proposals_iou_tensor, int nInstance,
-                    int nProposal, float iou_thr,
+                    int nProposal, int ignored_label, float iou_thr,
                     at::Tensor mask_labels_tensor);
 
 #endif // CAL_IOU_AND_MASKLABEL_H

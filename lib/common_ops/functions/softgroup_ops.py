@@ -88,7 +88,7 @@ class GetMaskLabel(Function):
 
     @staticmethod
     def forward(ctx, proposals_idx, proposals_offset, instance_labels, instance_cls,
-                instance_pointnum, proposals_iou, iou_thr):
+                instance_pointnum, proposals_iou, ignored_label, iou_thr):
         """
         :param ctx:
         :param proposals_idx: (sumNPoint), int
@@ -112,7 +112,7 @@ class GetMaskLabel(Function):
         assert instance_cls.is_contiguous() and instance_cls.is_cuda
 
         COMMON_OPS.get_mask_label(proposals_idx, proposals_offset, instance_labels, instance_cls,
-                           proposals_iou, nInstance, nProposal, iou_thr, mask_label)
+                           proposals_iou, nInstance, nProposal, ignored_label, iou_thr, mask_label)
 
         return mask_label
 

@@ -72,7 +72,7 @@ get_mask_iou_on_pred_cuda_(int nInstance, int nProposal, int *proposals_idx,
   }
 }
 
-__global__ void get_mask_label_cuda_(int nInstance, int nProposal,
+__global__ void get_mask_label_cuda_(int nInstance, int nProposal, int ignored_label,
                                      float iou_thr, int *proposals_idx,
                                      int *proposals_offset,
                                      int *instance_labels, int *instance_cls,
@@ -88,7 +88,7 @@ __global__ void get_mask_label_cuda_(int nInstance, int nProposal,
     int max_ind = 0;
     for (int instance_id = 0; instance_id < nInstance; instance_id++) {
       if (proposals_iou[proposal_id * nInstance + instance_id] > max_iou) {
-        if (instance_cls[instance_id] != -1) { // TODO: ignored_class
+        if (instance_cls[instance_id] != ignored_label) { // TODO: ignored_class
           max_iou = proposals_iou[proposal_id * nInstance + instance_id];
           max_ind = instance_id;
         }
@@ -157,12 +157,12 @@ void get_mask_iou_on_pred_cuda(int nInstance, int nProposal, int *proposals_idx,
   cudaDeviceSynchronize();
 }
 
-void get_mask_label_cuda(int nInstance, int nProposal, float iou_thr,
+void get_mask_label_cuda(int nInstance, int nProposal, int ignored_label, float iou_thr,
                          int *proposals_idx, int *proposals_offset,
                          int *instance_labels, int *instance_cls,
                          float *proposals_iou, float *mask_label) {
   get_mask_label_cuda_<<<std::min(nProposal, (int)MAX_BLOCKS_PER_GRID),
-                         (int)1>>>(nInstance, nProposal, iou_thr, proposals_idx,
+                         (int)1>>>(nInstance, nProposal, ignored_label, iou_thr, proposals_idx,
                                    proposals_offset, instance_labels,
                                    instance_cls, proposals_iou, mask_label);
   cudaDeviceSynchronize();

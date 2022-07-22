@@ -206,7 +206,7 @@ class SoftGroup(pl.LightningModule):
 
             mask_label = softgroup_ops.get_mask_label(proposals_idx, proposals_offset, data_dict["instance_ids"],
                                                       data_dict["instance_semantic_cls"],
-                                                      data_dict["instance_num_point"], ious_on_cluster,
+                                                      data_dict["instance_num_point"], ious_on_cluster, self.hparams.data.ignore_label,
                                                       self.hparams.model.train_cfg.pos_iou_thr)
 
             mask_label_weight = (mask_label != -1).float()

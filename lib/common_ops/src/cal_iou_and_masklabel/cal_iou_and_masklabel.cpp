@@ -63,7 +63,7 @@ void get_mask_label(at::Tensor proposals_idx_tensor,
                     at::Tensor instance_labels_tensor,
                     at::Tensor instance_cls_tensor,
                     at::Tensor proposals_iou_tensor, int nInstance,
-                    int nProposal, float iou_thr,
+                    int nProposal, int ignored_label, float iou_thr,
                     at::Tensor mask_labels_tensor) {
   int *proposals_idx = proposals_idx_tensor.data_ptr<int>();
   int *proposals_offset = proposals_offset_tensor.data_ptr<int>();
@@ -81,7 +81,7 @@ void get_mask_label(at::Tensor proposals_idx_tensor,
   // input: mask_scores_sigmoid (sumNPoint, 1), float
   // output: proposals_iou (nProposal, total_nInst), float
   // output: mask_label (sumNPoint, 1), float
-  get_mask_label_cuda(nInstance, nProposal, iou_thr, proposals_idx,
+  get_mask_label_cuda(nInstance, nProposal, ignored_label, iou_thr, proposals_idx,
                       proposals_offset, instance_labels, instance_cls,
                       proposals_iou, mask_label);
 }
