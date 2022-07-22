@@ -2,6 +2,7 @@ import os
 from tqdm import tqdm
 import numpy as np
 import h5py
+import torch
 from torch.utils.data import Dataset
 from lib.util.pc import crop
 from lib.util.transform import jitter, flip, rotz, elastic
@@ -31,7 +32,7 @@ class GeneralDataset(Dataset):
         self.scenes = []
         for scene_name in tqdm(self.scene_names, desc=f"Loading {self.split} data from disk"):
             scene_path = os.path.join(self.dataset_root_path, self.split, scene_name + self.file_suffix)
-            scene = np.load(scene_path)
+            scene = torch.load(scene_path)
             scene["xyz"] -= scene["xyz"].mean(axis=0)
             scene["rgb"] = scene["rgb"].astype(np.float32) / 127.5 - 1
             self.scenes.append(scene)

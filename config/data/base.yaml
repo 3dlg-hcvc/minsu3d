@@ -2,7 +2,7 @@
 
 dataset_root_path: ${project_root_path}/data
 
-file_suffix: .npy
+file_suffix: .pth
 ignore_label: -1
 scale: 50
 batch_size: 4
