@@ -57,7 +57,7 @@ python setup.py develop
 2. Preprocess the data
 ```shell
 cd data/scannet
-sh prepare_all_data.sh -j8  # use 8 processes in parallel
+python prepare_all_data.py data=scannet +raw_scan_path={PATH_TO_SCANNET_V2}/scans
 ```
 
 ## Training, Inference and Evaluation
