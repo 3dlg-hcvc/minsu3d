@@ -5,11 +5,10 @@ REFERENCE TO https://github.com/facebookresearch/votenet/blob/master/scannet/loa
 import json, os
 import hydra
 import numpy as np
-import torch
 from plyfile import PlyData
 import open3d as o3d
-from multiprocessing import Pool
 from functools import partial
+from tqdm.contrib.concurrent import process_map
 
 IGNORE_CLASS_IDS = np.array([1, 2, 22])  # exclude wall, floor and ceiling
 
@@ -181,10 +180,8 @@ def process_one_scan(scan, cfg, split):
     # match the mesh2cap; not care wall, floor and ceiling for instances
     bbox_mask = np.logical_not(np.in1d(aligned_instance_bboxes[:, -2], IGNORE_CLASS_IDS))
     aligned_instance_bboxes = aligned_instance_bboxes[bbox_mask, :]
-    print(f"Processing {scan} ...")
-    torch.save({'xyz': xyz, 'rgb': rgb, 'normal': normal, 'sem_labels': sem_labels, 'instance_ids': instance_ids,
-                'aligned_instance_bboxes': aligned_instance_bboxes},
-               os.path.join(cfg.data.dataset_path, split, f"{scan}.pth"))
+    np.save(os.path.join(cfg.data.dataset_path, split, f"{scan}.pth"), {'xyz': xyz, 'rgb': rgb, 'normal': normal, 'sem_labels': sem_labels, 'instance_ids': instance_ids,
+                'aligned_instance_bboxes': aligned_instance_bboxes})
 
 
 @hydra.main(version_base=None, config_path="../../config", config_name="config")
@@ -199,12 +196,11 @@ def main(cfg):
 
     with open(cfg.data.metadata.val_list) as f:
         val_list = [line.strip() for line in f]
-
-    with Pool() as pool:
-        print("==> Processing train split ...")
-        pool.map(partial(process_one_scan, cfg=cfg, split="train"), train_list)
-        print("==> Processing val split ...")
-        pool.map(partial(process_one_scan, cfg=cfg, split="val"), val_list)
+    
+    print("==> Processing train split ...")
+    process_map(partial(process_one_scan, cfg=cfg, split="train"), train_list)
+    print("==> Processing val split ...")
+    process_map(partial(process_one_scan, cfg=cfg, split="val"), val_list)
 
 
 if __name__ == '__main__':
