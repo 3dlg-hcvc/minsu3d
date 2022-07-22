@@ -41,7 +41,7 @@ def rle_decode(rle):
     return mask
 
 
-def get_instances(ids, class_ids, class_labels, id2label):
+def get_instances(ids, class_ids, class_labels, id2label, ignored_label):
     instances = {}
     for label in class_labels:
         instances[label] = []
@@ -49,7 +49,7 @@ def get_instances(ids, class_ids, class_labels, id2label):
     for id in instance_ids:
         if id == 0:
             continue
-        inst = Instance(ids, id)
+        inst = Instance(ids, id, ignored_label)
         if inst.label_id in class_ids:
             instances[id2label[inst.label_id]].append(inst.to_dict())
     return instances
@@ -77,8 +77,8 @@ class Instance(object):
     med_dist = -1
     dist_conf = 0.0
 
-    def __init__(self, mesh_vert_instances, instance_id):
-        if instance_id == -1:
+    def __init__(self, mesh_vert_instances, instance_id, ignored_label):
+        if instance_id == ignored_label:
             return
         self.instance_id = int(instance_id)
         self.label_id = int(self.get_label_id(instance_id))
@@ -101,8 +101,9 @@ class Instance(object):
 
 class GeneralDatasetEvaluator(object):
 
-    def __init__(self, class_labels, iou_type=None, use_label=True):
+    def __init__(self, class_labels, ignored_label, iou_type=None, use_label=True):
         self.valid_class_labels = class_labels
+        self.ignored_label = ignored_label
         self.valid_class_ids = np.arange(len(class_labels)) + 1
         self.id2label = {}
         self.label2id = {}
@@ -318,7 +319,7 @@ class GeneralDatasetEvaluator(object):
         """get gt instances, only consider the valid class labels even in class
         agnostic setting."""
         gt_instances = get_instances(gts, self.valid_class_ids, self.valid_class_labels,
-                                     self.id2label)
+                                     self.id2label, self.ignored_label)
         # associate
         if self.use_label:
             gt2pred = deepcopy(gt_instances)

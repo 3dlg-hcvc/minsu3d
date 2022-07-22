@@ -299,7 +299,7 @@ class SoftGroup(pl.LightningModule):
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
 
-            inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names)
+            inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names, self.hparams.data.ignore_label)
             inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
 
             obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=False)
@@ -379,7 +379,7 @@ class SoftGroup(pl.LightningModule):
                 self.print(f"\nPredictions saved at {inst_pred_path}\n")
 
             if self.hparams.inference.evaluate:
-                inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names)
+                inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names, self.hparams.data.ignore_label)
                 self.print("==> Evaluating instance segmentation ...")
                 inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
                 obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=True)
