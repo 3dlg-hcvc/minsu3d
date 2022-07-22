@@ -6,3 +6,4 @@ scipy
 open3d
 wandb
 hydra-core
+h5py
