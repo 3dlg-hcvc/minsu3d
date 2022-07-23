@@ -15,7 +15,7 @@ from lib.evaluation.semantic_segmentation import *
 from tqdm import tqdm
 
 
-class PointGroup(pl.LightningModule):
+class HAIS(pl.LightningModule):
     def __init__(self, model, data, optimizer, lr_decay, inference=None):
         super().__init__()
         self.save_hyperparameters()
@@ -35,10 +35,15 @@ class PointGroup(pl.LightningModule):
                                  sem_classes=semantic_classes)
 
         """
-            ScoreNet Block
+            Intra-instance Block
         """
-        self.score_net = TinyUnet(output_channel)
+        self.tiny_unet = TinyUnet(output_channel)
         self.score_branch = nn.Linear(output_channel, 1)
+        self.mask_branch = nn.Sequential(
+            nn.Linear(output_channel, output_channel),
+            nn.ReLU(inplace=True),
+            nn.Linear(output_channel, 1)
+        )
 
     def forward(self, data_dict):
         output_dict = {}
@@ -46,7 +51,7 @@ class PointGroup(pl.LightningModule):
         backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
         output_dict.update(backbone_output_dict)
 
-        if self.current_epoch > self.hparams.model.prepare_epochs or self.hparams.model.freeze_backbone:
+        if self.current_epoch > self.hparams.model.prepare_epochs:
             # get prooposal clusters
             batch_idxs = data_dict["vert_batch_ids"]
             semantic_preds = output_dict["semantic_scores"].max(1)[1]
@@ -65,24 +70,24 @@ class PointGroup(pl.LightningModule):
             semantic_preds_cpu = semantic_preds[object_idxs].cpu().int()
             object_idxs_cpu = object_idxs.cpu()
 
-            idx_shift, start_len_shift = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_, self.hparams.model.cluster.cluster_radius, self.hparams.model.cluster.cluster_shift_meanActive)
-            proposals_idx_shift, proposals_offset_shift = pointgroup_ops.pg_bfs_cluster(semantic_preds_cpu, idx_shift.cpu(), start_len_shift.cpu(), self.hparams.model.cluster.cluster_npoint_thre)
-            proposals_idx_shift[:, 1] = object_idxs_cpu[proposals_idx_shift[:, 1].long()].int()
-            # proposals_idx_shift: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset_shift: (nProposal + 1), int
-            # proposals_batchId_shift_all: (sumNPoint,) batch id
+            idx_shift, start_len_shift = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_,
+                                                                      batch_offsets_,
+                                                                      self.hparams.model.cluster.cluster_radius,
+                                                                      self.hparams.model.cluster.cluster_shift_meanActive)
 
-            idx, start_len = common_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_, self.hparams.model.cluster.cluster_radius, self.hparams.model.cluster.cluster_meanActive)
-            proposals_idx, proposals_offset = pointgroup_ops.pg_bfs_cluster(semantic_preds_cpu, idx.cpu(), start_len.cpu(), self.hparams.model.cluster.cluster_npoint_thre)
-            proposals_idx[:, 1] = object_idxs_cpu[proposals_idx[:, 1].long()].int()
-            # proposals_idx: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset: (nProposal + 1), int
+            proposals_idx, proposals_offset = hais_ops.hierarchical_aggregation(
+                semantic_preds_cpu, (coords_ + pt_offsets_).cpu(), idx_shift.cpu(), start_len_shift.cpu(),
+                batch_idxs_.cpu(), training_mode, using_set_aggr)
 
-            proposals_idx_shift[:, 0] += (proposals_offset.size(0) - 1)
-            proposals_offset_shift += proposals_offset[-1]
-            proposals_idx = torch.cat((proposals_idx, proposals_idx_shift), dim=0)
-            proposals_offset = torch.cat((proposals_offset, proposals_offset_shift[1:]))
-            proposals_offset = proposals_offset.cuda()
+            proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
+
+            # # restrict the num of training proposals, avoid OOM
+            # max_proposal_num = getattr(self.cfg, 'max_proposal_num', 200)
+            # if training_mode == 'train' and proposals_offset.shape[0] > max_proposal_num:
+            #     proposals_offset = proposals_offset[:max_proposal_num + 1]
+            #     proposals_idx = proposals_idx[: proposals_offset[-1]]
+            #     assert proposals_idx.shape[0] == proposals_offset[-1]
+            #     print('selected proposal num', proposals_offset.shape[0] - 1)
 
             # proposals voxelization again
             proposals_voxel_feats, proposals_p2v_map = clusters_voxelization(
@@ -95,15 +100,24 @@ class PointGroup(pl.LightningModule):
                 mode=4,
                 device=self.device
             )
-            # proposals_voxel_feats: (M, C) M: voxels
-            # proposals_p2v_map: point2voxel map (sumNPoint,)
-            # score
-            score_feats = self.score_net(proposals_voxel_feats)
-            pt_score_feats = score_feats.features[proposals_p2v_map.long().cuda()]  # (sumNPoint, C)
-            proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset)  # (nProposal, C)
-            scores = self.score_branch(proposals_score_feats)  # (nProposal, 1)
-            output_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
-            
+
+            # predict instance scores
+            inst_score = self.tiny_unet(proposals_voxel_feats)
+            inst_score_feats = inst_score.features[proposals_p2v_map.long()]
+
+            # predict mask scores
+            # first linear than voxel to point,  more efficient  (because voxel num < point num)
+            mask_scores = self.mask_branch(inst_score.features)[proposals_p2v_map.long()]
+
+            # predict instance scores
+            if getattr(self.cfg, 'use_mask_filter_score_feature', False) and \
+                    self.current_epoch > self.cfg.use_mask_filter_score_feature_start_epoch:
+                mask_index_select = torch.ones_like(mask_scores)
+                mask_index_select[torch.sigmoid(mask_scores) < self.cfg.mask_filter_score_feature_thre] = 0.
+                score_feats = inst_score_feats * mask_index_select
+            score_feats = hais_ops.roipool(score_feats, proposals_offset.cuda())  # (nProposal, C)
+            scores = self.score_branch(score_feats)  # (nProposal, 1)
+
         return output_dict
 
     def configure_optimizers(self):
@@ -127,11 +141,13 @@ class PointGroup(pl.LightningModule):
         gt_offsets = data_dict["instance_info"] - data_dict["locs"]  # (N, 3)
         valid = data_dict["instance_ids"] != self.hparams.data.ignore_label
         pt_offset_criterion = PTOffsetLoss()
-        offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
+        offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets,
+                                                                valid_mask=valid)
         losses["offset_norm_loss"] = offset_norm_loss
         losses["offset_dir_loss"] = offset_dir_loss
 
-        total_loss = self.hparams.model.loss_weight[0] * semantic_loss + self.hparams.model.loss_weight[1] * offset_norm_loss + \
+        total_loss = self.hparams.model.loss_weight[0] * semantic_loss + self.hparams.model.loss_weight[
+            1] * offset_norm_loss + \
                      self.hparams.model.loss_weight[2] * offset_dir_loss
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
@@ -142,7 +158,8 @@ class PointGroup(pl.LightningModule):
             # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
             # proposals_offset: (nProposal + 1), int, cpu
             # instance_pointnum: (total_nInst), int
-            ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset, data_dict["instance_ids"], instance_pointnum) # (nProposal, nInstance), float
+            ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset, data_dict["instance_ids"],
+                                          instance_pointnum)  # (nProposal, nInstance), float
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
             gt_scores = get_segmented_scores(gt_ious, self.hparams.model.fg_thresh, self.hparams.model.bg_thresh)
             score_criterion = ScoreLoss()
@@ -154,7 +171,8 @@ class PointGroup(pl.LightningModule):
     def _feed(self, data_dict):
         if self.hparams.model.use_coord:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
-        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"], data_dict["p2v_map"]) # (M, C), float, cuda
+        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"],
+                                                           data_dict["p2v_map"])  # (M, C), float, cuda
         output_dict = self.forward(data_dict)
         return output_dict
 
@@ -197,7 +215,8 @@ class PointGroup(pl.LightningModule):
                                                       output_dict["proposal_scores"][1].cpu(),
                                                       output_dict["proposal_scores"][2].size(0) - 1,
                                                       output_dict["semantic_scores"].cpu())
-            gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(), self.hparams.data.ignore_classes)
+            gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
+                                            self.hparams.data.ignore_classes)
             gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
                                             data_dict["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
 
@@ -216,7 +235,8 @@ class PointGroup(pl.LightningModule):
             inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names, self.hparams.data.ignore_label)
             inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
 
-            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=False)
+            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names,
+                                                       print_result=False)
 
             self.log("val_eval/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
             self.log("val_eval/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
@@ -255,7 +275,6 @@ class PointGroup(pl.LightningModule):
     def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
         # prepare input and forward
         output_dict = self._feed(data_dict)
-
 
     def test_epoch_end(self, results):
         # evaluate instance predictions
@@ -296,10 +315,12 @@ class PointGroup(pl.LightningModule):
                 self.print(f"\nPredictions saved at {inst_pred_path}\n")
 
             if self.hparams.inference.evaluate:
-                inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names, self.hparams.data.ignore_label)
+                inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names,
+                                                             self.hparams.data.ignore_label)
                 self.print("==> Evaluating instance segmentation ...")
                 inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
-                obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=True)
+                obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox,
+                                                           self.hparams.data.class_names, print_result=True)
 
                 sem_miou_avg = np.mean(np.array(all_sem_miou))
                 sem_acc_avg = np.mean(np.array(all_sem_acc))
@@ -360,7 +381,7 @@ class PointGroup(pl.LightningModule):
             cross_ious = intersection / (
                     proposals_np_repeat_h + proposals_np_repeat_v - intersection)  # (nProposal, nProposal), float, cuda
             pick_idxs = self._get_nms_instances(cross_ious.numpy(), proposals_score.numpy(),
-                                          self.hparams.model.test.TEST_NMS_THRESH)  # int, (nCluster,)
+                                                self.hparams.model.test.TEST_NMS_THRESH)  # int, (nCluster,)
 
         clusters_mask = proposals_mask[pick_idxs].numpy()  # int, (nCluster, N)
         score_pred = proposals_score[pick_idxs].numpy()  # float, (nCluster,)

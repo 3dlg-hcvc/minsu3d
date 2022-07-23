@@ -55,13 +55,12 @@ class SoftGroup(pl.LightningModule):
         backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
         output_dict.update(backbone_output_dict)
 
-        if self.current_epoch > self.hparams.model.prepare_epochs or self.hparams.model.freeze_backbone:
+        if self.current_epoch > self.hparams.model.prepare_epochs:
             """
                 Top-down Refinement Block
             """
             semantic_scores = output_dict["semantic_scores"].softmax(dim=-1)
-            batch_idxs = data_dict["vert_batch_ids"].int()
-
+            batch_idxs = data_dict["vert_batch_ids"]
 
             proposals_offset_list = []
             proposals_idx_list = []
@@ -73,7 +72,7 @@ class SoftGroup(pl.LightningModule):
                 object_idxs = (scores > self.hparams.model.grouping_cfg.score_thr).nonzero().view(-1)
                 if object_idxs.size(0) < self.hparams.model.test_cfg.min_npoint:
                     continue
-                batch_idxs_ = batch_idxs[object_idxs]
+                batch_idxs_ = batch_idxs[object_idxs].int()
                 batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.data.batch_size, self.device)
                 coords_ = data_dict["locs"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
@@ -411,7 +410,7 @@ class SoftGroup(pl.LightningModule):
             mask_pred = mask_pred[inds]
 
             # filter too small instances
-            npoint = mask_pred.sum(1)
+            npoint = torch.nonzero(mask_pred, dim=1)
             inds = npoint >= self.hparams.model.test_cfg.min_npoint
             cls_pred = cls_pred[inds]
             score_pred = score_pred[inds]
