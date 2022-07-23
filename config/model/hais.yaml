@@ -14,7 +14,7 @@ trainer:
   max_epochs: 512
 
 model:
-  module: PointGroup
+  module: HAIS
   experiment_name: run_1
 
   m: 32 # 16 or 32

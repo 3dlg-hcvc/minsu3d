@@ -88,7 +88,7 @@ __global__ void get_mask_label_cuda_(int nInstance, int nProposal, int ignored_l
     int max_ind = 0;
     for (int instance_id = 0; instance_id < nInstance; instance_id++) {
       if (proposals_iou[proposal_id * nInstance + instance_id] > max_iou) {
-        if (instance_cls[instance_id] != ignored_label) { // TODO: ignored_class
+        if (instance_cls[instance_id] != ignored_label) {
           max_iou = proposals_iou[proposal_id * nInstance + instance_id];
           max_ind = instance_id;
         }
