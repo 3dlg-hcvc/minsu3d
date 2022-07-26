@@ -6,7 +6,7 @@ file_suffix: .pth
 ignore_label: -1
 scale: 50
 batch_size: 4
-num_workers: 4
+num_workers: 0
 full_scale: [128, 512]
 max_num_point: 250000
 

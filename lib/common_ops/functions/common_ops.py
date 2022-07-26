@@ -265,3 +265,125 @@ class GetIoU(Function):
 
 
 get_iou = GetIoU.apply
+
+
+class GetMaskIoUOnCluster(Function):
+
+    @staticmethod
+    def forward(ctx, proposals_idx, proposals_offset, instance_labels, instance_pointnum):
+        '''
+        :param ctx:
+        :param proposals_idx: (sumNPoint), int
+        :param proposals_offset: (nProposal + 1), int
+        :param instance_labels: (N), long, 0~total_nInst-1, -100
+        :param instance_pointnum: (total_nInst), int
+        :param mask_scores_sigmoid: (sumNPoint), float
+        :param mode: int, mode = 1 if cal IoU based on mask else mode = 0
+
+        :return: proposals_iou: (nProposal, total_nInst), float
+        :return mask_label:
+        '''
+
+        nInstance = instance_pointnum.size(0)
+        nProposal = proposals_offset.size(0) - 1
+        proposals_iou = torch.zeros((nProposal, nInstance), dtype=torch.float32, device="cuda")
+
+        assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
+        assert proposals_offset.is_contiguous() and proposals_offset.is_cuda
+        assert instance_labels.is_contiguous() and instance_labels.is_cuda
+        assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
+
+        COMMON_OPS.get_mask_iou_on_cluster(proposals_idx, proposals_offset, instance_labels,
+                                    instance_pointnum, proposals_iou, nInstance, nProposal)
+
+        return proposals_iou
+
+    @staticmethod
+    def backward(ctx, a=None):
+        return None, None, None, None
+
+
+get_mask_iou_on_cluster = GetMaskIoUOnCluster.apply
+
+
+class GetMaskIoUOnPred(Function):
+
+    @staticmethod
+    def forward(ctx, proposals_idx, proposals_offset, instance_labels, instance_pointnum,
+                mask_scores_sigmoid):
+        '''
+        :param ctx:
+        :param proposals_idx: (sumNPoint), int
+        :param proposals_offset: (nProposal + 1), int
+        :param instance_labels: (N), long, 0~total_nInst-1, -100
+        :param instance_pointnum: (total_nInst), int
+        :param mask_scores_sigmoid: (sumNPoint), float
+        :param mode: int, mode = 1 if cal IoU based on mask else mode = 0
+
+        :return: proposals_iou: (nProposal, total_nInst), float
+        :return mask_label:
+        '''
+
+        nInstance = instance_pointnum.size(0)
+        nProposal = proposals_offset.size(0) - 1
+        proposals_iou = torch.zeros((nProposal, nInstance), dtype=torch.float32, device="cuda")
+
+        assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
+        assert proposals_offset.is_contiguous() and proposals_offset.is_cuda
+        assert instance_labels.is_contiguous() and instance_labels.is_cuda
+        assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
+        assert mask_scores_sigmoid.is_contiguous() and mask_scores_sigmoid.is_cuda
+
+        COMMON_OPS.get_mask_iou_on_pred(proposals_idx, proposals_offset, instance_labels,
+                                 instance_pointnum, proposals_iou, nInstance, nProposal,
+                                 mask_scores_sigmoid)
+
+        return proposals_iou
+
+    @staticmethod
+    def backward(ctx, a=None):
+        return None, None, None, None
+
+
+get_mask_iou_on_pred = GetMaskIoUOnPred.apply
+
+
+class GetMaskLabel(Function):
+
+    @staticmethod
+    def forward(ctx, proposals_idx, proposals_offset, instance_labels, instance_cls,
+                instance_pointnum, proposals_iou, ignored_label, iou_thr):
+        """
+        :param ctx:
+        :param proposals_idx: (sumNPoint), int
+        :param proposals_offset: (nProposal + 1), int
+        :param instance_labels: (N), long, 0~total_nInst-1, -100
+        :param mask_scores_sigmoid: (sumNPoint), float
+        :param mode: int, mode = 1 if cal IoU based on mask else mode = 0
+
+        :return: proposals_iou: (nProposal, total_nInst), float
+        :return mask_label:
+        """
+
+        nInstance = instance_pointnum.size(0)
+        nProposal = proposals_offset.size(0) - 1
+        mask_label = torch.zeros(proposals_idx.shape, dtype=torch.bool, device="cuda")
+        mask_label_mask = torch.zeros(proposals_idx.shape, dtype=torch.bool, device="cuda")
+
+        assert proposals_iou.is_contiguous() and proposals_iou.is_cuda
+        assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
+        assert proposals_offset.is_contiguous() and proposals_offset.is_cuda
+        assert instance_labels.is_contiguous() and instance_labels.is_cuda
+        assert instance_cls.is_contiguous() and instance_cls.is_cuda
+
+        COMMON_OPS.get_mask_label(proposals_idx, proposals_offset, instance_labels, instance_cls,
+                           proposals_iou, nInstance, nProposal, ignored_label, iou_thr, mask_label, mask_label_mask)
+
+        return mask_label, mask_label_mask
+
+    @staticmethod
+    def backward(ctx, a=None):
+        return None, None, None, None
+
+
+get_mask_label = GetMaskLabel.apply

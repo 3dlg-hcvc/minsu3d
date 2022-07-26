@@ -17,13 +17,14 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
     at::Tensor cluster_idxs_kept_tensor, at::Tensor cluster_offsets_kept_tensor, at::Tensor cluster_centers_kept_tensor,
     at::Tensor primary_idxs_tensor, at::Tensor primary_offsets_tensor, at::Tensor primary_centers_tensor,
     at::Tensor primary_idxs_post_tensor, at::Tensor primary_offsets_post_tensor,
+    at::Tensor point_num_avg, at::Tensor radius_avg,
     const int N, const int using_set_aggr_);
 
 
 void hierarchical_aggregation_cuda(
     int fragment_total_point_num, int fragment_num, int *fragment_idxs, int *fragment_offsets, float *fragment_centers,
     int primary_total_point_num, int primary_num, int *primary_idxs, int *primary_offsets, float *primary_centers,
-    int *primary_idxs_post, int *primary_offsets_post
+    int *primary_idxs_post, int *primary_offsets_post, const float *class_radius_mean
 );
 #endif //HIERARCHICAL_AGGREGATION_H
 

@@ -178,7 +178,7 @@ class SoftGroup(pl.LightningModule):
             proposals_offset = output_dict["proposals_offset"]
 
             # calculate iou of clustered instance
-            ious_on_cluster = softgroup_ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset,
+            ious_on_cluster = common_ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset,
                                                                     data_dict["instance_ids"],
                                                                     data_dict["instance_num_point"])
 
@@ -206,7 +206,7 @@ class SoftGroup(pl.LightningModule):
             slice_inds = torch.arange(0, mask_cls_label.size(0), dtype=torch.long, device=mask_cls_label.device)
             mask_scores_sigmoid_slice = output_dict["mask_scores"].sigmoid()[slice_inds, mask_cls_label]
 
-            mask_label, mask_label_mask = softgroup_ops.get_mask_label(proposals_idx, proposals_offset,
+            mask_label, mask_label_mask = common_ops.get_mask_label(proposals_idx, proposals_offset,
                                                                        data_dict["instance_ids"],
                                                                        data_dict["instance_semantic_cls"],
                                                                        data_dict["instance_num_point"], ious_on_cluster,
@@ -219,7 +219,7 @@ class SoftGroup(pl.LightningModule):
             mask_scoring_loss /= (torch.count_nonzero(mask_label_weight) + 1)
             losses["mask_scoring_loss"] = mask_scoring_loss
             """iou scoring loss"""
-            ious = softgroup_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
+            ious = common_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
                                                       data_dict["instance_num_point"],
                                                       mask_scores_sigmoid_slice.detach())
             fg_ious = ious[:, fg_inds]

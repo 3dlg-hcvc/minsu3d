@@ -21,8 +21,7 @@ get_mask_iou_on_cluster_cuda_(int nInstance, int nProposal, int *proposals_idx,
     int start = proposals_offset[proposal_id];
     int end = proposals_offset[proposal_id + 1];
     int proposal_total = end - start;
-    for (int instance_id = threadIdx.x; instance_id < nInstance;
-         instance_id += blockDim.x) {
+    for (int instance_id = threadIdx.x; instance_id < nInstance; instance_id += blockDim.x) {
       int instance_total = instance_pointnum[instance_id];
       int intersection = 0;
       for (int i = start; i < end; i++) {
@@ -44,8 +43,7 @@ get_mask_iou_on_pred_cuda_(int nInstance, int nProposal, int *proposals_idx,
                            int *instance_pointnum, float *proposals_iou,
                            float *mask_scores_sigmoid) {
 
-  for (int proposal_id = blockIdx.x; proposal_id < nProposal;
-       proposal_id += gridDim.x) {
+  for (int proposal_id = blockIdx.x; proposal_id < nProposal; proposal_id += gridDim.x) {
     int start = proposals_offset[proposal_id];
     int end = proposals_offset[proposal_id + 1];
     int proposal_total = 0;
@@ -77,8 +75,7 @@ __global__ void get_mask_label_cuda_(int nInstance, int nProposal, int ignored_l
                                      int *proposals_offset,
                                      int *instance_labels, int *instance_cls,
                                      float *proposals_iou, bool *mask_label, bool *mask_label_mask) {
-  for (int proposal_id = blockIdx.x; proposal_id < nProposal;
-       proposal_id += gridDim.x) {
+  for (int proposal_id = blockIdx.x; proposal_id < nProposal; proposal_id += gridDim.x) {
     int start = proposals_offset[proposal_id];
     int end = proposals_offset[proposal_id + 1];
     // int proposal_total = end - start;

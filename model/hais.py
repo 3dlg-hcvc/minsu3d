@@ -153,22 +153,31 @@ class HAIS(pl.LightningModule):
             # get iou and calculate mask label and mask loss
             mask_scores_sigmoid = torch.sigmoid(mask_scores)
 
-            if self.current_epoch > self.hparams.model.cal_iou_based_on_mask_start_epoch:
-                ious, mask_label = hais_ops.cal_iou_and_masklabel(proposals_idx[:, 1].cuda(),
-                                                                  proposals_offset.cuda(), data_dict["instance_ids"],
-                                                                  instance_pointnum, mask_scores_sigmoid.detach(), 1)
-            else:
-                ious, mask_label = hais_ops.cal_iou_and_masklabel(proposals_idx[:, 1].cuda(),
-                                                                  proposals_offset.cuda(), data_dict["instance_ids"],
-                                                                  instance_pointnum, mask_scores_sigmoid.detach(), 0)
+            proposals_idx = proposals_idx[:, 1].cuda()
+            proposals_offset = proposals_offset.cuda()
 
-            mask_label_weight = (mask_label != -1).float()
-            mask_label[mask_label == -1.] = 0.5  # any value is ok
+            mask_label, mask_label_mask = softgroup_ops.get_mask_label(proposals_idx, proposals_offset,
+                                                                       data_dict["instance_ids"],
+                                                                       data_dict["instance_semantic_cls"],
+                                                                       data_dict["instance_num_point"], ious_on_cluster,
+                                                                       self.hparams.data.ignore_label,
+                                                                       self.hparams.model.train_cfg.pos_iou_thr)
+
+            mask_label_weight = mask_label_mask != False
             mask_scoring_criterion = MaskScoringLoss(weight=mask_label_weight, reduction='sum')
             mask_loss = mask_scoring_criterion(mask_scores_sigmoid, mask_label.float())
+            mask_loss /= (torch.count_nonzero(mask_label_weight) + 1)
+            losses["mask_loss"] = mask_loss
 
-            mask_loss = mask_loss.mean()
-            losses['mask_loss'] = mask_loss
+            if self.current_epoch > self.hparams.model.cal_iou_based_on_mask_start_epoch:
+                ious = common_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
+                                                       data_dict["instance_num_point"],
+                                                       mask_scores_sigmoid.detach())
+            else:
+                ious = common_ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset,
+                                                                    data_dict["instance_ids"],
+                                                                    data_dict["instance_num_point"])
+
             gt_ious, _ = ious.max(1)  # gt_ious: (nProposal) float, long
 
             gt_scores = get_segmented_scores(gt_ious, self.hparams.model.fg_thresh, self.hparams.model.bg_thresh)
