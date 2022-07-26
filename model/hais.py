@@ -78,7 +78,8 @@ class HAIS(pl.LightningModule):
 
             proposals_idx, proposals_offset = hais_ops.hierarchical_aggregation(
                 semantic_preds_cpu, (coords_ + pt_offsets_).cpu(), idx_shift.cpu(), start_len_shift.cpu(),
-                batch_idxs_.cpu(), using_set_aggr, self.hparams.data.point_num_avg, self.hparams.data.radius_avg, self.hparams.data.ignore_label)
+                batch_idxs_.cpu(), using_set_aggr, self.hparams.data.point_num_avg, self.hparams.data.radius_avg,
+                self.hparams.data.ignore_label)
 
             proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
 
@@ -104,7 +105,7 @@ class HAIS(pl.LightningModule):
 
             # predict instance scores
             inst_score = self.tiny_unet(proposals_voxel_feats)
-            inst_score_feats = inst_score.features[proposals_p2v_map.long()]
+            score_feats = inst_score.features[proposals_p2v_map.long()]
 
             # predict mask scores
             # first linear than voxel to point,  more efficient  (because voxel num < point num)
@@ -114,7 +115,7 @@ class HAIS(pl.LightningModule):
             if self.current_epoch > self.hparams.model.use_mask_filter_score_feature_start_epoch:
                 mask_index_select = torch.ones_like(mask_scores)
                 mask_index_select[torch.sigmoid(mask_scores) < self.hparams.model.mask_filter_score_feature_thre] = 0.
-                score_feats = inst_score_feats * mask_index_select
+                score_feats = score_feats * mask_index_select
             score_feats = common_ops.roipool(score_feats, proposals_offset.cuda())  # (nProposal, C)
             scores = self.score_branch(score_feats)  # (nProposal, 1)
             output_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset, mask_scores)
@@ -144,7 +145,8 @@ class HAIS(pl.LightningModule):
         offset_norm_loss, _ = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
         losses["offset_norm_loss"] = offset_norm_loss
 
-        total_loss = self.hparams.model.loss_weight[0] * semantic_loss + self.hparams.model.loss_weight[1] * offset_norm_loss
+        total_loss = self.hparams.model.loss_weight[0] * semantic_loss + self.hparams.model.loss_weight[
+            1] * offset_norm_loss
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             """score and mask loss"""
@@ -156,27 +158,26 @@ class HAIS(pl.LightningModule):
             proposals_idx = proposals_idx[:, 1].cuda()
             proposals_offset = proposals_offset.cuda()
 
-            mask_label, mask_label_mask = softgroup_ops.get_mask_label(proposals_idx, proposals_offset,
-                                                                       data_dict["instance_ids"],
-                                                                       data_dict["instance_semantic_cls"],
-                                                                       data_dict["instance_num_point"], ious_on_cluster,
-                                                                       self.hparams.data.ignore_label,
-                                                                       self.hparams.model.train_cfg.pos_iou_thr)
-
-            mask_label_weight = mask_label_mask != False
-            mask_scoring_criterion = MaskScoringLoss(weight=mask_label_weight, reduction='sum')
-            mask_loss = mask_scoring_criterion(mask_scores_sigmoid, mask_label.float())
-            mask_loss /= (torch.count_nonzero(mask_label_weight) + 1)
-            losses["mask_loss"] = mask_loss
-
             if self.current_epoch > self.hparams.model.cal_iou_based_on_mask_start_epoch:
                 ious = common_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
                                                        data_dict["instance_num_point"],
                                                        mask_scores_sigmoid.detach())
             else:
                 ious = common_ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset,
+                                                          data_dict["instance_ids"],
+                                                          data_dict["instance_num_point"])
+
+            mask_label, mask_label_mask = common_ops.get_mask_label(proposals_idx, proposals_offset,
                                                                     data_dict["instance_ids"],
-                                                                    data_dict["instance_num_point"])
+                                                                    data_dict["instance_semantic_cls"],
+                                                                    data_dict["instance_num_point"], ious,
+                                                                    self.hparams.data.ignore_label, 0.5)
+            mask_label = mask_label.unsqueeze(1)
+            mask_label_mask = mask_label_mask.unsqueeze(1)
+            mask_scoring_criterion = MaskScoringLoss(weight=mask_label_mask, reduction='sum')
+            mask_loss = mask_scoring_criterion(mask_scores_sigmoid, mask_label.float())
+            mask_loss /= (torch.count_nonzero(mask_label_mask) + 1)
+            losses["mask_loss"] = mask_loss
 
             gt_ious, _ = ious.max(1)  # gt_ious: (nProposal) float, long
 
@@ -233,6 +234,7 @@ class HAIS(pl.LightningModule):
                                                       output_dict["proposal_scores"][0].cpu(),
                                                       output_dict["proposal_scores"][1].cpu(),
                                                       output_dict["proposal_scores"][2].size(0) - 1,
+                                                      output_dict["proposal_scores"][3].cpu(),
                                                       output_dict["semantic_scores"].cpu())
             gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
@@ -283,6 +285,7 @@ class HAIS(pl.LightningModule):
                                                       output_dict["proposal_scores"][0].cpu(),
                                                       output_dict["proposal_scores"][1].cpu(),
                                                       output_dict["proposal_scores"][2].size(0) - 1,
+                                                      output_dict["proposal_scores"][3].cpu(),
                                                       output_dict["semantic_scores"].cpu())
             gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
@@ -346,46 +349,46 @@ class HAIS(pl.LightningModule):
                 self.print(f"Semantic Accuracy: {sem_acc_avg}")
                 self.print(f"Semantic mean IoU: {sem_miou_avg}")
 
-
     def _get_pred_instances(self, scan_id, gt_xyz, scores, proposals_idx, num_proposals, mask_scores, semantic_scores):
         semantic_pred_labels = semantic_scores.max(1)[1]
         scores_pred = torch.sigmoid(scores.view(-1))
 
+        N = semantic_scores.shape[0]
         # proposals_idx: (sumNPoint, 2), int, cpu, [:, 0] for cluster_id, [:, 1] for corresponding point idxs in N
         # proposals_offset: (nProposal + 1), int, cpu
-        proposals_pred = torch.zeros((proposals_offset.shape[0] - 1, N), dtype=torch.bool, device="cpu")
+        proposals_pred = torch.zeros((num_proposals, N), dtype=torch.bool, device="cpu")
         # (nProposal, N), int, cuda
 
         # outlier filtering
         _mask = mask_scores.squeeze(1) > self.hparams.model.test.test_mask_score_thre
         proposals_pred[proposals_idx[_mask][:, 0].long(), proposals_idx[_mask][:, 1].long()] = True
 
-        semantic_id = semantic_pred_labels[proposals_idx[:, 1][proposals_offset[:-1].long()].long()]  # (nProposal), long
+        # semantic_id = semantic_pred_labels[
+        #     proposals_idx[:, 1][proposals_offset[:-1].long()].long()]  # (nProposal), long
 
         # score threshold
-        score_mask = (scores_pred > cfg.TEST_SCORE_THRESH)
+        score_mask = (scores_pred > self.hparams.model.test.TEST_SCORE_THRESH)
         scores_pred = scores_pred[score_mask]
         proposals_pred = proposals_pred[score_mask]
-        semantic_id = semantic_id[score_mask]
+        # semantic_id = semantic_id[score_mask]
 
         # npoint threshold
         proposals_pointnum = torch.count_nonzero(proposals_pred, dim=1)
-        npoint_mask = (proposals_pointnum >= cfg.TEST_NPOINT_THRESH)
+        npoint_mask = (proposals_pointnum >= self.hparams.model.test.TEST_NPOINT_THRESH)
         scores_pred = scores_pred[npoint_mask]
         proposals_pred = proposals_pred[npoint_mask]
-        semantic_id = semantic_id[npoint_mask]
-
+        # semantic_id = semantic_id[npoint_mask]
 
         clusters = proposals_pred.numpy()
         cluster_scores = scores_pred.numpy()
-        cluster_semantic_id = semantic_id.numpy()
+        # cluster_semantic_id = semantic_id.numpy()
 
         nclusters = clusters.shape[0]
 
         pred_instances = []
         for i in range(nclusters):
             cluster_i = clusters[i]
-            pred = {'scan_id': scan_id, 'label_id': cluster_semantic_id[cluster_i][0], 'conf': cluster_scores[i],
+            pred = {'scan_id': scan_id, 'label_id': semantic_pred_labels[cluster_i][0].item(), 'conf': cluster_scores[i],
                     'pred_mask': rle_encode(cluster_i)}
             pred_xyz = gt_xyz[cluster_i]
             pred['pred_bbox'] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))

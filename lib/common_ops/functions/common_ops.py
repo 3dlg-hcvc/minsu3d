@@ -122,7 +122,7 @@ class SecMean(Function):
         assert inp.is_contiguous()
         assert offsets.is_contiguous()
 
-        out = torch.zeros((nProposal, C), dtype=torch.float32, device="cuda")
+        out = torch.zeros((nProposal, C), dtype=torch.float32, device=inp.device)
 
         COMMON_OPS.sec_mean(inp, offsets, out, nProposal, C)
 
