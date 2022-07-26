@@ -1,12 +1,11 @@
 import torch
 from torch.autograd import Function
-import COMMON_OPS
+import HAIS_OP
 
 
 class HierarchicalAggregation(Function):
     @staticmethod
-    def forward(ctx, semantic_label, coord_shift, ball_query_idxs, start_len, batch_idxs, training_mode,
-                using_set_aggr):
+    def forward(ctx, semantic_label, coord_shift, ball_query_idxs, start_len, batch_idxs, using_set_aggr):
         '''
         :param ctx:
         :param semantic_label: (N_fg), int
@@ -40,7 +39,6 @@ class HierarchicalAggregation(Function):
         primary_idxs_post = semantic_label.new()
         primary_offsets_post = semantic_label.new()
 
-        training_mode_ = 1 if training_mode == 'train' else 0
         using_set_aggr_ = int(using_set_aggr)
 
         HAIS_OP.hierarchical_aggregation(semantic_label, coord_shift, batch_idxs, ball_query_idxs, start_len,
@@ -48,7 +46,7 @@ class HierarchicalAggregation(Function):
                                          cluster_idxs_kept, cluster_offsets_kept, cluster_centers_kept,
                                          primary_idxs, primary_offsets, primary_centers,
                                          primary_idxs_post, primary_offsets_post,
-                                         N, training_mode_, using_set_aggr_)
+                                         N, using_set_aggr_)
 
         if using_set_aggr_ == 0:  # not set aggr
             pass
@@ -75,40 +73,3 @@ class HierarchicalAggregation(Function):
         return None
 
 hierarchical_aggregation = HierarchicalAggregation.apply
-
-
-class PointRecover(Function):
-    @staticmethod
-    def forward(ctx, feats, map_rule, nPoint):
-        '''
-        :param ctx:
-        :param feats: cuda float M * C
-        :param map_rule: cuda int M * (maxActive + 1)
-        :param nPoint: int
-        :return: output_feats: cuda float N * C
-        '''
-        assert map_rule.is_contiguous()
-        assert feats.is_contiguous()
-        M, C = feats.size()
-        maxActive = map_rule.size(1) - 1
-
-        output_feats = torch.cuda.FloatTensor(nPoint, C).zero_()
-
-        ctx.for_backwards = (map_rule, maxActive, M)
-
-        HAIS_OP.point_recover_fp(feats, output_feats, map_rule, M, maxActive, C)
-
-        return output_feats
-
-    @staticmethod
-    def backward(ctx, d_output_feats):
-        map_rule, maxActive, M = ctx.for_backwards
-        N, C = d_output_feats.size()
-
-        d_feats = torch.cuda.FloatTensor(M, C).zero_()
-
-        HAIS_OP.point_recover_bp(d_output_feats.contiguous(), d_feats, map_rule, M, maxActive, C)
-
-        return d_feats, None, None
-
-point_recover = PointRecover.apply

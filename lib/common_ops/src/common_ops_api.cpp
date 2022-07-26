@@ -20,12 +20,13 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
     m.def("sec_mean", &sec_mean, "sec_mean");
     m.def("sec_min", &sec_min, "sec_min");
     m.def("sec_max", &sec_max, "sec_max");
-
-    // PointGroup
-    m.def("point_recover_fp", &point_recover_fp_feat, "point_recover_fp");
-    m.def("point_recover_bp", &point_recover_bp_feat, "point_recover_bp");
-    m.def("pg_bfs_cluster", &pg_bfs_cluster, "pg_bfs_cluster");
     m.def("roipool_fp", &roipool_fp, "roipool_fp");
     m.def("roipool_bp", &roipool_bp, "roipool_bp");
     m.def("get_iou", &get_iou, "get_iou");
+
+    // PointGroup
+    m.def("pg_bfs_cluster", &pg_bfs_cluster, "pg_bfs_cluster");
+
+    // HAIS
+    m.def("hierarchical_aggregation", &hierarchical_aggregation, "hierarchical_aggregation");
 }

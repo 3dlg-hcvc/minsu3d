@@ -100,7 +100,7 @@ class PointGroup(pl.LightningModule):
             # score
             score_feats = self.score_net(proposals_voxel_feats)
             pt_score_feats = score_feats.features[proposals_p2v_map.long().cuda()]  # (sumNPoint, C)
-            proposals_score_feats = pointgroup_ops.roipool(pt_score_feats, proposals_offset)  # (nProposal, C)
+            proposals_score_feats = common_ops.roipool(pt_score_feats, proposals_offset)  # (nProposal, C)
             scores = self.score_branch(proposals_score_feats)  # (nProposal, 1)
             output_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
             
@@ -142,7 +142,7 @@ class PointGroup(pl.LightningModule):
             # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
             # proposals_offset: (nProposal + 1), int, cpu
             # instance_pointnum: (total_nInst), int
-            ious = pointgroup_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset, data_dict["instance_ids"], instance_pointnum) # (nProposal, nInstance), float
+            ious = common_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset, data_dict["instance_ids"], instance_pointnum) # (nProposal, nInstance), float
             gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
             gt_scores = get_segmented_scores(gt_ious, self.hparams.model.fg_thresh, self.hparams.model.bg_thresh)
             score_criterion = ScoreLoss()

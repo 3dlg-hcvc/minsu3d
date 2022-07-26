@@ -192,3 +192,76 @@ class SecMax(Function):
 
 
 sec_max = SecMax.apply
+
+class RoiPool(Function):
+    @staticmethod
+    def forward(ctx, feats, proposals_offset):
+        '''
+        :param ctx:
+        :param feats: (sumNPoint, C) float
+        :param proposals_offset: (nProposal + 1) int
+        :return: output_feats (nProposal, C) float
+        '''
+        nProposal = proposals_offset.size(0) - 1
+        sumNPoint, C = feats.size()
+
+        assert feats.is_contiguous()
+        assert proposals_offset.is_contiguous()
+
+        output_feats = torch.zeros((nProposal, C), dtype=torch.float32, device="cuda")
+        output_maxidx = torch.zeros((nProposal, C), dtype=torch.int32, device="cuda")
+
+        COMMON_OPS.roipool_fp(feats, proposals_offset, output_feats, output_maxidx, nProposal, C)
+
+        ctx.for_backwards = (output_maxidx, proposals_offset, sumNPoint)
+
+        return output_feats
+
+    @staticmethod
+    def backward(ctx, d_output_feats):
+        nProposal, C = d_output_feats.size()
+
+        output_maxidx, proposals_offset, sumNPoint = ctx.for_backwards
+
+        d_feats = torch.zeros((sumNPoint, C), dtype=torch.float32, device="cuda")
+
+        COMMON_OPS.roipool_bp(d_feats, proposals_offset, output_maxidx, d_output_feats.contiguous(), nProposal, C)
+
+        return d_feats, None
+
+
+roipool = RoiPool.apply
+
+
+class GetIoU(Function):
+    @staticmethod
+    def forward(ctx, proposals_idx, proposals_offset, instance_labels, instance_pointnum):
+        '''
+        :param ctx:
+        :param proposals_idx: (sumNPoint), int
+        :param proposals_offset: (nProposal + 1), int
+        :param instance_labels: (N), long, 0~total_nInst-1, -1
+        :param instance_pointnum: (total_nInst), int
+        :return: proposals_iou: (nProposal, total_nInst), float
+        '''
+        nInstance = instance_pointnum.size(0)
+        nProposal = proposals_offset.size(0) - 1
+
+        assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
+        assert proposals_offset.is_contiguous() and proposals_offset.is_cuda
+        assert instance_labels.is_contiguous() and instance_labels.is_cuda
+        assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
+
+        proposals_iou = torch.zeros((nProposal, nInstance), dtype=torch.float32, device="cuda")
+
+        COMMON_OPS.get_iou(proposals_idx, proposals_offset, instance_labels, instance_pointnum, proposals_iou, nInstance,
+                      nProposal)
+
+        return proposals_iou
+
+    @staticmethod
+    def backward(ctx, a=None):
+        return None, None, None, None
+
+
+get_iou = GetIoU.apply

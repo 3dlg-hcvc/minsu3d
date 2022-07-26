@@ -4,6 +4,7 @@
 #include "voxelize/voxelize.cu"
 #include "bfs_cluster/bfs_cluster.cu"
 #include "roipool/roipool.cu"
+#include "hierarchical_aggregation/hierarchical_aggregation.cu"
 #include "get_iou/get_iou.cu"
 #include "sec_mean/sec_mean.cu"
 

@@ -77,11 +77,13 @@ class SoftGroup(pl.LightningModule):
                 coords_ = data_dict["locs"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
                 idx, start_len = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
-                                                                 self.hparams.model.grouping_cfg.radius, self.hparams.model.grouping_cfg.mean_active)
+                                                              self.hparams.model.grouping_cfg.radius,
+                                                              self.hparams.model.grouping_cfg.mean_active)
 
-                proposals_idx, proposals_offset = softgroup_ops.sg_bfs_cluster(self.hparams.model.grouping_cfg.class_numpoint_mean, idx.cpu(),
-                                                                            start_len.cpu(),
-                                                                            self.hparams.model.grouping_cfg.npoint_thr, class_id)
+                proposals_idx, proposals_offset = softgroup_ops.sg_bfs_cluster(
+                    self.hparams.model.grouping_cfg.class_numpoint_mean, idx.cpu(),
+                    start_len.cpu(),
+                    self.hparams.model.grouping_cfg.npoint_thr, class_id)
                 proposals_idx[:, 1] = object_idxs.cpu()[proposals_idx[:, 1].long()].int()
 
                 # merge proposals
@@ -146,7 +148,6 @@ class SoftGroup(pl.LightningModule):
     def configure_optimizers(self):
         return init_optimizer(parameters=self.parameters(), **self.hparams.optimizer)
 
-
     def _loss(self, data_dict, output_dict):
         losses = {}
         """semantic loss"""
@@ -164,11 +165,13 @@ class SoftGroup(pl.LightningModule):
         gt_offsets = data_dict["instance_info"] - data_dict["locs"]  # (N, 3)
         valid = data_dict["instance_ids"] != self.hparams.data.ignore_label
         pt_offset_criterion = PTOffsetLoss()
-        offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
+        offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets,
+                                                                valid_mask=valid)
         losses["offset_norm_loss"] = offset_norm_loss
         # losses["offset_dir_loss"] = offset_dir_loss
 
-        total_loss = self.hparams.model.loss_weight[0] * semantic_loss + self.hparams.model.loss_weight[1] * offset_norm_loss
+        total_loss = self.hparams.model.loss_weight[0] * semantic_loss + self.hparams.model.loss_weight[
+            1] * offset_norm_loss
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             proposals_idx = output_dict["proposals_idx"][:, 1].cuda()
@@ -203,10 +206,12 @@ class SoftGroup(pl.LightningModule):
             slice_inds = torch.arange(0, mask_cls_label.size(0), dtype=torch.long, device=mask_cls_label.device)
             mask_scores_sigmoid_slice = output_dict["mask_scores"].sigmoid()[slice_inds, mask_cls_label]
 
-            mask_label, mask_label_mask = softgroup_ops.get_mask_label(proposals_idx, proposals_offset, data_dict["instance_ids"],
-                                                      data_dict["instance_semantic_cls"],
-                                                      data_dict["instance_num_point"], ious_on_cluster, self.hparams.data.ignore_label,
-                                                      self.hparams.model.train_cfg.pos_iou_thr)
+            mask_label, mask_label_mask = softgroup_ops.get_mask_label(proposals_idx, proposals_offset,
+                                                                       data_dict["instance_ids"],
+                                                                       data_dict["instance_semantic_cls"],
+                                                                       data_dict["instance_num_point"], ious_on_cluster,
+                                                                       self.hparams.data.ignore_label,
+                                                                       self.hparams.model.train_cfg.pos_iou_thr)
 
             mask_label_weight = mask_label_mask != False
             mask_scoring_criterion = MaskScoringLoss(weight=mask_label_weight, reduction='sum')
@@ -236,7 +241,8 @@ class SoftGroup(pl.LightningModule):
         if self.hparams.model.use_coord:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
 
-        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"], data_dict["p2v_map"])  # (M, C), float, cuda
+        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"],
+                                                           data_dict["p2v_map"])  # (M, C), float, cuda
         output_dict = self.forward(data_dict)
         return output_dict
 
@@ -252,7 +258,8 @@ class SoftGroup(pl.LightningModule):
         return total_loss
 
     def training_epoch_end(self, training_step_outputs):
-        cosine_lr_decay(self.trainer.optimizers[0], self.hparams.optimizer.lr, self.current_epoch, self.hparams.lr_decay.decay_start_epoch, self.hparams.lr_decay.decay_stop_epoch, 1e-6)
+        cosine_lr_decay(self.trainer.optimizers[0], self.hparams.optimizer.lr, self.current_epoch,
+                        self.hparams.lr_decay.decay_start_epoch, self.hparams.lr_decay.decay_stop_epoch, 1e-6)
 
     def validation_step(self, data_dict, idx):
         # prepare input and forward
@@ -281,8 +288,10 @@ class SoftGroup(pl.LightningModule):
                                                       output_dict["cls_scores"].cpu(),
                                                       output_dict["iou_scores"].cpu(),
                                                       output_dict["mask_scores"].cpu())
-            gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(), self.hparams.data.ignore_classes)
-            gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(), data_dict["instance_bboxes"].cpu().numpy(),
+            gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
+                                            self.hparams.data.ignore_classes)
+            gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
+                                            data_dict["instance_bboxes"].cpu().numpy(),
                                             self.hparams.data.ignore_label)
 
             return pred_instances, gt_instances, gt_instances_bbox
@@ -301,7 +310,8 @@ class SoftGroup(pl.LightningModule):
             inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names, self.hparams.data.ignore_label)
             inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
 
-            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=False)
+            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names,
+                                                       print_result=False)
 
             self.log("val_eval/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
             self.log("val_eval/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
@@ -369,8 +379,11 @@ class SoftGroup(pl.LightningModule):
                     for pred in preds:
                         if scan_id not in scan_instance_count:
                             scan_instance_count[scan_id] = 0
-                        tmp_info.append(f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {pred['label_id']} {pred['conf']:.4f}\n")
-                        np.savetxt(os.path.join(inst_pred_masks_path, f"{scan_id}_{scan_instance_count[scan_id]:03d}.txt"), rle_decode(pred["pred_mask"]), fmt="%d")
+                        tmp_info.append(
+                            f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {pred['label_id']} {pred['conf']:.4f}\n")
+                        np.savetxt(
+                            os.path.join(inst_pred_masks_path, f"{scan_id}_{scan_instance_count[scan_id]:03d}.txt"),
+                            rle_decode(pred["pred_mask"]), fmt="%d")
                         scan_instance_count[scan_id] += 1
                     with open(os.path.join(inst_pred_path, f"{scan_id}.txt"), "w") as f:
                         for mask_info in tmp_info:
@@ -378,10 +391,12 @@ class SoftGroup(pl.LightningModule):
                 self.print(f"\nPredictions saved at {inst_pred_path}\n")
 
             if self.hparams.inference.evaluate:
-                inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names, self.hparams.data.ignore_label)
+                inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names,
+                                                             self.hparams.data.ignore_label)
                 self.print("==> Evaluating instance segmentation ...")
                 inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
-                obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names, print_result=True)
+                obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox,
+                                                           self.hparams.data.class_names, print_result=True)
 
                 sem_miou_avg = np.mean(np.array(all_sem_miou))
                 sem_acc_avg = np.mean(np.array(all_sem_acc))
@@ -424,10 +439,9 @@ class SoftGroup(pl.LightningModule):
 
         pred_instances = []
         for i in range(cls_pred.shape[0]):
-            pred = {'scan_id': scan_id, 'label_id': cls_pred[i], 'conf': score_pred[i], 'pred_mask': rle_encode(mask_pred[i])}
+            pred = {'scan_id': scan_id, 'label_id': cls_pred[i], 'conf': score_pred[i],
+                    'pred_mask': rle_encode(mask_pred[i])}
             pred_xyz = gt_xyz[mask_pred[i]]
             pred['pred_bbox'] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
             pred_instances.append(pred)
         return pred_instances
-
-

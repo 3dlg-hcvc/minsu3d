@@ -6,6 +6,7 @@
 #include "get_iou/get_iou.h"
 #include "sec_mean/sec_mean.h"
 #include "cal_iou_and_masklabel/cal_iou_and_masklabel.h"
+#include "hierarchical_aggregation/hierarchical_aggregation.h"
 
 
 void voxelize_idx_3d(/* long N*4 */ at::Tensor coords, /* long M*4 */ at::Tensor output_coords, at::Tensor vertBatchIdxs,
@@ -17,12 +18,5 @@ void voxelize_fp_feat(/* cuda float N*C */ at::Tensor feats, // N * 3 -> M * 3 (
 
 void voxelize_bp_feat(/* cuda float M*C */ at::Tensor d_output_feats, /* cuda float N*C */ at::Tensor d_feats, /* cuda Int M*(maxActive+1) */ at::Tensor output_map,
             Int mode, Int nActive, Int maxActive, Int nPlane);
-
-void point_recover_fp_feat(/* cuda float M*C */ at::Tensor feats, /* cuda float N*C */ at::Tensor output_feats, /* cuda Int M*(maxActive+1) */ at::Tensor idx_map,
-                Int nActive, Int maxActive, Int nPlane);
-
-void point_recover_bp_feat(/* cuda float N*C */ at::Tensor d_output_feats, /* cuda float M*C */ at::Tensor d_feats,  /* cuda Int M*(maxActive+1) */ at::Tensor idx_map,
-                Int nActive, Int maxActive, Int nPlane);
-
 
 #endif // COMMON_H
