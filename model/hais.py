@@ -71,8 +71,8 @@ class HAIS(pl.LightningModule):
 
             idx_shift, start_len_shift = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_,
                                                                       batch_offsets_,
-                                                                      self.hparams.model.cluster.cluster_radius,
-                                                                      self.hparams.model.cluster.cluster_shift_meanActive)
+                                                                      self.hparams.model.point_aggr_radius,
+                                                                      self.hparams.model.cluster_shift_meanActive)
 
             using_set_aggr = self.hparams.model.using_set_aggr_in_training if self.training else self.hparams.model.using_set_aggr_in_testing
 

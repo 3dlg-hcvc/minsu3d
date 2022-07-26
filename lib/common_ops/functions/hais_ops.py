@@ -1,6 +1,6 @@
 import torch
 from torch.autograd import Function
-import HAIS_OP
+import COMMON_OPS
 
 
 class HierarchicalAggregation(Function):
@@ -41,7 +41,10 @@ class HierarchicalAggregation(Function):
 
         using_set_aggr_ = int(using_set_aggr)
 
-        HAIS_OP.hierarchical_aggregation(semantic_label, coord_shift, batch_idxs, ball_query_idxs, start_len,
+        point_num_avg = torch.tensor(point_num_avg, dtype=torch.float32, device="cpu")
+        radius_avg = torch.tensor(radius_avg, dtype=torch.float32, device="cpu")
+
+        COMMON_OPS.hierarchical_aggregation(semantic_label, coord_shift, batch_idxs, ball_query_idxs, start_len,
                                          fragment_idxs, fragment_offsets, fragment_centers,
                                          cluster_idxs_kept, cluster_offsets_kept, cluster_centers_kept,
                                          primary_idxs, primary_offsets, primary_centers,

@@ -23,9 +23,9 @@ model:
   block_reps: 2
 
   use_coord: True
-  use_color: False
-  use_multiview: True
-  use_normal: True
+  use_color: True
+  use_multiview: False
+  use_normal: False
 
   fg_thresh: 1
   bg_thresh: 0
@@ -42,7 +42,6 @@ model:
   prepare_epochs: 100
 
   loss_weight: [1, 1, 1, 1, 1, 1]
-
 
   point_aggr_radius: 0.03
   cluster_shift_meanActive: 300
