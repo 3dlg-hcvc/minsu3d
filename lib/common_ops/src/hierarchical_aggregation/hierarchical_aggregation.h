@@ -18,7 +18,7 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
     at::Tensor primary_idxs_tensor, at::Tensor primary_offsets_tensor, at::Tensor primary_centers_tensor,
     at::Tensor primary_idxs_post_tensor, at::Tensor primary_offsets_post_tensor,
     at::Tensor point_num_avg, at::Tensor radius_avg,
-    const int N, const int using_set_aggr_);
+    const int N, const int using_set_aggr_, const int ignored_label);
 
 
 void hierarchical_aggregation_cuda(

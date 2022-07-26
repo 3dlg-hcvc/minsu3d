@@ -53,8 +53,7 @@ ConnectedComponent pg_find_cc(Int idx, int *semantic_label, Int *ball_query_idxs
     return cc;
 }
 
-ConnectedComponent sg_find_cc(Int idx, Int *ball_query_idxs, int *start_len,
-                           int *visited) {
+ConnectedComponent sg_find_cc(Int idx, Int *ball_query_idxs, int *start_len, int *visited) {
   ConnectedComponent cc;
   cc.addPoint(idx);
   visited[idx] = 1;

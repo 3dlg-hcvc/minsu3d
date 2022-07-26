@@ -78,7 +78,7 @@ class HAIS(pl.LightningModule):
 
             proposals_idx, proposals_offset = hais_ops.hierarchical_aggregation(
                 semantic_preds_cpu, (coords_ + pt_offsets_).cpu(), idx_shift.cpu(), start_len_shift.cpu(),
-                batch_idxs_.cpu(), using_set_aggr)
+                batch_idxs_.cpu(), using_set_aggr, self.hparams.data.point_num_avg, self.hparams.data.radius_avg, self.hparams.data.ignore_label)
 
             proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
 
@@ -148,7 +148,7 @@ class HAIS(pl.LightningModule):
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             """score and mask loss"""
-            scores, proposals_idx, proposals_offset, instance_pointnum, mask_scores = output_dict['proposal_scores']
+            scores, proposals_idx, proposals_offset, mask_scores = output_dict['proposal_scores']
 
             # get iou and calculate mask label and mask loss
             mask_scores_sigmoid = torch.sigmoid(mask_scores)
@@ -346,74 +346,48 @@ class HAIS(pl.LightningModule):
                 self.print(f"Semantic Accuracy: {sem_acc_avg}")
                 self.print(f"Semantic mean IoU: {sem_miou_avg}")
 
-    def _get_nms_instances(self, cross_ious, scores, threshold):
-        """ non max suppression for 3D instance proposals based on cross ious and scores
 
-        Args:
-            ious (np.array): cross ious, (n, n)
-            scores (np.array): scores for each proposal, (n,)
-            threshold (float): iou threshold
-
-        Returns:
-            np.array: idx of picked instance proposals
-        """
-        ixs = np.argsort(-scores)  # descending order
-        pick = []
-        while len(ixs) > 0:
-            i = ixs[0]
-            pick.append(i)
-            ious = cross_ious[i, ixs[1:]]
-            remove_ixs = np.where(ious > threshold)[0] + 1
-            ixs = np.delete(ixs, remove_ixs)
-            ixs = np.delete(ixs, 0)
-
-        return np.array(pick, dtype=np.int32)
-
-    def _get_pred_instances(self, scan_id, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores):
+    def _get_pred_instances(self, scan_id, gt_xyz, scores, proposals_idx, num_proposals, mask_scores, semantic_scores):
         semantic_pred_labels = semantic_scores.max(1)[1]
-        proposals_score = torch.sigmoid(proposals_scores.view(-1))  # (nProposal,) float
-        # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+        scores_pred = torch.sigmoid(scores.view(-1))
+
+        # proposals_idx: (sumNPoint, 2), int, cpu, [:, 0] for cluster_id, [:, 1] for corresponding point idxs in N
         # proposals_offset: (nProposal + 1), int, cpu
+        proposals_pred = torch.zeros((proposals_offset.shape[0] - 1, N), dtype=torch.bool, device="cpu")
+        # (nProposal, N), int, cuda
 
-        N = semantic_scores.shape[0]
+        # outlier filtering
+        _mask = mask_scores.squeeze(1) > self.hparams.model.test.test_mask_score_thre
+        proposals_pred[proposals_idx[_mask][:, 0].long(), proposals_idx[_mask][:, 1].long()] = True
 
-        proposals_mask = torch.zeros((num_proposals, N), dtype=torch.bool, device="cpu")  # (nProposal, N), int, cuda
-        proposals_mask[proposals_idx[:, 0].long(), proposals_idx[:, 1].long()] = True
+        semantic_id = semantic_pred_labels[proposals_idx[:, 1][proposals_offset[:-1].long()].long()]  # (nProposal), long
 
-        # score threshold & min_npoint mask
-        proposals_npoint = torch.nonzero(proposals_mask, dim=1)
-        proposals_thres_mask = torch.logical_and(proposals_score > self.hparams.model.test.TEST_SCORE_THRESH,
-                                                 proposals_npoint > self.hparams.model.test.TEST_NPOINT_THRESH)
+        # score threshold
+        score_mask = (scores_pred > cfg.TEST_SCORE_THRESH)
+        scores_pred = scores_pred[score_mask]
+        proposals_pred = proposals_pred[score_mask]
+        semantic_id = semantic_id[score_mask]
 
-        proposals_score = proposals_score[proposals_thres_mask]
-        proposals_mask = proposals_mask[proposals_thres_mask]
+        # npoint threshold
+        proposals_pointnum = torch.count_nonzero(proposals_pred, dim=1)
+        npoint_mask = (proposals_pointnum >= cfg.TEST_NPOINT_THRESH)
+        scores_pred = scores_pred[npoint_mask]
+        proposals_pred = proposals_pred[npoint_mask]
+        semantic_id = semantic_id[npoint_mask]
 
-        # instance masks non_max_suppression
-        if proposals_score.shape[0] == 0:
-            pick_idxs = np.empty(0)
-        else:
-            proposals_mask_f = proposals_mask.float()  # (nProposal, N), float
-            intersection = torch.mm(proposals_mask_f, proposals_mask_f.t())  # (nProposal, nProposal), float
-            proposals_npoint = proposals_mask_f.sum(1)  # (nProposal), float, cuda
-            proposals_np_repeat_h = proposals_npoint.unsqueeze(-1).repeat(1, proposals_npoint.shape[0])
-            proposals_np_repeat_v = proposals_npoint.unsqueeze(0).repeat(proposals_npoint.shape[0], 1)
-            cross_ious = intersection / (
-                    proposals_np_repeat_h + proposals_np_repeat_v - intersection)  # (nProposal, nProposal), float, cuda
-            pick_idxs = self._get_nms_instances(cross_ious.numpy(), proposals_score.numpy(),
-                                                self.hparams.model.test.TEST_NMS_THRESH)  # int, (nCluster,)
 
-        clusters_mask = proposals_mask[pick_idxs].numpy()  # int, (nCluster, N)
-        score_pred = proposals_score[pick_idxs].numpy()  # float, (nCluster,)
-        nclusters = clusters_mask.shape[0]
-        instances = []
+        clusters = proposals_pred.numpy()
+        cluster_scores = scores_pred.numpy()
+        cluster_semantic_id = semantic_id.numpy()
+
+        nclusters = clusters.shape[0]
+
+        pred_instances = []
         for i in range(nclusters):
-            cluster_i = clusters_mask[i]  # (N)
-            pred = {}
-            pred['scan_id'] = scan_id
-            pred['label_id'] = semantic_pred_labels[cluster_i][0].item() - 1
-            pred['conf'] = score_pred[i]
-            pred['pred_mask'] = rle_encode(cluster_i)
-            pred_inst = gt_xyz[cluster_i]
-            pred['pred_bbox'] = np.concatenate((pred_inst.min(0), pred_inst.max(0)))
-            instances.append(pred)
-        return instances
+            cluster_i = clusters[i]
+            pred = {'scan_id': scan_id, 'label_id': cluster_semantic_id[cluster_i][0], 'conf': cluster_scores[i],
+                    'pred_mask': rle_encode(cluster_i)}
+            pred_xyz = gt_xyz[cluster_i]
+            pred['pred_bbox'] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
+            pred_instances.append(pred)
+        return pred_instances

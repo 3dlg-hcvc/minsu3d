@@ -38,6 +38,12 @@ class ConnectedComponent{
 public:
     std::vector<Int> pt_idxs;
 
+    float accum_x = 0;
+    float accum_y = 0;
+    float accum_z = 0;
+    int batch_idx = -1;
+    int cls_label;
+
     ConnectedComponent();
     void addPoint(Int pt_idx);
 };

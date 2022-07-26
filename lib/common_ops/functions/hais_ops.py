@@ -5,7 +5,7 @@ import HAIS_OP
 
 class HierarchicalAggregation(Function):
     @staticmethod
-    def forward(ctx, semantic_label, coord_shift, ball_query_idxs, start_len, batch_idxs, using_set_aggr):
+    def forward(ctx, semantic_label, coord_shift, ball_query_idxs, start_len, batch_idxs, using_set_aggr, point_num_avg, radius_avg, ignored_label):
         '''
         :param ctx:
         :param semantic_label: (N_fg), int
@@ -46,7 +46,8 @@ class HierarchicalAggregation(Function):
                                          cluster_idxs_kept, cluster_offsets_kept, cluster_centers_kept,
                                          primary_idxs, primary_offsets, primary_centers,
                                          primary_idxs_post, primary_offsets_post,
-                                         N, using_set_aggr_)
+                                         point_num_avg, radius_avg,
+                                         N, using_set_aggr_, ignored_label)
 
         if using_set_aggr_ == 0:  # not set aggr
             pass

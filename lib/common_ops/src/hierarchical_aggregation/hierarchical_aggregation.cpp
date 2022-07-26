@@ -4,14 +4,11 @@
 /* ================================== hierarchical_aggregation ================================== */
 
 // instance point num for each class, statistical data from the training set
-float class_numpoint_mean_dict[20] = {-1., -1., 3917., 12056., 2303., \
-                                    8331., 3948., 3166., 5629., 11719., \
-                                    1003., 3317., 4912., 10221., 3889., \
-                                    4136., 2120., 945., 3967., 2589.};
 
 ConnectedComponent find_cc(int idx, int *semantic_label, float *coord_shift, int *batch_idxs,
-        int *ball_query_idxs, int *start_len, int *visited){
+        int *ball_query_idxs, int *start_len, int *visited, const int ignored_label){
     ConnectedComponent cc;
+    cc.cls_label = ignored_label;
     cc.addPoint(idx);
     cc.accum_x += coord_shift[idx * 3 + 0];
     cc.accum_y += coord_shift[idx * 3 + 1];
@@ -46,7 +43,7 @@ ConnectedComponent find_cc(int idx, int *semantic_label, float *coord_shift, int
 void split_clusters(int *semantic_label, float *coord_shift, int *batch_idxs,
     int *ball_query_idxs, int *start_len, const int nPoint,
     ConnectedComponents &CCs_fragment, ConnectedComponents &CCs_kept, ConnectedComponents &CCs_primary, 
-    int *sumNPoint_fragment, int *sumNPoint_kept, int *sumNPoint_primary, const float *class_numpoint_mean_dict){
+    int *sumNPoint_fragment, int *sumNPoint_kept, int *sumNPoint_primary, const float *class_numpoint_mean_dict, const int ignored_label){
     int visited[nPoint] = {0};
     int _class_idx;
     float _class_numpoint_mean, low_thre, high_thre;
@@ -54,7 +51,7 @@ void split_clusters(int *semantic_label, float *coord_shift, int *batch_idxs,
     for(int i = 0; i < nPoint; i++){
         if (visited[i] == 0){
             ConnectedComponent CC = find_cc(i, semantic_label, coord_shift, batch_idxs,
-                 ball_query_idxs, start_len, visited);
+                 ball_query_idxs, start_len, visited, ignored_label);
             _class_idx = CC.cls_label;
             _class_numpoint_mean = class_numpoint_mean_dict[_class_idx];
 
@@ -115,14 +112,14 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
         at::Tensor primary_idxs_tensor, at::Tensor primary_offsets_tensor, at::Tensor primary_centers_tensor,
         at::Tensor primary_idxs_post_tensor, at::Tensor primary_offsets_post_tensor,
         at::Tensor point_num_avg_tensor, at::Tensor radius_avg_tensor,
-        const int N, const int using_set_aggr_){
-    int *semantic_label = semantic_label_tensor.data<int>();
-    float *coord_shift = coord_shift_tensor.data<float>();
-    int *batch_idxs = batch_idxs_tensor.data<int>();
-    int *ball_query_idxs = ball_query_idxs_tensor.data<int>();
-    int *start_len = start_len_tensor.data<int>();
-    float *point_num_avg = point_num_avg_tensor.data<float>();
-    float *radius_avg = radius_avg_tensor.data<float>();
+        const int N, const int using_set_aggr_, const int ignored_label){
+    int *semantic_label = semantic_label_tensor.data_ptr<int>();
+    float *coord_shift = coord_shift_tensor.data_ptr<float>();
+    int *batch_idxs = batch_idxs_tensor.data_ptr<int>();
+    int *ball_query_idxs = ball_query_idxs_tensor.data_ptr<int>();
+    int *start_len = start_len_tensor.data_ptr<int>();
+    float *point_num_avg = point_num_avg_tensor.data_ptr<float>();
+    float *radius_avg = radius_avg_tensor.data_ptr<float>();
 
     ConnectedComponents CCs_fragment;
     ConnectedComponents CCs_kept;
@@ -131,7 +128,7 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
     int sumNPoint_fragment = 0, sumNPoint_kept = 0, sumNPoint_primary = 0;
     split_clusters(semantic_label, coord_shift, batch_idxs, ball_query_idxs, start_len, N,
         CCs_fragment, CCs_kept, CCs_primary,
-        & sumNPoint_fragment, & sumNPoint_kept, & sumNPoint_primary, point_num_avg);
+        & sumNPoint_fragment, & sumNPoint_kept, & sumNPoint_primary, point_num_avg, ignored_label);
 
     cluster_idxs_kept_tensor.resize_({sumNPoint_kept, 2});
     cluster_offsets_kept_tensor.resize_({(int)CCs_kept.size() + 1});
@@ -139,9 +136,9 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
     cluster_idxs_kept_tensor.zero_();
     cluster_offsets_kept_tensor.zero_();
     cluster_centers_kept_tensor.zero_();
-    int *cluster_idxs_kept = cluster_idxs_kept_tensor.data<int>();
-    int *cluster_offsets_kept = cluster_offsets_kept_tensor.data<int>();
-    float *cluster_centers_kept = cluster_centers_kept_tensor.data<float>();
+    int *cluster_idxs_kept = cluster_idxs_kept_tensor.data_ptr<int>();
+    int *cluster_offsets_kept = cluster_offsets_kept_tensor.data_ptr<int>();
+    float *cluster_centers_kept = cluster_centers_kept_tensor.data_ptr<float>();
     fill_cluster_idxs_(CCs_kept, cluster_idxs_kept, cluster_offsets_kept, cluster_centers_kept);
 
     primary_idxs_tensor.resize_({sumNPoint_primary, 2});
@@ -150,9 +147,9 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
     primary_idxs_tensor.zero_();
     primary_offsets_tensor.zero_();
     primary_centers_tensor.zero_();
-    int *primary_idxs = primary_idxs_tensor.data<int>();
-    int *primary_offsets = primary_offsets_tensor.data<int>();
-    float *primary_centers = primary_centers_tensor.data<float>();
+    int *primary_idxs = primary_idxs_tensor.data_ptr<int>();
+    int *primary_offsets = primary_offsets_tensor.data_ptr<int>();
+    float *primary_centers = primary_centers_tensor.data_ptr<float>();
     fill_cluster_idxs_(CCs_primary, primary_idxs, primary_offsets, primary_centers);
 
     if (using_set_aggr_ == 0) { // only point aggr
@@ -165,9 +162,9 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
     fragment_idxs_tensor.zero_();
     fragment_offsets_tensor.zero_();
     fragment_centers_tensor.zero_();
-    int *fragment_idxs = fragment_idxs_tensor.data<int>();
-    int *fragment_offsets = fragment_offsets_tensor.data<int>();
-    float *fragment_centers = fragment_centers_tensor.data<float>();
+    int *fragment_idxs = fragment_idxs_tensor.data_ptr<int>();
+    int *fragment_offsets = fragment_offsets_tensor.data_ptr<int>();
+    float *fragment_centers = fragment_centers_tensor.data_ptr<float>();
     fill_cluster_idxs_(CCs_fragment, fragment_idxs, fragment_offsets, fragment_centers);
 
 
@@ -176,12 +173,12 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
     primary_offsets_post_tensor.resize_({(int)CCs_primary.size() + 1});
     primary_idxs_post_tensor.zero_();
     primary_offsets_post_tensor.zero_();
-    int *primary_idxs_post = primary_idxs_post_tensor.data<int>();
-    int *primary_offsets_post = primary_offsets_post_tensor.data<int>();
+    int *primary_idxs_post = primary_idxs_post_tensor.data_ptr<int>();
+    int *primary_offsets_post = primary_offsets_post_tensor.data_ptr<int>();
 
     // set aggr
     hierarchical_aggregation_cuda(sumNPoint_fragment, (int)CCs_fragment.size(), fragment_idxs, fragment_offsets, fragment_centers,
         sumNPoint_primary, (int)CCs_primary.size(), primary_idxs, primary_offsets, primary_centers,
-        primary_idxs_post, primary_offsets_post, radius_avg_tensor);
+        primary_idxs_post, primary_offsets_post, radius_avg);
 
 }

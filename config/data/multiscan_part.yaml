@@ -9,3 +9,6 @@ dataset_path: ${dataset_root_path}/multiscan_part
 classes: 5
 ignore_classes: []
 class_names: ['static_part', 'door', 'drawer', 'window', 'lid']
+
+point_num_avg: [4223., 1941., 624., 2599., 717.]
+radius_avg: [1.012157, 0.564342, 0.281144, 0.730079, 0.303201]
