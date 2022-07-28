@@ -2,7 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances, rle_encode
+from lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances, rle_encode, rle_decode
 from lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
 from lib.common_ops.functions import softgroup_ops
 from lib.common_ops.functions import common_ops
