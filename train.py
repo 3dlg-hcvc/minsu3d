@@ -35,7 +35,6 @@ def init_model(cfg):
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg):
-
     # fix the seed
     pl.seed_everything(cfg.global_seed, workers=True)
 

@@ -22,7 +22,6 @@
 __global__ void fragment_find_primary_(int primary_num, int *cuda_primary_offsets, float *cuda_primary_centers,
     int fragment_num, int *cuda_fragment_offsets, float *cuda_fragment_centers,
     int *cuda_primary_absorb_fragment_idx, int *cuda_primary_absorb_fragment_cnt, const float *class_radius_mean){
-
     int fragment_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (fragment_idx >= fragment_num) return;
 
@@ -59,13 +58,10 @@ __global__ void fragment_find_primary_(int primary_num, int *cuda_primary_offset
     float r_set =  max(r_size, r_cls);
 
     // judge
-    if ( nearest_dis_square < r_set * r_set ){ 
+    if ( nearest_dis_square < r_set * r_set ){
         int _offect = atomicAdd(cuda_primary_absorb_fragment_cnt + nearest_idx, 1);
         if (_offect < MAX_PER_PRIMARY_ABSORB_FRAGMENT_NUM)
             cuda_primary_absorb_fragment_idx[nearest_idx * MAX_PER_PRIMARY_ABSORB_FRAGMENT_NUM + _offect] = fragment_idx;
-        else {
-            ;
-        }
     }
 }
 
@@ -78,7 +74,7 @@ __global__ void concat_fragments_(
     int *cuda_primary_absorb_fragment_idx, int *cuda_primary_absorb_fragment_cnt,
     int *cuda_concat_idxs, int *cuda_concat_point_num,
     int primary_num){
-    
+
     int primary_idx = blockIdx.x;
     if (primary_idx >= primary_num) return;
 
@@ -90,9 +86,6 @@ __global__ void concat_fragments_(
                 cuda_concat_idxs[primary_idx * MAX_PER_PRIMARY_ABSORB_POINT_NUM * 2 + _accu_offset * 2 + 0] = primary_idx;
                 cuda_concat_idxs[primary_idx * MAX_PER_PRIMARY_ABSORB_POINT_NUM * 2 + _accu_offset * 2 + 1] = cuda_fragment_idxs[j * 2 + 1];
                 _accu_offset++;
-            }
-            else {
-                ;
             }
         }
     }
@@ -134,13 +127,13 @@ void hierarchical_aggregation_cuda(
     int *cuda_primary_absorb_fragment_cnt; // array for saving the fragment nums
     cudaMalloc((void**)&cuda_primary_absorb_fragment_idx, primary_num * MAX_PER_PRIMARY_ABSORB_FRAGMENT_NUM * sizeof(int) + sizeof(int));
     cudaMalloc((void**)&cuda_primary_absorb_fragment_cnt, primary_num * sizeof(int) + sizeof(int));
-    if (fragment_num != 0)
+    if (fragment_num != 0) {
         fragment_find_primary_<<<int(DIVUP(fragment_num, MAX_THREADS_PER_BLOCK)), (int)MAX_THREADS_PER_BLOCK>>>(
             primary_num, cuda_primary_offsets, cuda_primary_centers,
             fragment_num, cuda_fragment_offsets, cuda_fragment_centers,
             cuda_primary_absorb_fragment_idx, cuda_primary_absorb_fragment_cnt, class_radius_mean);
+    }
     cudaDeviceSynchronize();
-
     // concatenate fragments belonging to the same primary
     int *cuda_concat_idxs;
     int *cuda_concat_point_num;

@@ -45,7 +45,7 @@ class HAIS(pl.LightningModule):
             nn.Linear(output_channel, 1)
         )
 
-    def forward(self, data_dict):
+    def forward(self, data_dict, training):
         output_dict = {}
 
         backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
@@ -55,7 +55,6 @@ class HAIS(pl.LightningModule):
             # get prooposal clusters
             batch_idxs = data_dict["vert_batch_ids"]
             semantic_preds = output_dict["semantic_scores"].max(1)[1]
-
             # set mask
             semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
             for class_label in self.hparams.data.ignore_classes:
@@ -74,8 +73,7 @@ class HAIS(pl.LightningModule):
                                                                       self.hparams.model.point_aggr_radius,
                                                                       self.hparams.model.cluster_shift_meanActive)
 
-            using_set_aggr = self.hparams.model.using_set_aggr_in_training if self.training else self.hparams.model.using_set_aggr_in_testing
-
+            using_set_aggr = self.hparams.model.using_set_aggr_in_training if training else self.hparams.model.using_set_aggr_in_testing
             proposals_idx, proposals_offset = hais_ops.hierarchical_aggregation(
                 semantic_preds_cpu, (coords_ + pt_offsets_).cpu(), idx_shift.cpu(), start_len_shift.cpu(),
                 batch_idxs_.cpu(), using_set_aggr, self.hparams.data.point_num_avg, self.hparams.data.radius_avg,
@@ -188,17 +186,17 @@ class HAIS(pl.LightningModule):
             total_loss += self.hparams.model.loss_weight[2] * score_loss + self.hparams.model.loss_weight[3] * mask_loss
         return losses, total_loss
 
-    def _feed(self, data_dict):
+    def _feed(self, data_dict, training):
         if self.hparams.model.use_coord:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
         data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"],
                                                            data_dict["p2v_map"])  # (M, C), float, cuda
-        output_dict = self.forward(data_dict)
+        output_dict = self.forward(data_dict, training)
         return output_dict
 
     def training_step(self, data_dict, idx):
         # prepare input and forward
-        output_dict = self._feed(data_dict)
+        output_dict = self._feed(data_dict, True)
         losses, total_loss = self._loss(data_dict, output_dict)
         self.log("train/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
         for key, value in losses.items():
@@ -211,7 +209,7 @@ class HAIS(pl.LightningModule):
 
     def validation_step(self, data_dict, idx):
         # prepare input and forward
-        output_dict = self._feed(data_dict)
+        output_dict = self._feed(data_dict, True)
         losses, total_loss = self._loss(data_dict, output_dict)
 
         # log losses
@@ -269,7 +267,7 @@ class HAIS(pl.LightningModule):
 
     def test_step(self, data_dict, idx):
         # prepare input and forward
-        output_dict = self._feed(data_dict)
+        output_dict = self._feed(data_dict, False)
 
         sem_labels_cpu = data_dict["sem_labels"].cpu()
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
@@ -296,7 +294,7 @@ class HAIS(pl.LightningModule):
 
     def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
         # prepare input and forward
-        output_dict = self._feed(data_dict)
+        output_dict = self._feed(data_dict, False)
 
     def test_epoch_end(self, results):
         # evaluate instance predictions

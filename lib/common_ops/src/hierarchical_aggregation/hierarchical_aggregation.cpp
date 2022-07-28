@@ -168,7 +168,7 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
     fill_cluster_idxs_(CCs_fragment, fragment_idxs, fragment_offsets, fragment_centers);
 
 
-    // prerare tensor for storing post-primary 
+    // prerare tensor for storing post-primary
     primary_idxs_post_tensor.resize_({sumNPoint_fragment + sumNPoint_primary, 2});  //never overflow, but need to cut off tails
     primary_offsets_post_tensor.resize_({(int)CCs_primary.size() + 1});
     primary_idxs_post_tensor.zero_();

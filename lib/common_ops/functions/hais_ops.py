@@ -5,7 +5,8 @@ import COMMON_OPS
 
 class HierarchicalAggregation(Function):
     @staticmethod
-    def forward(ctx, semantic_label, coord_shift, ball_query_idxs, start_len, batch_idxs, using_set_aggr, point_num_avg, radius_avg, ignored_label):
+    def forward(ctx, semantic_label, coord_shift, ball_query_idxs, start_len, batch_idxs, using_set_aggr, point_num_avg,
+                radius_avg, ignored_label):
         '''
         :param ctx:
         :param semantic_label: (N_fg), int
@@ -45,13 +46,12 @@ class HierarchicalAggregation(Function):
         radius_avg = torch.tensor(radius_avg, dtype=torch.float32, device="cpu")
 
         COMMON_OPS.hierarchical_aggregation(semantic_label, coord_shift, batch_idxs, ball_query_idxs, start_len,
-                                         fragment_idxs, fragment_offsets, fragment_centers,
-                                         cluster_idxs_kept, cluster_offsets_kept, cluster_centers_kept,
-                                         primary_idxs, primary_offsets, primary_centers,
-                                         primary_idxs_post, primary_offsets_post,
-                                         point_num_avg, radius_avg,
-                                         N, using_set_aggr_, ignored_label)
-
+                                            fragment_idxs, fragment_offsets, fragment_centers,
+                                            cluster_idxs_kept, cluster_offsets_kept, cluster_centers_kept,
+                                            primary_idxs, primary_offsets, primary_centers,
+                                            primary_idxs_post, primary_offsets_post,
+                                            point_num_avg, radius_avg,
+                                            N, using_set_aggr_, ignored_label)
         if using_set_aggr_ == 0:  # not set aggr
             pass
         else:
