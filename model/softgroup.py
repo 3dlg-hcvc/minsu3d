@@ -425,7 +425,7 @@ class SoftGroup(pl.LightningModule):
             mask_pred = mask_pred[inds]
 
             # filter too small instances
-            npoint = torch.nonzero(mask_pred, dim=1)
+            npoint = torch.count_nonzero(mask_pred, dim=1)
             inds = npoint >= self.hparams.model.test_cfg.min_npoint
             cls_pred = cls_pred[inds]
             score_pred = score_pred[inds]
