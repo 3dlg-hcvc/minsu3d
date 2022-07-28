@@ -3,8 +3,14 @@
 defaults:
   - base
 
-dataset: MultiScan_Obj
-dataset_path: ${dataset_root_path}/multiscan_part
+dataset: MultiScanPart
+dataset_path: ${data.dataset_root_path}/multiscan_part
+
+metadata:
+  metadata_path: ${data.dataset_path}/meta_data
+  train_list: ${data.metadata.metadata_path}/part_train.txt
+  val_list: ${data.metadata.metadata_path}/part_val.txt
+  test_list: ${data.metadata.metadata_path}/part_test.txt
 
 classes: 5
 ignore_classes: []
