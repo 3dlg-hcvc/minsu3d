@@ -1,6 +1,6 @@
-from lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
-from lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
-from lib.evaluation.semantic_segmentation import *
+from minpg.lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
+from minpg.lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
+from minpg.lib.evaluation.semantic_segmentation import *
 import pytorch_lightning as pl
 import torch
 import hydra

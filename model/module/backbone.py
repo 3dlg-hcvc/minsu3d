@@ -1,4 +1,4 @@
-from model.module.common import ResidualBlock, UBlock
+from minpg.model.module.common import ResidualBlock, UBlock
 import pytorch_lightning as pl
 import MinkowskiEngine as ME
 import torch.nn as nn

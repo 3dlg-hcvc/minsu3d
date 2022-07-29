@@ -1,7 +1,6 @@
-from lib.common_ops.functions import common_ops
+from minpg.lib.common_ops.functions import common_ops
 import MinkowskiEngine as ME
 import torch
-
 
 def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, mode, device):
     batch_idx = clusters_idx[:, 0].long().cuda()

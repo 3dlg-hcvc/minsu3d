@@ -1,11 +1,11 @@
 import os
 import hydra
 import torch
-from lib.callback import *
+from minpg.lib.callback import *
 import pytorch_lightning as pl
 from importlib import import_module
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
-from lib.data.data_module import DataModule
+from minpg.lib.data.data_module import DataModule
 
 
 def init_callbacks(cfg, output_path):

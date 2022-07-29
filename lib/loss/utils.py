@@ -1,11 +1,7 @@
 import os, sys
-
 import torch
 import torch.nn as nn
 import numpy as np
-
-sys.path.append(os.path.join(os.getcwd(), "lib"))  # HACK add the lib folder
-# from lib.util.bbox import get_3d_box_batch, get_aabb3d_iou_batch, get_3d_box
 
 
 def get_segmented_scores(scores, fg_thresh=1.0, bg_thresh=0.0):
