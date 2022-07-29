@@ -90,7 +90,7 @@ python test.py model={model_name} data={dataset_name} model.ckpt_path={pretraine
 
 ### Use your own dataset
 1. Add a new dataset config file (.yaml) at `config/data/{your_dataset}.yaml`
-2. Add a new dataset processing code at `lib/data/dataset/{your_dataset}.py`, it should inherit the `GeneralDataset` class from `lib/data/dataset/general_dataset.py`
+2. Add a new dataset processing code at `lib/data/dataset/{your_dataset}.py`, it should inherit the `GeneralDataset()` class from `lib/data/dataset/general_dataset.py`
 
 ### Implement your own model
 1. Add a new model config file (.yaml) at `config/model/{your_model}.yaml`
