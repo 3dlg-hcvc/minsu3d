@@ -4,8 +4,8 @@ import numpy as np
 import h5py
 import torch
 from torch.utils.data import Dataset
-from lib.util.pc import crop
-from lib.util.transform import jitter, flip, rotz, elastic
+from minpg.lib.util.pc import crop
+from minpg.lib.util.transform import jitter, flip, rotz, elastic
 
 
 class GeneralDataset(Dataset):

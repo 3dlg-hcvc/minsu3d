@@ -1,6 +1,6 @@
 import hydra
 from importlib import import_module
-from lib.data.data_module import DataModule
+from minpg.lib.data.data_module import DataModule
 import pytorch_lightning as pl
 import os
 

@@ -1,9 +1,0 @@
-plyfile
-tqdm
-trimesh
-pytorch-lightning
-scipy
-open3d
-wandb
-hydra-core
-h5py

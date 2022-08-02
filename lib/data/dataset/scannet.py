@@ -1,4 +1,4 @@
-from lib.data.dataset import GeneralDataset
+from minpg.lib.data.dataset import GeneralDataset
 
 
 class ScanNet(GeneralDataset):

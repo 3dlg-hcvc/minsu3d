@@ -1,6 +1,5 @@
-# scannet data
-data/scannet/splited_data
-data/scannet/splited_gt
+# data
+data
 
 # log
 log/
@@ -23,3 +22,4 @@ __pycache__
 .vscode
 .idea
 env
+*.egg-info

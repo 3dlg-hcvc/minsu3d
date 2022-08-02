@@ -2,16 +2,16 @@ import os
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances, rle_encode, rle_decode
-from lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
-from lib.common_ops.functions import hais_ops
-from lib.common_ops.functions import common_ops
-from lib.loss import *
+from minpg.lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances, rle_encode, rle_decode
+from minpg.lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
+from minpg.lib.common_ops.functions import hais_ops
+from minpg.lib.common_ops.functions import common_ops
+from minpg.lib.loss import *
 from model.helper import clusters_voxelization, get_batch_offsets
-from lib.loss.utils import get_segmented_scores
+from minpg.lib.loss.utils import get_segmented_scores
 from model.module import Backbone, TinyUnet
-from lib.optimizer import init_optimizer, cosine_lr_decay
-from lib.evaluation.semantic_segmentation import *
+from minpg.lib.optimizer import init_optimizer, cosine_lr_decay
+from minpg.lib.evaluation.semantic_segmentation import *
 from tqdm import tqdm
 
 
