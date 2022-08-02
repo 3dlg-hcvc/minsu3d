@@ -1,0 +1,4 @@
+# ninja log v5
+0	10668	1657412006610736352	/local-scratch/localhome/yza440/Research/pointgroup-minkowski/lib/common_ops/build/temp.linux-x86_64-cpython-38/src/cuda.o	9f7edfca7b6f8e51
+0	12307	1657412008246723282	/local-scratch/localhome/yza440/Research/pointgroup-minkowski/lib/common_ops/build/temp.linux-x86_64-cpython-38/src/common_ops.o	b8a00659287c3e0d
+0	14591	1657412010526705069	/local-scratch/localhome/yza440/Research/pointgroup-minkowski/lib/common_ops/build/temp.linux-x86_64-cpython-38/src/common_ops_api.o	e6df6c46ee382817
