@@ -4,6 +4,7 @@ data
 # log
 log/
 logs/
+wandb
 
 # output
 output/
@@ -13,8 +14,8 @@ outputs/
 temp/
 
 # pointgroup ops
-lib/common_ops/COMMON_OP*
-lib/common_ops/build/
+minpg/lib/common_ops/COMMON_OP*
+minpg/lib/common_ops/build/
 
 # other files
 .DS_Store
