@@ -6,7 +6,7 @@ import os
 
 
 def init_model(cfg):
-    return getattr(import_module("model"), cfg.model.model.module) \
+    return getattr(import_module("minpg.model"), cfg.model.model.module) \
         (cfg.model.model, cfg.data, cfg.model.optimizer, cfg.model.lr_decay, cfg.model.inference)
 
 
