@@ -341,7 +341,7 @@ class PointGroup(pl.LightningModule):
         proposals_mask[proposals_idx[:, 0].long(), proposals_idx[:, 1].long()] = True
 
         # score threshold & min_npoint mask
-        proposals_npoint = torch.nonzero(proposals_mask, dim=1)
+        proposals_npoint = torch.count_nonzero(proposals_mask, dim=1)
         proposals_thres_mask = torch.logical_and(proposals_score > self.hparams.model.test.TEST_SCORE_THRESH,
                                                  proposals_npoint > self.hparams.model.test.TEST_NPOINT_THRESH)
 
