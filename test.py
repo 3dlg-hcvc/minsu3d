@@ -17,7 +17,7 @@ def main(cfg):
     pl.seed_everything(cfg.global_seed, workers=True)
 
     print("=> initializing trainer...")
-    trainer = pl.Trainer(gpus=1, num_nodes=1, max_epochs=1, logger=False)
+    trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=1, logger=False)
 
     output_path = os.path.join(cfg.exp_output_root_path, cfg.data.dataset, cfg.model.model.module,
                                cfg.model.model.experiment_name, "inference", cfg.model.inference.split)

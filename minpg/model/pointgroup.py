@@ -162,9 +162,11 @@ class PointGroup(pl.LightningModule):
         # prepare input and forward
         output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
-        self.log("train/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("train/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True,
+                 sync_dist=True, batch_size=self.hparams.data.batch_size)
         for key, value in losses.items():
-            self.log(f"train/{key}", value, on_step=False, on_epoch=True, sync_dist=True)
+            self.log(f"train/{key}", value, on_step=False, on_epoch=True,
+                     sync_dist=True, batch_size=self.hparams.data.batch_size)
         return total_loss
 
     def training_epoch_end(self, training_step_outputs):
@@ -177,9 +179,9 @@ class PointGroup(pl.LightningModule):
         losses, total_loss = self._loss(data_dict, output_dict)
 
         # log losses
-        self.log("val/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("val/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
         for key, value in losses.items():
-            self.log(f"val/{key}", value, on_step=False, on_epoch=True, sync_dist=True)
+            self.log(f"val/{key}", value, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
 
         # log semantic prediction accuracy
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
@@ -187,8 +189,8 @@ class PointGroup(pl.LightningModule):
                                                        ignore_label=self.hparams.data.ignore_label)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
                                                    ignore_label=self.hparams.data.ignore_label)
-        self.log("val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True)
-        self.log("val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
+        self.log("val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],

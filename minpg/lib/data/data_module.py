@@ -1,6 +1,5 @@
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-from MinkowskiEngine.utils import sparse_collate, batched_coordinates
 from minpg.lib.common_ops.functions import common_ops
 from importlib import import_module
 import numpy as np
@@ -39,30 +38,8 @@ class DataModule(pl.LightningDataModule):
                           num_workers=self.data_cfg.data.num_workers)
 
 
-def scannet_collate_fn(batch):
-    data = {}
-    for key in batch[0].keys():
-        if key in ['locs', 'locs_scaled', 'feats', 'sem_labels', 'instance_ids', 'num_instance',
-                   'instance_info', 'instance_num_point', "instance_semantic_cls", 'instance_bboxes']:
-            continue
-        if isinstance(batch[0][key], tuple):
-            coords, feats = list(zip(*[sample[key] for sample in batch]))
-            coords_b = batched_coordinates(coords)
-            feats_b = torch.from_numpy(np.concatenate(feats, 0)).float()
-            data[key] = (coords_b, feats_b)
-        elif isinstance(batch[0][key], np.ndarray):
-            data[key] = torch.stack([torch.from_numpy(sample[key]) for sample in batch])
-        elif isinstance(batch[0][key], torch.Tensor):
-            data[key] = torch.stack([sample[key] for sample in batch])
-        elif isinstance(batch[0][key], dict):
-            data[key] = sparse_collate([sample[key] for sample in batch])
-        else:
-            data[key] = [sample[key] for sample in batch]
-    return data
-
-
 def sparse_collate_fn(batch):
-    data = scannet_collate_fn(batch)
+    data = {}
     locs = []
     locs_scaled = []
     vert_batch_ids = []
@@ -73,10 +50,22 @@ def sparse_collate_fn(batch):
     instance_num_point = []  # (total_nInst), int
     instance_offsets = [0]
     total_num_inst = 0
-    total_points = 0
     instance_cls = []  # (total_nInst), long
     instance_bboxes = []
+
     scan_ids = []
+    # total_num_points = 0
+    # for b in batch:
+    #     scan_ids.append(b["scan_id"])
+    #     total_num_points += b["locs"].shape[0]
+    #
+    # locs = torch.empty((total_num_points, batch[0]["locs"].shape[1]), dtype=torch.float32)
+    # locs_scaled = torch.empty((total_num_points, 3), dtype=torch.int32)
+    # vert_batch_ids = torch.empty(total_num_points, dtype=torch.int32)
+    # feats = torch.empty((total_num_points, batch[0]["feats"].shape[1]), dtype=torch.float32)
+    # instance_ids = torch.empty(total_num_points, dtype=torch.int32)
+    # sem_labels = torch.empty(total_num_points, dtype=torch.int32)
+
 
     for i, b in enumerate(batch):
         scan_ids.append(b["scan_id"])
@@ -89,7 +78,6 @@ def sparse_collate_fn(batch):
         instance_ids_i = b["instance_ids"]
         instance_ids_i[instance_ids_i != -1] += total_num_inst
         total_num_inst += b["num_instance"].item()
-        total_points += len(instance_ids_i)
         instance_ids.append(torch.from_numpy(instance_ids_i))
 
         sem_labels.append(torch.from_numpy(b["sem_labels"]))
