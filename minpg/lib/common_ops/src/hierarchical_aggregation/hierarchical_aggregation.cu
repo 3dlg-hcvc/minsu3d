@@ -95,7 +95,7 @@ __global__ void concat_fragments_(
 void hierarchical_aggregation_cuda(
     int fragment_total_point_num, int fragment_num, int *fragment_idxs, int *fragment_offsets, float *fragment_centers,
     int primary_total_point_num, int primary_num, int *primary_idxs, int *primary_offsets, float *primary_centers,
-    int *primary_idxs_post, int *primary_offsets_post, const float *class_radius_mean){
+    int *primary_idxs_post, int *primary_offsets_post, const float *class_radius_mean, const int class_num){
 
     if (primary_num == 0){
         return;
@@ -114,12 +114,18 @@ void hierarchical_aggregation_cuda(
     int *cuda_primary_idxs;
     int *cuda_primary_offsets;
     float *cuda_primary_centers;
+
     cudaMalloc((void**)&cuda_primary_idxs, primary_total_point_num * 2 * sizeof(int) + sizeof(int)); // prevent alloc 0 space
     cudaMalloc((void**)&cuda_primary_offsets, (primary_num + 1) * sizeof(int));
     cudaMalloc((void**)&cuda_primary_centers, primary_num * 5 * sizeof(float) + sizeof(float));  // prevent alloc 0 space
     cudaMemcpy(cuda_primary_idxs, primary_idxs, primary_total_point_num * 2 * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_primary_offsets, primary_offsets, (primary_num + 1) * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_primary_centers, primary_centers, primary_num * 5 * sizeof(float), cudaMemcpyHostToDevice);
+
+    float *cuda_class_radius_mean;
+    cudaMalloc((void**)&cuda_class_radius_mean, class_num * sizeof(float)); // prevent alloc 0 space
+    cudaMemcpy(cuda_class_radius_mean, class_radius_mean, class_num * sizeof(float), cudaMemcpyHostToDevice);
+
     cudaDeviceSynchronize();
 
     // // for each fragment, find its primary
@@ -134,7 +140,7 @@ void hierarchical_aggregation_cuda(
         fragment_find_primary_<<<int(DIVUP(fragment_num, MAX_THREADS_PER_BLOCK)), (int)MAX_THREADS_PER_BLOCK>>>(
             primary_num, cuda_primary_offsets, cuda_primary_centers,
             fragment_num, cuda_fragment_offsets, cuda_fragment_centers,
-            cuda_primary_absorb_fragment_idx, cuda_primary_absorb_fragment_cnt, class_radius_mean);
+            cuda_primary_absorb_fragment_idx, cuda_primary_absorb_fragment_cnt, cuda_class_radius_mean);
     }
     cudaDeviceSynchronize();
     // concatenate fragments belonging to the same primary

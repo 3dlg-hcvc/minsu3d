@@ -24,7 +24,7 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
 void hierarchical_aggregation_cuda(
     int fragment_total_point_num, int fragment_num, int *fragment_idxs, int *fragment_offsets, float *fragment_centers,
     int primary_total_point_num, int primary_num, int *primary_idxs, int *primary_offsets, float *primary_centers,
-    int *primary_idxs_post, int *primary_offsets_post, const float *class_radius_mean
+    int *primary_idxs_post, int *primary_offsets_post, const float *class_radius_mean, const int class_num
 );
 #endif //HIERARCHICAL_AGGREGATION_H
 

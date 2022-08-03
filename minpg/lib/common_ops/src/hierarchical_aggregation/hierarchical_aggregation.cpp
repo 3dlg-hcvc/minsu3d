@@ -179,6 +179,6 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
     // set aggr
     hierarchical_aggregation_cuda(sumNPoint_fragment, (int)CCs_fragment.size(), fragment_idxs, fragment_offsets, fragment_centers,
         sumNPoint_primary, (int)CCs_primary.size(), primary_idxs, primary_offsets, primary_centers,
-        primary_idxs_post, primary_offsets_post, radius_avg);
+        primary_idxs_post, primary_offsets_post, radius_avg, radius_avg_tensor.sizes()[0]);
 
 }
