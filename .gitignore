@@ -1,5 +1,7 @@
 # data
-data
+data/multiscan_obj
+data/multiscan_part
+data/scannet
 
 # log
 log/
