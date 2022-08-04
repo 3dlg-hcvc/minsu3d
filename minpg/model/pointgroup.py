@@ -370,7 +370,7 @@ class PointGroup(pl.LightningModule):
         instances = []
         for i in range(nclusters):
             cluster_i = clusters_mask[i]  # (N)
-            pred = {'scan_id': scan_id, 'label_id': semantic_pred_labels[cluster_i][0].item() - 1,
+            pred = {'scan_id': scan_id, 'label_id': semantic_pred_labels[cluster_i][0].item() + 1,
                     'conf': score_pred[i], 'pred_mask': rle_encode(cluster_i)}
             pred_inst = gt_xyz[cluster_i]
             pred['pred_bbox'] = np.concatenate((pred_inst.min(0), pred_inst.max(0)))

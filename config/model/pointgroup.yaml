@@ -23,9 +23,9 @@ model:
   block_reps: 2
 
   use_coord: True
-  use_color: False
-  use_multiview: True
-  use_normal: True
+  use_color: True
+  use_multiview: False
+  use_normal: False
 
   fg_thresh: 0.75
   bg_thresh: 0.25
