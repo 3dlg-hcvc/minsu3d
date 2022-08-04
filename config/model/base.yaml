@@ -17,7 +17,8 @@ log:
 
 # https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
 trainer:
-  gpus: -1  # use all available gpus
+  accelerator: gpu
+  devices: auto
   strategy: ddp
   num_nodes: 1
   max_epochs: 496
@@ -48,5 +49,5 @@ lr_decay:
 inference:
   split: val
   evaluate: True
-  save_predictions: True
+  save_predictions: False
   output_dir: prediction
