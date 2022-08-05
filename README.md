@@ -5,16 +5,16 @@
 
 **Environment requirements**
 - CUDA 11.X
-- Python 3.9
+- Python 3.8
 
 ### Install via Conda (recommended)
 ```shell
 # create and activate the conda environment
-conda create -n pointgroup python=3.9
+conda create -n pointgroup python=3.8
 conda activate pointgroup
 
 # install PyTorch
-conda install pytorch cudatoolkit=11.3 -c pytorch
+conda install pytorch cudatoolkit=11.1 -c pytorch-lts -c nvidia
 
 # install Python libraries
 pip install -e .
@@ -38,7 +38,7 @@ virtualenv --no-download env
 source env/bin/activate
 
 # install PyTorch
-pip3 install torch --extra-index-url https://download.pytorch.org/whl/cu113
+pip3 install torch==1.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cu111
 
 # install Python libraries
 pip install -e .
