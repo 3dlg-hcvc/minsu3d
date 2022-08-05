@@ -1,4 +1,5 @@
-# PointGroup-MinkowskiEngine
+# min3d
+**Min**kowskiEngine-powered Instance Segmentation for **3D** Scenes
 
 ## Installation
 
