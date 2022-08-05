@@ -4,16 +4,20 @@
 ## Installation
 
 **Environment requirements**
+- Ubuntu 20.04 LTS
 - CUDA 11.X
 - Python 3.8
+- PyTorch 1.8.2
+- PytorchLightning 1.6.5
+- MinkowskiEngine 0.5.4
 
 ### Install via Conda (recommended)
 ```shell
 # create and activate the conda environment
-conda create -n pointgroup python=3.8
-conda activate pointgroup
+conda create -n min3d python=3.8
+conda activate min3d
 
-# install PyTorch
+# install PyTorch 1.8.2
 conda install pytorch cudatoolkit=11.1 -c pytorch-lts -c nvidia
 
 # install Python libraries
