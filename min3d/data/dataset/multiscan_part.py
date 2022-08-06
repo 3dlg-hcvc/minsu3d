@@ -1,8 +1,8 @@
-from minpg.lib.data.dataset import GeneralDataset
-from tqdm import tqdm
-import torch
-import numpy as np
 import os
+from tqdm import tqdm
+import numpy as np
+import torch
+from min3d.data.dataset import GeneralDataset
 
 
 class MultiScanPart(GeneralDataset):

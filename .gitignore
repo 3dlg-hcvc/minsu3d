@@ -16,8 +16,8 @@ outputs/
 temp/
 
 # pointgroup ops
-minpg/lib/common_ops/COMMON_OP*
-minpg/lib/common_ops/build/
+min3d/common_ops/COMMON_OP*
+min3d/common_ops/build/
 
 # other files
 .DS_Store

@@ -31,7 +31,7 @@ pip install -U git+https://github.com/NVIDIA/MinkowskiEngine -v --no-deps --inst
 conda install -c bioconda google-sparsehash
 export CPATH=$CONDA_PREFIX/include:$CPATH
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-cd minpg/lib/common_ops
+cd min3d/common_ops
 python setup.py develop
 ```
 
@@ -51,7 +51,7 @@ pip install -e .
 pip install MinkowskiEngine
 
 # install C++ extensions
-cd minpg/lib/common_ops
+cd min3d/common_ops
 python setup.py develop
 ```
 

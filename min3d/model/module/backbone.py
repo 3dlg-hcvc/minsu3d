@@ -1,8 +1,8 @@
-from minpg.model.module.common import ResidualBlock, UBlock
+import functools
+import torch.nn as nn
 import pytorch_lightning as pl
 import MinkowskiEngine as ME
-import torch.nn as nn
-import functools
+from min3d.model.module.common import ResidualBlock, UBlock
 
 
 class Backbone(pl.LightningModule):

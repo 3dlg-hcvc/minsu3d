@@ -1,11 +1,11 @@
-from minpg.lib.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
-from minpg.lib.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
-from minpg.lib.evaluation.semantic_segmentation import *
-import pytorch_lightning as pl
-import torch
-import hydra
 import os
 import numpy as np
+import hydra
+import torch
+import pytorch_lightning as pl
+from min3d.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
+from min3d.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
+from min3d.evaluation.semantic_segmentation import *
 
 
 def read_gt_files_from_disk(data_path):

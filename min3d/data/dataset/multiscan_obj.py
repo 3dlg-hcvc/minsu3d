@@ -1,4 +1,4 @@
-from minpg.lib.data.dataset import GeneralDataset
+from min3d.data.dataset import GeneralDataset
 
 
 class MultiScanObj(GeneralDataset):
