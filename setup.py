@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 setup(
-    name="min3d",
+    name="minsu3d",
     version="1.0",
     author="3dlg-hcvc",
     url="https://github.com/3dlg-hcvc/pointgroup-minkowski.git",

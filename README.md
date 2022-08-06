@@ -1,5 +1,5 @@
-# min3d
-**Min**kowskiEngine-powered Instance Segmentation for **3D** Scenes
+# minsu3d
+**Min**kowskiEngine-powered **S**cene **U**nderstanding in **3D**
 
 ## Installation
 
@@ -14,8 +14,8 @@
 ### Install via Conda (recommended)
 ```shell
 # create and activate the conda environment
-conda create -n min3d python=3.8
-conda activate min3d
+conda create -n minsu3d python=3.8
+conda activate minsu3d
 
 # install PyTorch 1.8.2
 conda install pytorch cudatoolkit=11.1 -c pytorch-lts -c nvidia
@@ -31,7 +31,7 @@ pip install -U git+https://github.com/NVIDIA/MinkowskiEngine -v --no-deps --inst
 conda install -c bioconda google-sparsehash
 export CPATH=$CONDA_PREFIX/include:$CPATH
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-cd min3d/common_ops
+cd minsu3d/common_ops
 python setup.py develop
 ```
 
@@ -51,7 +51,7 @@ pip install -e .
 pip install MinkowskiEngine
 
 # install C++ extensions
-cd min3d/common_ops
+cd minsu3d/common_ops
 python setup.py develop
 ```
 

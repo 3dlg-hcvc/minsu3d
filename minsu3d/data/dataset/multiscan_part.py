@@ -2,7 +2,7 @@ import os
 from tqdm import tqdm
 import numpy as np
 import torch
-from min3d.data.dataset import GeneralDataset
+from minsu3d.data.dataset import GeneralDataset
 
 
 class MultiScanPart(GeneralDataset):

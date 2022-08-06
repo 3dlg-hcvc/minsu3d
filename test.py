@@ -2,11 +2,11 @@ import os
 import hydra
 from importlib import import_module
 import pytorch_lightning as pl
-from min3d.data.data_module import DataModule
+from minsu3d.data.data_module import DataModule
 
 
 def init_model(cfg):
-    return getattr(import_module("min3d.model"), cfg.model.model.module) \
+    return getattr(import_module("minsu3d.model"), cfg.model.model.module) \
         (cfg.model.model, cfg.data, cfg.model.optimizer, cfg.model.lr_decay, cfg.model.inference)
 
 

@@ -3,14 +3,14 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-from min3d.common_ops.functions import common_ops
+from minsu3d.common_ops.functions import common_ops
 
 
 class DataModule(pl.LightningDataModule):
     def __init__(self, data_cfg):
         super().__init__()
         self.data_cfg = data_cfg
-        self.dataset = getattr(import_module('min3d.data.dataset'), data_cfg.data.dataset)
+        self.dataset = getattr(import_module('minsu3d.data.dataset'), data_cfg.data.dataset)
 
     def setup(self, stage=None):
         if stage == "fit" or stage is None:

@@ -4,8 +4,8 @@ from importlib import import_module
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
-from min3d.callback import *
-from min3d.data.data_module import DataModule
+from minsu3d.callback import *
+from minsu3d.data.data_module import DataModule
 
 
 def init_callbacks(cfg, output_path):
@@ -18,7 +18,7 @@ def init_callbacks(cfg, output_path):
 
 
 def init_model(cfg):
-    model = getattr(import_module("min3d.model"), cfg.model.model.module) \
+    model = getattr(import_module("minsu3d.model"), cfg.model.model.module) \
         (cfg.model.model, cfg.data, cfg.model.optimizer, cfg.model.lr_decay, None)
     if cfg.model.model.pretrained_module:
         print("=> loading pretrained module from {} ...".format(cfg.model.pretrained_module_path))

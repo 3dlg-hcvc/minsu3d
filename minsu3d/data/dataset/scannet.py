@@ -1,4 +1,4 @@
-from min3d.data.dataset import GeneralDataset
+from minsu3d.data.dataset import GeneralDataset
 
 
 class ScanNet(GeneralDataset):

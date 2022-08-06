@@ -1,6 +1,6 @@
 import torch
 import MinkowskiEngine as ME
-from min3d.common_ops.functions import common_ops
+from minsu3d.common_ops.functions import common_ops
 
 
 def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, mode, device):

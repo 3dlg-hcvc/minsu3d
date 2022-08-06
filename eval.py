@@ -3,9 +3,9 @@ import numpy as np
 import hydra
 import torch
 import pytorch_lightning as pl
-from min3d.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
-from min3d.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
-from min3d.evaluation.semantic_segmentation import *
+from minsu3d.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
+from minsu3d.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
+from minsu3d.evaluation.semantic_segmentation import *
 
 
 def read_gt_files_from_disk(data_path):

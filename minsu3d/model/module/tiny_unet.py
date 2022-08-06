@@ -2,7 +2,7 @@ import functools
 import torch.nn as nn
 import pytorch_lightning as pl
 import MinkowskiEngine as ME
-from min3d.model.module.common import ResidualBlock, UBlock
+from minsu3d.model.module.common import ResidualBlock, UBlock
 
 
 class TinyUnet(pl.LightningModule):

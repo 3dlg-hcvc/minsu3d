@@ -16,8 +16,8 @@ outputs/
 temp/
 
 # pointgroup ops
-min3d/common_ops/COMMON_OP*
-min3d/common_ops/build/
+minsu3d/common_ops/COMMON_OP*
+minsu3d/common_ops/build/
 
 # other files
 .DS_Store

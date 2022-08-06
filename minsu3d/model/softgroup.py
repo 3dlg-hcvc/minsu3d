@@ -3,15 +3,15 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from min3d.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances, rle_encode, rle_decode
-from min3d.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
-from min3d.common_ops.functions import softgroup_ops
-from min3d.common_ops.functions import common_ops
-from min3d.loss import *
-from min3d.evaluation.semantic_segmentation import *
-from min3d.model.module import Backbone, TinyUnet
-from min3d.model.helper import clusters_voxelization, get_batch_offsets
-from min3d.optimizer import init_optimizer, cosine_lr_decay
+from minsu3d.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances, rle_encode, rle_decode
+from minsu3d.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
+from minsu3d.common_ops.functions import softgroup_ops
+from minsu3d.common_ops.functions import common_ops
+from minsu3d.loss import *
+from minsu3d.evaluation.semantic_segmentation import *
+from minsu3d.model.module import Backbone, TinyUnet
+from minsu3d.model.helper import clusters_voxelization, get_batch_offsets
+from minsu3d.optimizer import init_optimizer, cosine_lr_decay
 
 
 class SoftGroup(pl.LightningModule):
