@@ -1,18 +1,11 @@
-import hydra
+import os
+import argparse
 from pathlib import Path
-import os, sys
-import argparse
 from omegaconf import OmegaConf
-from plyfile import PlyData
-import argparse
 from tqdm import tqdm
 
-import numpy as np
-import torch
-import matplotlib.pyplot as plt
-import colorsys
-import random
 from generate_one_ply import generate_single_ply
+
 
 def generate_pred_inst_ply(args):
     metadata_path = os.path.join(Path(args.rgb_file_dir).parent.parent.absolute(), 'meta_data')
@@ -33,6 +26,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--type', type=str, default='pointcloud', help='specify type of ply: pointcloud | mesh')
     parser.add_argument('-o', '--output_dir', type=str, default='output_ply', help='Spiciy the directory of the output ply')
     args = parser.parse_args()
+
     args.rgb_file_dir = os.path.join(args.rgb_file_dir, args.split)
     args.output_dir = os.path.join(args.output_dir, args.mode)
     generate_pred_inst_ply(args)

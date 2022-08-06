@@ -1,17 +1,20 @@
-import hydra
-from pathlib import Path
 import os, sys
 import argparse
+import colorsys
+import random
+from pathlib import Path
 from omegaconf import OmegaConf
 from plyfile import PlyData
-import argparse
 from tqdm import tqdm
 
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
-import colorsys
-import random
+
+sys.path.append(os.getcwd())
+sys.path.append('../..')
+from data.scannet.model_util_scannet import SCANNET_COLOR_MAP
+from minsu3d.util.pc import write_ply_rgb, write_ply_colorful, write_ply_rgb_face
+from minsu3d.util.bbox import write_cylinder_bbox
 
 # The following two functions referenced from https://github.com/choumin/ncolors/blob/master/ncolors.py
 def get_n_hls_colors(num):
@@ -26,6 +29,7 @@ def get_n_hls_colors(num):
         hls_colors.append(_hlsc)
         i += step
     return hls_colors
+
 def ncolors(num):
     rgb_colors = []
     if num < 1:
@@ -38,11 +42,6 @@ def ncolors(num):
 
     return rgb_colors
 
-sys.path.append(os.getcwd())
-sys.path.append('../..')
-from data.scannet.model_util_scannet import SCANNET_COLOR_MAP
-from lib.util.pc import write_ply_rgb, write_ply_colorful, write_ply_rgb_face
-from lib.util.bbox import write_cylinder_bbox
 CLASS_COLOR = {
     'unannotated': [0, 0, 0],
     'floor': [143, 223, 142],
@@ -132,22 +131,15 @@ def generate_single_ply(args):
     write_ply_rgb(points, colors, rgb_inst_ply)
 
 
-
-
-
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--predict_dir', type=str, default='/localhome/zmgong/research/pointgroup-minkowski/output/ScanNet/SoftGroup/test/predictions/instance', help='Spiciy the directory of the predictions')
     parser.add_argument('-r', '--rgb_file_dir', type=str, default='/localhome/zmgong/research/pointgroup-minkowski/data/scannet/splited_data/val')
-    
-    parser.add_argument('-sid', '--scene_id', type=str, default='scene0011_00', help='scene ID(example: scene0011_00)')
-    # parser.add_argument('-sid', '--scene_id', type=str, required=True, help='scene ID(example: scene0011_00)')
-    
+    parser.add_argument('-sid', '--scene_id', type=str, default='scene0011_00', help='scene ID(example: scene0011_00)')    
     parser.add_argument('-m', '--mode', type=str, default='instance', choices=['semantic', 'instance'],help='specify instance or semantic mode: semantic | instance | detection')
     parser.add_argument('-t', '--type', type=str, default='pointcloud', help='specify type of ply: pointcloud | mesh')
     parser.add_argument('-o', '--output_dir', type=str, default='output_ply', help='Spiciy the directory of the output ply')
     args = parser.parse_args()
+
     args.output_dir = os.path.join(args.output_dir, args.mode)
     generate_single_ply(args)
