@@ -64,8 +64,6 @@ python setup.py develop
 cd data/scannet
 python prepare_all_data.py data=scannet +raw_scan_path={PATH_TO_SCANNET_V2}/scans
 ```
-### MultiScan dataset
-Comming soon ...
 
 ## Training, Inference and Evaluation
 Note: Configuration files are managed by [Hydra](https://hydra.cc/), you can easily add or override any configuration attributes by passing them as arguments.
@@ -80,9 +78,8 @@ python train.py model={model_name} data={dataset_name} model.ckpt_path={checkpoi
 python test.py model={model_name} data={dataset_name} model.ckpt_path={pretrained_model_path}
 
 # examples:
-# python train.py model=hais data=scannet
-# python train.py model=pointgroup data=multiscan model.trainer.max_epochs=480
-# python test.py model=softgroup data=multiscan model.ckpt_path=pretrained.ckpt
+# python train.py model=pointgroup data=scannet model.trainer.max_epochs=480
+# python test.py model=pointgroup data=scannet model.ckpt_path=pretrained.ckpt
 ```
 
 ## Pretrained Models
@@ -95,8 +92,8 @@ python test.py model={model_name} data={dataset_name} model.ckpt_path={pretraine
 
 ### Use your own dataset
 1. Add a new dataset config file (.yaml) at `config/data/{your_dataset}.yaml`
-2. Add a new dataset processing code at `lib/data/dataset/{your_dataset}.py`, it should inherit the `GeneralDataset()` class from `lib/data/dataset/general_dataset.py`
+2. Add a new dataset processing code at `minsu3d/data/dataset/{your_dataset}.py`, it should inherit the `GeneralDataset()` class from `lib/data/dataset/general_dataset.py`
 
 ### Implement your own model
 1. Add a new model config file (.yaml) at `config/model/{your_model}.yaml`
-2. Add a new model code at `model/{your_model}.py`
+2. Add a new model code at `minsu3d/model/{your_model}.py`
