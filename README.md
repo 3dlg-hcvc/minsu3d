@@ -1,17 +1,31 @@
 # minsu3d
 **Min**kowskiEngine-powered **S**cene **U**nderstanding in **3D**
 
-## Installation
+The repository contains reimplementation of state-of-the-art 3D scene understanding methods (PointGroup, SoftGroup, HAIS...) powered by [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
+
+## Features
+- Highly-modularized design enables researchers to easily add different models and datastes.
+- Focus on research by letting [PytorchLightning](https://github.com/Lightning-AI/lightning) handle engineering code.
+- Easy experiment configuration and management with [Hydra](https://github.com/facebookresearch/hydra) and [W&B](https://github.com/wandb/wandb).
+
+## TODOs
+- Models
+  - [x] [PointGroup](https://arxiv.org/abs/2004.01658)
+  - [ ] [SoftGroup](https://arxiv.org/abs/2203.01509)
+  - [ ] [HAIS](https://arxiv.org/abs/2108.02350)
+- Data
+  - [x] [ScanNet](http://www.scan-net.org/)
+  - [ ] MultiScan
+
+## Setup
 
 **Environment requirements**
 - Ubuntu 20.04 LTS
 - CUDA 11.X
 - Python 3.8
-- PyTorch 1.8.2
-- PytorchLightning 1.6.5
-- MinkowskiEngine 0.5.4
+- [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine#requirements)
 
-### Install via Conda (recommended)
+### Anaconda (recommended)
 ```shell
 # create and activate the conda environment
 conda create -n minsu3d python=3.8
@@ -35,7 +49,7 @@ cd minsu3d/common_ops
 python setup.py develop
 ```
 
-### Install via Pip
+### Pip
 ```shell
 # create and activate the virtual environment
 virtualenv --no-download env
