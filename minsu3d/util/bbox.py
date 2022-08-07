@@ -7,8 +7,8 @@ from __future__ import print_function
 import math
 import numpy as np
 from scipy.spatial import ConvexHull
-from lib.util.pc import write_ply_rgb_face
-from lib.util.transform import roty, roty_batch, rotz
+from minsu3d.util.pc import write_ply_rgb_face
+from minsu3d.util.transform import roty, roty_batch, rotz
 import trimesh
 
  
