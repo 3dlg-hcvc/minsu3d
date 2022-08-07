@@ -98,7 +98,7 @@ def generate_pred_inst_ply(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--predict_dir', type=str, default='../../output/ScanNet/SoftGroup/test/predictions/instance', help='Spiciy the directory of the predictions. Eg:"../../output/ScanNet/SoftGroup/test/predictions/instanc"')
+    parser.add_argument('-p', '--predict_dir', type=str, default='../../output/ScanNet/PointGroup/test/predictions/instance', help='Spiciy the directory of the predictions. Eg:"../../output/ScanNet/SoftGroup/test/predictions/instanc"')
     parser.add_argument('-s', '--split', type=str, default='val', choices=['test', 'val'],help='specify the split of data: val | test')
     parser.add_argument('-m', '--mode', type=str, default='semantic', choices=['semantic', 'instance'],help='specify instance or semantic mode: semantic | instance | detection')
     parser.add_argument('-o', '--output_dir', type=str, default='output_ply', help='Spiciy the directory of the output ply')
