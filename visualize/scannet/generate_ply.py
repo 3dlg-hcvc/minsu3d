@@ -101,7 +101,6 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--predict_dir', type=str, default='../../output/ScanNet/SoftGroup/test/predictions/instance', help='Spiciy the directory of the predictions. Eg:"../../output/ScanNet/SoftGroup/test/predictions/instanc"')
     parser.add_argument('-s', '--split', type=str, default='val', choices=['test', 'val'],help='specify the split of data: val | test')
     parser.add_argument('-m', '--mode', type=str, default='semantic', choices=['semantic', 'instance'],help='specify instance or semantic mode: semantic | instance | detection')
-    parser.add_argument('-t', '--type', type=str, default='pointcloud', help='specify type of ply: pointcloud | mesh')
     parser.add_argument('-o', '--output_dir', type=str, default='output_ply', help='Spiciy the directory of the output ply')
     args = parser.parse_args()
     args.rgb_file_dir = os.path.join(Path(os.getcwd()).parent.parent.absolute(), 'data/scannet', args.split)
