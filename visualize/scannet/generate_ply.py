@@ -16,7 +16,7 @@ import torch
 
 
 # The following two functions referenced from https://github.com/choumin/ncolors/blob/master/ncolors.py
-def get_hls_colors(num):
+def get_random_hls_colors(num):
     hls_colors = []
     i = 0
     step = 360.0 / num
@@ -29,11 +29,11 @@ def get_hls_colors(num):
         i += step
     return hls_colors
 
-def get_rgb_colors(num):
+def get_randome_rgb_colors(num):
     rgb_colors = []
     if num < 1:
         return rgb_colors
-    hls_colors = get_hls_colors(num)
+    hls_colors = get_random_hls_colors(num)
     for hlsc in hls_colors:
         _r, _g, _b = colorsys.hls_to_rgb(hlsc[0], hlsc[1], hlsc[2])
         r, g, b = [int(x * 255.0) for x in (_r, _g, _b)]
@@ -74,7 +74,7 @@ def generate_single_ply(args):
                 if predicted_mask_list[vertexIndex] == "1":
                     colors[vertexIndex] = SCANNET_COLOR_MAP[int(semanticIndex)]
     elif args.mode == "instance":
-        color_list = get_rgb_colors(len(labelIndexes))
+        color_list = get_randome_rgb_colors(len(labelIndexes))
         random.shuffle(color_list)
         for index, instanceFileName in enumerate(instanceFileNames):
             with open(instanceFileName) as file:
