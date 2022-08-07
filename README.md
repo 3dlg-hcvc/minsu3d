@@ -100,7 +100,18 @@ python test.py model={model_name} data={dataset_name} model.ckpt_path={pretraine
 ...
 
 ## Visualization
-...
+You can generate ply files to visualize the predictions of scannet. Please find the `generate_ply.py` under `visualize/scannet`
+```shell
+cd visualize/scannet
+python generate_ply.py --predict_dir {path to the predictions} --split {test/val/train} --mode {semantic/instance} --output_dir {output directory of ply files}
+
+# example:
+# python generate_ply.py --predict_dir ../../output/ScanNet/PointGroup/test/predictions/instance --split val --mode semantic --output_dir output_ply
+```
+The 'mode' option allows you to specify the color mode.  
+In the 'semantic' mode, objects with the same semantic prediction will have the same color.  
+In the 'instance' mode, each independent object will have unique color, which allows the user to check how well the model performs on instance segmentation.  
+
 
 ## Customization
 
