@@ -174,7 +174,6 @@ class HAIS(pl.LightningModule):
             mask_label_mask = mask_label_mask.unsqueeze(1)
             mask_scoring_criterion = MaskScoringLoss(weight=mask_label_mask, reduction='sum')
             mask_loss = mask_scoring_criterion(mask_scores_sigmoid, mask_label.float())
-            mask_loss /= (torch.count_nonzero(mask_label_mask) + 1)
             losses["mask_loss"] = mask_loss
 
             gt_ious, _ = ious.max(1)  # gt_ious: (nProposal) float, long
