@@ -291,7 +291,7 @@ class SoftGroup(pl.LightningModule):
                                                       output_dict["semantic_scores"].size(0),
                                                       output_dict["cls_scores"].cpu(),
                                                       output_dict["iou_scores"].cpu(),
-                                                      output_dict["mask_scores"].cpu())
+                                                      output_dict["mask_scores"].cpu(), len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
             gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
@@ -343,7 +343,7 @@ class SoftGroup(pl.LightningModule):
                                                       output_dict["semantic_scores"].size(0),
                                                       output_dict["cls_scores"].cpu(),
                                                       output_dict["iou_scores"].cpu(),
-                                                      output_dict["mask_scores"].cpu())
+                                                      output_dict["mask_scores"].cpu(), len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
 
@@ -407,7 +407,7 @@ class SoftGroup(pl.LightningModule):
                 self.print(f"Semantic Accuracy: {sem_acc_avg}")
                 self.print(f"Semantic mean IoU: {sem_miou_avg}")
 
-    def _get_pred_instances(self, scan_id, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores):
+    def _get_pred_instances(self, scan_id, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores, num_ignored_classes):
         num_instances = cls_scores.size(0)
         cls_scores = cls_scores.softmax(1)
         cls_pred_list, score_pred_list, mask_pred_list = [], [], []
@@ -443,7 +443,7 @@ class SoftGroup(pl.LightningModule):
 
         pred_instances = []
         for i in range(cls_pred.shape[0]):
-            pred = {'scan_id': scan_id, 'label_id': cls_pred[i], 'conf': score_pred[i],
+            pred = {'scan_id': scan_id, 'label_id': cls_pred[i] - num_ignored_classes, 'conf': score_pred[i],
                     'pred_mask': rle_encode(mask_pred[i])}
             pred_xyz = gt_xyz[mask_pred[i]]
             pred['pred_bbox'] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))

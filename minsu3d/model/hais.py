@@ -235,7 +235,7 @@ class HAIS(pl.LightningModule):
                                                       output_dict["proposal_scores"][1].cpu(),
                                                       output_dict["proposal_scores"][2].size(0) - 1,
                                                       output_dict["proposal_scores"][3].cpu(),
-                                                      output_dict["semantic_scores"].cpu())
+                                                      output_dict["semantic_scores"].cpu(), len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
             gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
@@ -286,7 +286,7 @@ class HAIS(pl.LightningModule):
                                                       output_dict["proposal_scores"][1].cpu(),
                                                       output_dict["proposal_scores"][2].size(0) - 1,
                                                       output_dict["proposal_scores"][3].cpu(),
-                                                      output_dict["semantic_scores"].cpu())
+                                                      output_dict["semantic_scores"].cpu(), len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
             gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
@@ -349,7 +349,7 @@ class HAIS(pl.LightningModule):
                 self.print(f"Semantic Accuracy: {sem_acc_avg}")
                 self.print(f"Semantic mean IoU: {sem_miou_avg}")
 
-    def _get_pred_instances(self, scan_id, gt_xyz, scores, proposals_idx, num_proposals, mask_scores, semantic_scores):
+    def _get_pred_instances(self, scan_id, gt_xyz, scores, proposals_idx, num_proposals, mask_scores, semantic_scores, num_ignored_classes):
         semantic_pred_labels = semantic_scores.max(1)[1]
         scores_pred = torch.sigmoid(scores.view(-1))
 
@@ -388,7 +388,7 @@ class HAIS(pl.LightningModule):
         pred_instances = []
         for i in range(nclusters):
             cluster_i = clusters[i]
-            pred = {'scan_id': scan_id, 'label_id': semantic_pred_labels[cluster_i][0].item() - 1, 'conf': cluster_scores[i],
+            pred = {'scan_id': scan_id, 'label_id': semantic_pred_labels[cluster_i][0].item() - num_ignored_classes + 1, 'conf': cluster_scores[i],
                     'pred_mask': rle_encode(cluster_i)}
             pred_xyz = gt_xyz[cluster_i]
             pred['pred_bbox'] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
