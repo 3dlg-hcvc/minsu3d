@@ -11,10 +11,14 @@ log:
     name: SoftGroup
 
 trainer:
-  max_epochs: 336
+  max_epochs: 256
 
 lr_decay:
-  decay_stop_epoch: 336
+  decay_start_epoch: 178
+  decay_stop_epoch: 256
+
+optimizer:
+    lr: 0.004
 
 model:
   module: SoftGroup
