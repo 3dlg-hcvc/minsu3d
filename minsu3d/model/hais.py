@@ -172,7 +172,7 @@ class HAIS(pl.LightningModule):
                                                                     self.hparams.data.ignore_label, 0.5)
             mask_label = mask_label.unsqueeze(1)
             mask_label_mask = mask_label_mask.unsqueeze(1)
-            mask_scoring_criterion = MaskScoringLoss(weight=mask_label_mask, reduction='sum')
+            mask_scoring_criterion = MaskScoringLoss(weight=mask_label_mask, reduction='mean')
             mask_loss = mask_scoring_criterion(mask_scores_sigmoid, mask_label.float())
             losses["mask_loss"] = mask_loss
 

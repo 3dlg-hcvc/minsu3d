@@ -179,8 +179,8 @@ class SoftGroup(pl.LightningModule):
 
             # calculate iou of clustered instance
             ious_on_cluster = common_ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset,
-                                                                    data_dict["instance_ids"],
-                                                                    data_dict["instance_num_point"])
+                                                                 data_dict["instance_ids"],
+                                                                 data_dict["instance_num_point"])
 
             # filter out background instances
             fg_inds = (data_dict["instance_semantic_cls"] != self.hparams.data.ignore_label)
@@ -207,21 +207,20 @@ class SoftGroup(pl.LightningModule):
             mask_scores_sigmoid_slice = output_dict["mask_scores"].sigmoid()[slice_inds, mask_cls_label]
 
             mask_label, mask_label_mask = common_ops.get_mask_label(proposals_idx, proposals_offset,
-                                                                       data_dict["instance_ids"],
-                                                                       data_dict["instance_semantic_cls"],
-                                                                       data_dict["instance_num_point"], ious_on_cluster,
-                                                                       self.hparams.data.ignore_label,
-                                                                       self.hparams.model.train_cfg.pos_iou_thr)
+                                                                    data_dict["instance_ids"],
+                                                                    data_dict["instance_semantic_cls"],
+                                                                    data_dict["instance_num_point"], ious_on_cluster,
+                                                                    self.hparams.data.ignore_label,
+                                                                    self.hparams.model.train_cfg.pos_iou_thr)
 
-            mask_label_weight = mask_label_mask != False
-            mask_scoring_criterion = MaskScoringLoss(weight=mask_label_weight, reduction='sum')
+            mask_scoring_criterion = MaskScoringLoss(weight=mask_label_mask, reduction='sum')
             mask_scoring_loss = mask_scoring_criterion(mask_scores_sigmoid_slice, mask_label.float())
-            mask_scoring_loss /= (torch.count_nonzero(mask_label_weight) + 1)
+            mask_scoring_loss /= (torch.count_nonzero(mask_label_mask) + 1)
             losses["mask_scoring_loss"] = mask_scoring_loss
             """iou scoring loss"""
             ious = common_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
-                                                      data_dict["instance_num_point"],
-                                                      mask_scores_sigmoid_slice.detach())
+                                                   data_dict["instance_num_point"],
+                                                   mask_scores_sigmoid_slice.detach())
             fg_ious = ious[:, fg_inds]
             gt_ious, _ = fg_ious.max(1)
             slice_inds = torch.arange(0, labels.size(0), dtype=torch.long, device=labels.device)
@@ -269,7 +268,8 @@ class SoftGroup(pl.LightningModule):
         losses, total_loss = self._loss(data_dict, output_dict)
 
         # log losses
-        self.log("val/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
+        self.log("val/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True,
+                 batch_size=1)
         for key, value in losses.items():
             self.log(f"val/{key}", value, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
 
@@ -291,7 +291,8 @@ class SoftGroup(pl.LightningModule):
                                                       output_dict["semantic_scores"].size(0),
                                                       output_dict["cls_scores"].cpu(),
                                                       output_dict["iou_scores"].cpu(),
-                                                      output_dict["mask_scores"].cpu(), len(self.hparams.data.ignore_classes))
+                                                      output_dict["mask_scores"].cpu(),
+                                                      len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
             gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
@@ -343,7 +344,8 @@ class SoftGroup(pl.LightningModule):
                                                       output_dict["semantic_scores"].size(0),
                                                       output_dict["cls_scores"].cpu(),
                                                       output_dict["iou_scores"].cpu(),
-                                                      output_dict["mask_scores"].cpu(), len(self.hparams.data.ignore_classes))
+                                                      output_dict["mask_scores"].cpu(),
+                                                      len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
 
@@ -407,7 +409,8 @@ class SoftGroup(pl.LightningModule):
                 self.print(f"Semantic Accuracy: {sem_acc_avg}")
                 self.print(f"Semantic mean IoU: {sem_miou_avg}")
 
-    def _get_pred_instances(self, scan_id, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores, num_ignored_classes):
+    def _get_pred_instances(self, scan_id, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores,
+                            num_ignored_classes):
         num_instances = cls_scores.size(0)
         cls_scores = cls_scores.softmax(1)
         cls_pred_list, score_pred_list, mask_pred_list = [], [], []
