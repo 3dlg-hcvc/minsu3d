@@ -187,15 +187,20 @@ class SoftGroup(pl.LightningModule):
             fg_instance_cls = data_dict["instance_semantic_cls"][fg_inds]
             fg_ious_on_cluster = ious_on_cluster[:, fg_inds]
 
+            # assign proposal to gt idx. -1: negative, 0 -> num_gts - 1: positive
+            num_proposals = fg_ious_on_cluster.size(0)
+            assigned_gt_inds = fg_ious_on_cluster.new_full((num_proposals,), -1, dtype=torch.long)
+
             # overlap > thr on fg instances are positive samples
-            max_iou, gt_inds = fg_ious_on_cluster.max(1)
+            max_iou, argmax_iou = fg_ious_on_cluster.max(1)
             pos_inds = max_iou >= self.hparams.model.train_cfg.pos_iou_thr
-            pos_gt_inds = gt_inds[pos_inds]
+            assigned_gt_inds[pos_inds] = argmax_iou[pos_inds]
 
             """classification loss"""
             # follow detection convention: 0 -> K - 1 are fg, K is bg
-            labels = fg_instance_cls.new_full((fg_ious_on_cluster.size(0),), self.instance_classes)
-            labels[pos_inds] = fg_instance_cls[pos_gt_inds]
+            labels = fg_instance_cls.new_full((num_proposals,), self.instance_classes)
+            pos_inds = assigned_gt_inds >= 0
+            labels[pos_inds] = fg_instance_cls[assigned_gt_inds[pos_inds]]
             classification_criterion = ClassificationLoss()
             labels = labels.long()
             classification_loss = classification_criterion(output_dict["cls_scores"], labels)
@@ -437,9 +442,11 @@ class SoftGroup(pl.LightningModule):
             cls_pred = cls_pred[inds]
             score_pred = score_pred[inds]
             mask_pred = mask_pred[inds]
+
             cls_pred_list.append(cls_pred)
             score_pred_list.append(score_pred)
             mask_pred_list.append(mask_pred)
+
         cls_pred = torch.cat(cls_pred_list).numpy()
         score_pred = torch.cat(score_pred_list).numpy()
         mask_pred = torch.cat(mask_pred_list).numpy()

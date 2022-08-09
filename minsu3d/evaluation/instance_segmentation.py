@@ -63,7 +63,7 @@ def get_gt_instances(semantic_labels, instance_labels, ignored_classes):
     semantic_labels = semantic_labels - label_shift + 1
     semantic_labels[semantic_labels < 0] = 0
     instance_labels += 1
-    ignore_inds = instance_labels < 0
+    ignore_inds = instance_labels <= 0
     # scannet encoding rule
     gt_ins = semantic_labels * 1000 + instance_labels
     gt_ins[ignore_inds] = 0
