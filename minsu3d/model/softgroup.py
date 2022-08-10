@@ -453,7 +453,7 @@ class SoftGroup(pl.LightningModule):
 
         pred_instances = []
         for i in range(cls_pred.shape[0]):
-            pred = {'scan_id': scan_id, 'label_id': cls_pred[i] - num_ignored_classes, 'conf': score_pred[i],
+            pred = {'scan_id': scan_id, 'label_id': cls_pred[i], 'conf': score_pred[i],
                     'pred_mask': rle_encode(mask_pred[i])}
             pred_xyz = gt_xyz[mask_pred[i]]
             pred['pred_bbox'] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
