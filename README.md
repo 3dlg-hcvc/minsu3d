@@ -1,7 +1,7 @@
 # minsu3d
 **Min**kowskiEngine-powered **S**cene **U**nderstanding in **3D**
 
-The repository contains reimplementation of state-of-the-art 3D scene understanding methods (PointGroup, SoftGroup, HAIS...) powered by [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
+The repository contains reimplementation of state-of-the-art 3D scene understanding methods (PointGroup, HAIS, SoftGroup...) powered by [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
 
 ## Features
 - Highly-modularized design enables researchers to easily add different models and datasets.
@@ -9,10 +9,6 @@ The repository contains reimplementation of state-of-the-art 3D scene understand
 - Easy experiment configuration and management with [Hydra](https://github.com/facebookresearch/hydra) and [W&B](https://github.com/wandb/wandb).
 
 ## TODOs
-- Models
-  - [x] [PointGroup](https://arxiv.org/abs/2004.01658)
-  - [ ] [SoftGroup](https://arxiv.org/abs/2203.01509)
-  - [ ] [HAIS](https://arxiv.org/abs/2108.02350)
 - Data
   - [x] [ScanNet](http://www.scan-net.org/)
   - [ ] MultiScan
@@ -20,10 +16,8 @@ The repository contains reimplementation of state-of-the-art 3D scene understand
 ## Setup
 
 **Environment requirements**
-- Ubuntu 20.04 LTS
 - CUDA 11.X
 - Python 3.8
-- [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine#requirements)
 
 ### Conda (recommended)
 ```shell
@@ -101,9 +95,9 @@ python test.py model={model_name} data={dataset_name} model.ckpt_path={pretraine
 ### ScanNet v2 dataset
 | Model      | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% | Download |
 |:-----------|:--------|:-------|:-------|:------------|:------------|:---------|
-| PointGroup | 36.0 | 58.0 | 71.9 | 49.6 | 61.6 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
-| HAIS       | - | - |  - |  - |  - | [link]() |
-| SoftGroup  | - | - |  - |  -    |  -  | [link]() |
+| [PointGroup](https://github.com/dvlab-research/PointGroup) | 36.0 | 58.0 | 71.9 | 49.6 | 61.6 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
+| [HAIS](https://github.com/hustvl/HAIS)       | - | - | - | - | - | [link]() |
+| [SoftGroup](https://github.com/thangvubk/SoftGroup)  | 42.0 | 65.3 | 78.7 | 56.0 | 70.5 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/SoftGroup_best.ckpt) |
 
 ## Visualization
 You can generate ply files to visualize the predictions of scannet. Please find the `generate_ply.py` under `visualize/scannet`
@@ -133,3 +127,6 @@ In the 'instance' mode, each independent object will have unique color, which al
 ### Implement your own model
 1. Add a new model config file (.yaml) at `config/model/{your_model}.yaml`
 2. Add a new model code at `minsu3d/model/{your_model}.py`
+
+## Acknowledgement
+This repo is built upon [PointGroup](https://github.com/dvlab-research/PointGroup), [HAIS](https://github.com/hustvl/HAIS), [SoftGroup](https://github.com/thangvubk/SoftGroup) and [ScanNet](https://github.com/ScanNet/ScanNet).
