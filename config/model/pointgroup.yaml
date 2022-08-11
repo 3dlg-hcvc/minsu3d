@@ -13,6 +13,13 @@ log:
 trainer:
   max_epochs: 496
 
+optimizer:
+    lr: 0.002
+
+lr_decay:
+  decay_start_epoch: 250
+  decay_stop_epoch: 496
+
 model:
   module: PointGroup
   experiment_name: run_1
@@ -43,14 +50,12 @@ model:
 
   loss_weight: [1, 1, 1, 1, 1, 1]
 
-
   cluster:
     # point grouping
     cluster_radius: 0.03
     cluster_meanActive: 50
     cluster_shift_meanActive: 300
     cluster_npoint_thre: 50
-
 
   test:
     TEST_NMS_THRESH: 0.3
