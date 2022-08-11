@@ -4,7 +4,7 @@
 The repository contains reimplementation of state-of-the-art 3D scene understanding methods (PointGroup, SoftGroup, HAIS...) powered by [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
 
 ## Features
-- Highly-modularized design enables researchers to easily add different models and datastes.
+- Highly-modularized design enables researchers to easily add different models and datasets.
 - Focus on research by letting [PytorchLightning](https://github.com/Lightning-AI/lightning) handle engineering code.
 - Easy experiment configuration and management with [Hydra](https://github.com/facebookresearch/hydra) and [W&B](https://github.com/wandb/wandb).
 
@@ -25,7 +25,7 @@ The repository contains reimplementation of state-of-the-art 3D scene understand
 - Python 3.8
 - [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine#requirements)
 
-### Anaconda (recommended)
+### Conda (recommended)
 ```shell
 # create and activate the conda environment
 conda create -n minsu3d python=3.8
@@ -97,7 +97,13 @@ python test.py model={model_name} data={dataset_name} model.ckpt_path={pretraine
 ```
 
 ## Pretrained Models
-...
+
+### ScanNet v2 dataset
+| Model      | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% | Download |
+|:-----------|:--------|:-------|:-------|:------------|:------------|:---------|
+| PointGroup | 36.0 | 58.0 | 71.9 | 49.6 | 61.6 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
+| HAIS       | - | - |  - |  - |  - | [link]() |
+| SoftGroup  | - | - |  - |  -    |  -  | [link]() |
 
 ## Visualization
 You can generate ply files to visualize the predictions of scannet. Please find the `generate_ply.py` under `visualize/scannet`
