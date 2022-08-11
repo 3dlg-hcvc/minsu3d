@@ -1,4 +1,4 @@
-# minsu3d
+# MINSU3D
 **Min**kowskiEngine-powered **S**cene **U**nderstanding in **3D**
 
 The repository contains reimplementation of state-of-the-art 3D scene understanding methods (PointGroup, HAIS, SoftGroup...) powered by [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
@@ -115,7 +115,6 @@ In the 'instance' mode, each independent object will have unique color, which al
 | Semantic Segmentation              | Instance Segmentation           |
 |:-----------------------------------:|:-------------------------------:|
 | <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/visualize_example_semantic.png" width="400"/> | <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/visualize_example_instance.png" width="400"/> |
-
 
 
 ## Customization
