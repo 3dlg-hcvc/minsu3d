@@ -1,7 +1,7 @@
 # MINSU3D
 **Min**kowskiEngine-powered **S**cene **U**nderstanding in **3D**
 
-The repository contains reimplementation of state-of-the-art 3D scene understanding methods (PointGroup, HAIS, SoftGroup...) powered by [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
+The repository contains reimplementation of state-of-the-art 3D scene understanding methods ([PointGroup](https://github.com/dvlab-research/PointGroup), [HAIS](https://github.com/hustvl/HAIS) and [SoftGroup](https://github.com/thangvubk/SoftGroup) ...) powered by [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
 
 ## Features
 - Highly-modularized design enables researchers to easily add different models and datasets.
