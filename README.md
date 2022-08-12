@@ -7,6 +7,7 @@ The repository contains reimplementation of state-of-the-art 3D scene understand
 - Highly-modularized design enables researchers to easily add different models and datasets.
 - Focus on research by letting [PytorchLightning](https://github.com/Lightning-AI/lightning) handle engineering code.
 - Easy experiment configuration and management with [Hydra](https://github.com/facebookresearch/hydra) and [W&B](https://github.com/wandb/wandb).
+- [Faster training and inference](https://github.com/3dlg-hcvc/minsu3d-internal#performance) with [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
 
 ## TODOs
 - Data
@@ -127,7 +128,7 @@ In the 'instance' mode, each independent object will have unique color, which al
 **Test environment**
 - CPU: Intel Core i9-9900K @ 3.60GHz × 16
 - RAM: 64GB
-- GPU: NVIDIA GeForce RTX2808Ti 11GB
+- GPU: NVIDIA GeForce RTX 2808 Ti 11GB
 - System: Ubuntu 20.04.2 LTS
 
 **Inference time per scene (ms)**
