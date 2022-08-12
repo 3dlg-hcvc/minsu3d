@@ -122,6 +122,20 @@ In the 'instance' mode, each independent object will have unique color, which al
 |:-----------------------------------:|:-------------------------------:|
 | <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/visualize_example_semantic.png" width="400"/> | <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/visualize_example_instance.png" width="400"/> |
 
+## Performance
+
+**Test environment**
+- CPU: Intel Core i9-9900K @ 3.60GHz × 16
+- RAM: 64GB
+- GPU: NVIDIA GeForce RTX2808Ti 11GB
+- System: Ubuntu 20.04.2 LTS
+
+**Inference time per scene (ms)**
+| Model      | MINSU3D | Official Version |
+|:-----------|:--------|:-------|
+| [PointGroup](https://github.com/dvlab-research/PointGroup) | 243ms | - |
+| [HAIS](https://github.com/hustvl/HAIS)|  | - |
+| [SoftGroup](https://github.com/thangvubk/SoftGroup) | 233ms | - |
 
 ## Customization
 
