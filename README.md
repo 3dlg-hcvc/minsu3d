@@ -128,7 +128,7 @@ In the 'instance' mode, each independent object will have unique color, which al
 **Test environment**
 - CPU: Intel Core i9-9900K @ 3.60GHz × 16
 - RAM: 64GB
-- GPU: NVIDIA GeForce RTX 2808 Ti 11GB
+- GPU: NVIDIA GeForce RTX 2080 Ti 11GB
 - System: Ubuntu 20.04.2 LTS
 
 **Inference time per scene (ms)**
