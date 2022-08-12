@@ -44,6 +44,12 @@ python setup.py develop
 ```
 
 ### Pip
+Note: Setting up via Pip requires [OpenBLAS](https://github.com/xianyi/OpenBLAS) and [SparseHash](https://github.com/sparsehash/sparsehash) pre-installed in your system.
+```shell
+# install OpenBLAS and SparseHash via APT
+sudo apt install libopenblas-dev libsparsehash-dev
+```
+
 ```shell
 # create and activate the virtual environment
 virtualenv --no-download env
