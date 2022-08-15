@@ -1,0 +1,66 @@
+# Managed by Hydra
+
+defaults:
+  - base
+
+log:
+  WandbLogger:
+    project: SoftGroup
+    name: ${model.model.experiment_name}
+  TensorBoardLogger:
+    name: SoftGroup
+
+trainer:
+  max_epochs: 256
+
+lr_decay:
+  decay_start_epoch: 178
+  decay_stop_epoch: 256
+
+optimizer:
+    lr: 0.004
+
+model:
+  module: SoftGroup
+  experiment_name: run_1
+
+  m: 32 # 16 or 32
+  blocks: [1, 2, 3, 4, 5, 6, 7]
+  cluster_blocks: [1, 2]
+  block_reps: 2
+
+  use_coord: True
+  use_color: True
+  use_multiview: False
+  use_normal: False
+
+  pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
+  pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]
+  pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
+  freeze_module: []
+  freeze_backbone: False
+  prepare_epochs: 128
+
+  grouping_cfg:
+    score_thr: 0.2
+    radius: 0.04
+    mean_active: 300
+    class_numpoint_mean: [ -1., -1., 3917., 12056., 2303.,
+                           8331., 3948., 3166., 5629., 11719.,
+                           1003., 3317., 4912., 10221., 3889.,
+                           4136., 2120., 945., 3967., 2589. ]
+    npoint_thr: 0.05  # absolute if class_numpoint == -1, relative if class_numpoint != -1
+
+  instance_voxel_cfg:
+    scale: 50
+    spatial_shape: 20
+  train_cfg:
+    max_proposal_num: 200
+    pos_iou_thr: 0.5
+  test_cfg:
+    cls_score_thr: 0.001
+    mask_score_thr: -0.5
+    min_npoint: 100
+  
+  loss_weight: [1, 1, 1, 1, 1, 1] # semantic_loss, offset_norm_loss, offset_dir_loss, score_loss, bbox_loss (if applies)
+

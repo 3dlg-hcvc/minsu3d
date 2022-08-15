@@ -51,16 +51,16 @@ def read_mesh_file(mesh_file, axis_align_matrix):
     return np.asarray(mesh.vertices, dtype=np.float32), np.rint(np.asarray(mesh.vertex_colors) * 255).astype(np.uint8), np.asarray(mesh.vertex_normals, dtype=np.float32)
 
 
-def read_axis_align_matrix(meta_file):
-    axis_align_matrix = None
-    with open(meta_file, 'r') as f:
-        for line in f:
-            line_content = line.strip()
-            if 'axisAlignment' in line_content:
-                axis_align_matrix = [float(x) for x in line_content.strip('axisAlignment = ').split(' ')]
-                axis_align_matrix = np.array(axis_align_matrix).reshape((4, 4))
-                break
-    return axis_align_matrix
+# def read_axis_align_matrix(meta_file):
+#     axis_align_matrix = None
+#     with open(meta_file, 'r') as f:
+#         for line in f:
+#             line_content = line.strip()
+#             if 'axisAlignment' in line_content:
+#                 axis_align_matrix = [float(x) for x in line_content.strip('axisAlignment = ').split(' ')]
+#                 axis_align_matrix = np.array(axis_align_matrix).reshape((4, 4))
+#                 break
+#     return axis_align_matrix
 
 
 def read_label_file(label_file):
@@ -147,10 +147,10 @@ def export(scene, cfg):
     meta_file_path = os.path.join(cfg.raw_scan_path, scene, scene + '.txt')
 
     # read meta_file
-    axis_align_matrix = read_axis_align_matrix(meta_file_path)
+    # axis_align_matrix = read_axis_align_matrix(meta_file_path)
 
     # read mesh_file
-    xyz, rgb, normal = read_mesh_file(mesh_file_path, axis_align_matrix)
+    xyz, rgb, normal = read_mesh_file(mesh_file_path, None)
     num_verts = len(xyz)
 
     if os.path.exists(agg_file_path):
