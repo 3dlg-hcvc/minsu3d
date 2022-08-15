@@ -98,12 +98,13 @@ python test.py model={model_name} data={dataset_name} model.ckpt_path={pretraine
 ```
 
 ## Pretrained Models
+Note: All models are trained from scratch. We use hyperparameters listed in default config files (.yaml).
 
 ### ScanNet v2 dataset
 | Model      | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% | Download |
 |:-----------|:--------|:-------|:-------|:------------|:------------|:---------|
 | [PointGroup](https://github.com/dvlab-research/PointGroup) | 36.0 | 58.0 | 71.9 | 49.6 | 61.6 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
-| [HAIS](https://github.com/hustvl/HAIS)       | - | - | - | - | - | [link]() |
+| [HAIS](https://github.com/hustvl/HAIS)       | 42.2 | 62.3 | 73.3 | 51.7 | 63.1 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/HAIS_best.ckpt) |
 | [SoftGroup](https://github.com/thangvubk/SoftGroup)  | 42.0 | 65.3 | 78.7 | 56.0 | 70.5 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/SoftGroup_best.ckpt) |
 
 ## Visualization
@@ -134,9 +135,9 @@ In the 'instance' mode, each independent object will have unique color, which al
 **Inference time per scene (ms)**
 | Model      | MINSU3D | Official Version |
 |:-----------|:--------|:-------|
-| [PointGroup](https://github.com/dvlab-research/PointGroup) | 243ms | - |
-| [HAIS](https://github.com/hustvl/HAIS)|  | - |
-| [SoftGroup](https://github.com/thangvubk/SoftGroup) | 233ms | - |
+| [PointGroup](https://github.com/dvlab-research/PointGroup) | 179ms | - |
+| [HAIS](https://github.com/hustvl/HAIS)| 160ms | - |
+| [SoftGroup](https://github.com/thangvubk/SoftGroup) | 165ms | - |
 
 ## Customization
 
