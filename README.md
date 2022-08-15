@@ -132,12 +132,12 @@ In the 'instance' mode, each independent object will have unique color, which al
 - GPU: NVIDIA GeForce RTX 2080 Ti 11GB
 - System: Ubuntu 20.04.2 LTS
 
-**Inference time per scene (ms)**
+**Inference time per scene**
 | Model      | MINSU3D | Official Version |
 |:-----------|:--------|:-------|
 | [PointGroup](https://github.com/dvlab-research/PointGroup) | 179ms | - |
-| [HAIS](https://github.com/hustvl/HAIS)| 160ms | - |
-| [SoftGroup](https://github.com/thangvubk/SoftGroup) | 165ms | - |
+| [HAIS](https://github.com/hustvl/HAIS)| 160ms | 165ms |
+| [SoftGroup](https://github.com/thangvubk/SoftGroup) | 165ms | 204ms |
 
 ## Customization
 
