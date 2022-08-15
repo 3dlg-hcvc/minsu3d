@@ -13,6 +13,13 @@ log:
 trainer:
   max_epochs: 496
 
+optimizer:
+    lr: 0.002
+
+lr_decay:
+  decay_start_epoch: 250
+  decay_stop_epoch: 496
+
 model:
   module: PointGroup
   experiment_name: run_1
@@ -33,16 +40,15 @@ model:
   score_scale: 50  # the minimal voxel size is 2cm
   score_fullscale: 14
 
-  use_checkpoint: # /home/eamonn/Research/pointgroup-minkowski/output/scannet/pointgroup/train/pointgroup-scannet-epoch=127.ckpt
-  pretrained_path: #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-09-18_01-04-52/ckp-00512.tar #/local-scratch/qiruiw/research/pointgroup-minkowski/log/scannet/pointgroup/train/2021-08-24_11-42-20/ckp-00480.tar
+  use_checkpoint: 
+  pretrained_path: 
   pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]
-  pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
+  pretrained_module_path: 
   freeze_module: [ ]
   freeze_backbone: False
   prepare_epochs: 128
 
   loss_weight: [1, 1, 1, 1, 1, 1]
-
 
   cluster:
     # point grouping
@@ -50,7 +56,6 @@ model:
     cluster_meanActive: 50
     cluster_shift_meanActive: 300
     cluster_npoint_thre: 50
-
 
   test:
     TEST_NMS_THRESH: 0.3

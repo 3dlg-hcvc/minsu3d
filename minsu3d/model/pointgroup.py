@@ -2,6 +2,7 @@ import os
 from tqdm import tqdm
 import torch
 import torch.nn as nn
+import time
 import pytorch_lightning as pl
 from minsu3d.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances, rle_encode, rle_decode
 from minsu3d.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
@@ -198,7 +199,7 @@ class PointGroup(pl.LightningModule):
                                                       output_dict["proposal_scores"][0].cpu(),
                                                       output_dict["proposal_scores"][1].cpu(),
                                                       output_dict["proposal_scores"][2].size(0) - 1,
-                                                      output_dict["semantic_scores"].cpu())
+                                                      output_dict["semantic_scores"].cpu(), len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(), self.hparams.data.ignore_classes)
             gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
                                             data_dict["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
@@ -230,7 +231,9 @@ class PointGroup(pl.LightningModule):
 
     def test_step(self, data_dict, idx):
         # prepare input and forward
+        start_time = time.time()
         output_dict = self._feed(data_dict)
+        end_time = time.time() - start_time
 
         sem_labels_cpu = data_dict["sem_labels"].cpu()
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
@@ -246,13 +249,12 @@ class PointGroup(pl.LightningModule):
                                                       output_dict["proposal_scores"][0].cpu(),
                                                       output_dict["proposal_scores"][1].cpu(),
                                                       output_dict["proposal_scores"][2].size(0) - 1,
-                                                      output_dict["semantic_scores"].cpu())
+                                                      output_dict["semantic_scores"].cpu(), len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
             gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
                                             data_dict["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
-
-            return semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox
+            return semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox, end_time
 
     def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
         # prepare input and forward
@@ -267,13 +269,15 @@ class PointGroup(pl.LightningModule):
             all_gt_insts_bbox = []
             all_sem_acc = []
             all_sem_miou = []
-            for semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox in results:
+            inference_time = 0
+            for semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox, end_time in results:
                 all_sem_acc.append(semantic_accuracy)
                 all_sem_miou.append(semantic_mean_iou)
                 all_gt_insts_bbox.append(gt_instances_bbox)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
-
+                inference_time += end_time
+            self.print(f"Average inference time: {round(inference_time / len(results), 3)}s per scan.")
             if self.hparams.inference.save_predictions:
                 inst_pred_path = os.path.join(self.hparams.inference.output_dir, "instance")
                 inst_pred_masks_path = os.path.join(inst_pred_path, "predicted_masks")
@@ -331,7 +335,7 @@ class PointGroup(pl.LightningModule):
 
         return np.array(pick, dtype=np.int32)
 
-    def _get_pred_instances(self, scan_id, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores):
+    def _get_pred_instances(self, scan_id, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores, num_ignored_classes):
         semantic_pred_labels = semantic_scores.max(1)[1]
         proposals_score = torch.sigmoid(proposals_scores.view(-1))  # (nProposal,) float
         # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
@@ -370,7 +374,7 @@ class PointGroup(pl.LightningModule):
         instances = []
         for i in range(nclusters):
             cluster_i = clusters_mask[i]  # (N)
-            pred = {'scan_id': scan_id, 'label_id': semantic_pred_labels[cluster_i][0].item() + 1,
+            pred = {'scan_id': scan_id, 'label_id': semantic_pred_labels[cluster_i][0].item() - num_ignored_classes + 1,
                     'conf': score_pred[i], 'pred_mask': rle_encode(cluster_i)}
             pred_inst = gt_xyz[cluster_i]
             pred['pred_bbox'] = np.concatenate((pred_inst.min(0), pred_inst.max(0)))
