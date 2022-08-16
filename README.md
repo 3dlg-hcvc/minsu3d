@@ -9,11 +9,6 @@ The repository contains reimplementation of state-of-the-art 3D scene understand
 - Easy experiment configuration and management with [Hydra](https://github.com/facebookresearch/hydra) and [W&B](https://github.com/wandb/wandb).
 - [Faster training and inference](https://github.com/3dlg-hcvc/minsu3d-internal#performance) with [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
 
-## TODOs
-- Data
-  - [x] [ScanNet](http://www.scan-net.org/)
-  - [ ] MultiScan
-
 ## Setup
 
 **Environment requirements**
@@ -150,4 +145,4 @@ In the 'instance' mode, each independent object will have unique color, which al
 2. Add a new model code at `minsu3d/model/{your_model}.py`
 
 ## Acknowledgement
-This repo is built upon [PointGroup](https://github.com/dvlab-research/PointGroup), [HAIS](https://github.com/hustvl/HAIS), [SoftGroup](https://github.com/thangvubk/SoftGroup) and [ScanNet](https://github.com/ScanNet/ScanNet).
+This repo is built upon [PointGroup](https://github.com/dvlab-research/PointGroup), [HAIS](https://github.com/hustvl/HAIS), [SoftGroup](https://github.com/thangvubk/SoftGroup) and [ScanNet](https://github.com/ScanNet/ScanNet). To use their work, please cite them.
