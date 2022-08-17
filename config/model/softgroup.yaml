@@ -39,7 +39,7 @@ model:
   pretrained_module_path: #/local-scratch/qiruiw/research/dense-scanrefer/log/scannet/pointgroup/train/2021-02-10_01-53-53/pointgroup_default_scannet-000000480.pth
   freeze_module: []
   freeze_backbone: False
-  prepare_epochs: 128
+  prepare_epochs: 100
 
   grouping_cfg:
     score_thr: 0.2

@@ -191,6 +191,7 @@ def main(cfg):
 
     os.makedirs(os.path.join(cfg.data.dataset_path, "train"), exist_ok=True)
     os.makedirs(os.path.join(cfg.data.dataset_path, "val"), exist_ok=True)
+    # os.makedirs(os.path.join(cfg.data.dataset_path, "test"), exist_ok=True)
 
     with open(cfg.data.metadata.train_list) as f:
         train_list = [line.strip() for line in f]
@@ -199,9 +200,9 @@ def main(cfg):
         val_list = [line.strip() for line in f]
     
     print("==> Processing train split ...")
-    process_map(partial(process_one_scan, cfg=cfg, split="train"), train_list)
+    process_map(partial(process_one_scan, cfg=cfg, split="train"), train_list, chunksize=1)
     print("==> Processing val split ...")
-    process_map(partial(process_one_scan, cfg=cfg, split="val"), val_list)
+    process_map(partial(process_one_scan, cfg=cfg, split="val"), val_list, chunksize=1)
 
 
 if __name__ == '__main__':

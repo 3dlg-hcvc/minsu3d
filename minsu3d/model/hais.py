@@ -46,7 +46,7 @@ class HAIS(pl.LightningModule):
             nn.Linear(output_channel, 1)
         )
 
-    def forward(self, data_dict, training):
+    def forward(self, data_dict):
         output_dict = {}
 
         backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
@@ -74,21 +74,13 @@ class HAIS(pl.LightningModule):
                                                                       self.hparams.model.point_aggr_radius,
                                                                       self.hparams.model.cluster_shift_meanActive)
 
-            using_set_aggr = self.hparams.model.using_set_aggr_in_training if training else self.hparams.model.using_set_aggr_in_testing
+            using_set_aggr = self.hparams.model.using_set_aggr_in_training if self.training else self.hparams.model.using_set_aggr_in_testing
             proposals_idx, proposals_offset = hais_ops.hierarchical_aggregation(
                 semantic_preds_cpu, (coords_ + pt_offsets_).cpu(), idx_shift.cpu(), start_len_shift.cpu(),
                 batch_idxs_.cpu(), using_set_aggr, self.hparams.data.point_num_avg, self.hparams.data.radius_avg,
                 self.hparams.data.ignore_label)
 
             proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
-
-            # # restrict the num of training proposals, avoid OOM
-            # max_proposal_num = getattr(self.cfg, 'max_proposal_num', 200)
-            # if training_mode == 'train' and proposals_offset.shape[0] > max_proposal_num:
-            #     proposals_offset = proposals_offset[:max_proposal_num + 1]
-            #     proposals_idx = proposals_idx[: proposals_offset[-1]]
-            #     assert proposals_idx.shape[0] == proposals_offset[-1]
-            #     print('selected proposal num', proposals_offset.shape[0] - 1)
 
             # proposals voxelization again
             proposals_voxel_feats, proposals_p2v_map = clusters_voxelization(
@@ -186,17 +178,17 @@ class HAIS(pl.LightningModule):
             total_loss += self.hparams.model.loss_weight[2] * score_loss + self.hparams.model.loss_weight[3] * mask_loss
         return losses, total_loss
 
-    def _feed(self, data_dict, training):
+    def _feed(self, data_dict):
         if self.hparams.model.use_coord:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
         data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"],
                                                            data_dict["p2v_map"])  # (M, C), float, cuda
-        output_dict = self.forward(data_dict, training)
+        output_dict = self.forward(data_dict)
         return output_dict
 
     def training_step(self, data_dict, idx):
         # prepare input and forward
-        output_dict = self._feed(data_dict, True)
+        output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
         self.log("train/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True,
                  sync_dist=True, batch_size=self.hparams.data.batch_size)
@@ -211,7 +203,7 @@ class HAIS(pl.LightningModule):
 
     def validation_step(self, data_dict, idx):
         # prepare input and forward
-        output_dict = self._feed(data_dict, True)
+        output_dict = self._feed(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
 
         # log losses
@@ -270,7 +262,7 @@ class HAIS(pl.LightningModule):
     def test_step(self, data_dict, idx):
         # prepare input and forward
         start_time = time.time()
-        output_dict = self._feed(data_dict, False)
+        output_dict = self._feed(data_dict)
         end_time = time.time() - start_time
         sem_labels_cpu = data_dict["sem_labels"].cpu()
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
@@ -297,7 +289,7 @@ class HAIS(pl.LightningModule):
 
     def predict_step(self, data_dict, batch_idx, dataloader_idx=0):
         # prepare input and forward
-        output_dict = self._feed(data_dict, False)
+        output_dict = self._feed(data_dict)
 
     def test_epoch_end(self, results):
         # evaluate instance predictions
