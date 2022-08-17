@@ -95,7 +95,7 @@ python test.py model={model_name} data={dataset_name} model.ckpt_path={pretraine
 ## Pretrained Models
 Note: All models are trained from scratch. We use hyperparameters listed in default config files (.yaml).
 
-### ScanNet v2 dataset
+### ScanNetv2 validation set
 | Model      | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% | Download |
 |:-----------|:--------|:-------|:-------|:------------|:------------|:---------|
 | [PointGroup](https://github.com/dvlab-research/PointGroup) | 36.0 | 58.0 | 71.9 | 49.6 | 61.6 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
