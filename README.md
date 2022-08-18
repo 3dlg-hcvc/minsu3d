@@ -137,6 +137,17 @@ In the 'instance' mode, each independent object will have unique color, which al
 | [HAIS](https://github.com/hustvl/HAIS)| 160ms | 165ms |
 | [SoftGroup](https://github.com/thangvubk/SoftGroup) | 165ms | 204ms |
 
+### ScanNetv2 validation set
+| Model      | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% |
+|:-----------|:--------|:-------|:-------|:------------|:------------|
+
+| MINSU3D PointGroup | 36.0 | 58.0 | 71.9 | 49.6 | 61.6 |
+| [Official PointGroup](https://github.com/dvlab-research/PointGroup) | 35.2 | 57.1 | 71.4 | - | - |
+| MINSU3D HAIS | 42.2 | 62.3 | 73.3 | 51.7 | 63.1 |
+| [Official HAIS](https://github.com/hustvl/HAIS)  | 44.1 | 64.4 | 75.7 | - | - | 
+| MINSU3D SoftGroup | 42.0 | 65.3 | 78.7 | 56.0 | 70.5 |
+| [Official SoftGroup](https://github.com/thangvubk/SoftGroup) | 46.0 | 67.6 | 78.9 | 59.4 | 71.6 |
+
 ## Customization
 
 ### Use your own dataset
