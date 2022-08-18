@@ -98,7 +98,7 @@ python test.py model={model_name} data={dataset_name} model.ckpt_path={pretraine
 ## Pretrained Models
 Note: All models are trained from scratch. We use hyperparameters listed in default config files (.yaml).
 
-### ScanNetv2 validation set
+### ScanNet v2 val set
 | Model      | Code | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% | Download |
 |:-----------|:--------|:--------|:-------|:-------|:------------|:------------|:---------|
 | [PointGroup](https://github.com/dvlab-research/PointGroup) | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/pointgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/pointgroup.py) | 36.0 | 58.0 | 71.9 | 49.6 | 61.6 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
@@ -137,7 +137,7 @@ In the 'instance' mode, each independent object will have unique color, which al
 | [HAIS](https://github.com/hustvl/HAIS)| 160ms | 165ms |
 | [SoftGroup](https://github.com/thangvubk/SoftGroup) | 165ms | 204ms |
 
-### ScanNetv2 validation set
+**Evaluation scores on ScanNet v2 val set
 | Model      | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% |
 |:-----------|:--------|:-------|:-------|:------------|:------------|
 | MINSU3D PointGroup | 36.0 | 58.0 | 71.9 | 49.6 | 61.6 |
