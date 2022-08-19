@@ -28,7 +28,7 @@ def initialColor():
                 allColorList.append([r, g, b])
 
 
-def get_randome_rgb_colors(num):
+def get_random_rgb_colors(num):
     numberToSkip = math.floor(len(allColorList) / num)
     rgb_colors = allColorList[::numberToSkip]
     random.shuffle(rgb_colors)
@@ -44,7 +44,7 @@ def non_maximum_suppression(instanceFileNames, labelIndexes, confidenceScores):
             list_of_all_predicted_mask_list.append(predicted_mask_list)
     pair_of_ij = []
     for i in range(len(list_of_all_predicted_mask_list)):
-        for j in range(i+1, len(list_of_all_predicted_mask_list)):
+        for j in range(i + 1, len(list_of_all_predicted_mask_list)):
             mask1 = list_of_all_predicted_mask_list[i]
             mask2 = list_of_all_predicted_mask_list[j]
             count_of_both_one = 0.0
@@ -54,12 +54,9 @@ def non_maximum_suppression(instanceFileNames, labelIndexes, confidenceScores):
                     count_of_both_one = count_of_both_one + 1.0
                 if mask1[index] != str(0) or mask2[index] != str(0):
                     count_of_single_one = count_of_single_one + 1.0
-            if count_of_both_one/count_of_single_one > 0.65:
+            if count_of_both_one / count_of_single_one > 0.65:
                 pair_of_ij.append([i, j])
-                print(i)
-                print(j)
-                print()
-    res =  [True for i in range(len(instanceFileNames))]
+    res = [True for i in range(len(instanceFileNames))]
     for x in pair_of_ij:
         i = x[0]
         j = x[1]
@@ -93,9 +90,9 @@ def generate_colored_ply(args, pred_sem_file, points, colors, indices, rgb_inst_
         instanceFileNames.append(os.path.join(args.predict_dir, splitedLine[0]))
         labelIndexes.append(splitedLine[1])
         confidenceScores.append(splitedLine[2])
-
-    instanceFileNames, labelIndexes, confidenceScores = non_maximum_suppression(instanceFileNames, labelIndexes,
-                                                                                confidenceScores)
+    if args.nms:
+        instanceFileNames, labelIndexes, confidenceScores = non_maximum_suppression(instanceFileNames, labelIndexes,
+                                                                                    confidenceScores)
 
     if args.mode == "semantic":
         for index, instanceFileName in enumerate(instanceFileNames):
@@ -108,7 +105,7 @@ def generate_colored_ply(args, pred_sem_file, points, colors, indices, rgb_inst_
                 if predicted_mask_list[vertexIndex] == "1":
                     colors[vertexIndex] = SCANNET_COLOR_MAP[int(semanticIndex)]
     elif args.mode == "instance":
-        color_list = get_randome_rgb_colors(len(labelIndexes))
+        color_list = get_random_rgb_colors(len(labelIndexes))
         random.shuffle(color_list)
         for index, instanceFileName in enumerate(instanceFileNames):
             with open(instanceFileName) as file:
@@ -133,10 +130,9 @@ def generate_bbox_ply(args, pred_sem_file, points, colors, indices, rgb_inst_ply
         instanceFileNames.append(os.path.join(args.predict_dir, splitedLine[0]))
         labelIndexes.append(splitedLine[1])
         confidenceScores.append(splitedLine[2])
-
-    instanceFileNames, labelIndexes, confidenceScores = non_maximum_suppression(instanceFileNames, labelIndexes,
-                                                                                confidenceScores)
-    bbox = []
+    if args.nms:
+        instanceFileNames, labelIndexes, confidenceScores = non_maximum_suppression(instanceFileNames, labelIndexes,
+                                                                                    confidenceScores)
     b_verts = []
     b_colors = []
     b_indices = []
@@ -165,9 +161,8 @@ def generate_bbox_ply(args, pred_sem_file, points, colors, indices, rgb_inst_ply
                 if z_max is None or xyz[2] > z_max:
                     z_max = xyz[2]
 
-        currbbox = [(x_min + x_max) / 2.0, (y_min + y_max) / 2.0, (z_min + z_max) / 2.0, x_max - x_min, y_max - y_min,
+        currBbox = [(x_min + x_max) / 2.0, (y_min + y_max) / 2.0, (z_min + z_max) / 2.0, x_max - x_min, y_max - y_min,
                     z_max - z_min]
-        chooseColor = [0, 0, 0]
         if args.mode == 'semantic':
             semanticIndex = labelIndexes[index]
             chooseColor = SCANNET_COLOR_MAP[int(semanticIndex)]
@@ -175,7 +170,7 @@ def generate_bbox_ply(args, pred_sem_file, points, colors, indices, rgb_inst_ply
             color_list = get_randome_rgb_colors(len(labelIndexes))
             random.shuffle(color_list)
             chooseColor = color_list[index]
-        curr_verts, curr_colors, curr_indices = write_cylinder_bbox(np.array(currbbox), 0, None, color=chooseColor)
+        curr_verts, curr_colors, curr_indices = write_cylinder_bbox(np.array(currBbox), 0, None, color=chooseColor)
         curr_indices = np.array(curr_indices)
         curr_indices = curr_indices + len(b_verts)
         curr_indices = curr_indices.tolist()
@@ -186,7 +181,6 @@ def generate_bbox_ply(args, pred_sem_file, points, colors, indices, rgb_inst_ply
     points = points.tolist()
     colors = colors.tolist()
     indices = indices.tolist()
-    # b_verts, b_colors, b_indices = write_cylinder_bbox_batch(np.array(bbox), 1)
     b_indices = np.array(b_indices)
     b_indices = b_indices + len(points)
     b_indices = b_indices.tolist()
@@ -212,8 +206,6 @@ def generate_single_ply(args):
 
     # define where to output the ply file
     rgb_inst_ply = os.path.join(args.output_dir, f'{args.scene_id}.ply')
-
-
 
     # get mesh
     axis_align_matrix = read_axis_align_matrix(meta_file)
@@ -260,6 +252,9 @@ if __name__ == '__main__':
                         help='specify instance or semantic mode: semantic | instance')
     parser.add_argument('-o', '--output_dir', type=str, default='output_ply',
                         help='Spiciy the directory of the output ply')
+    parser.add_argument('--nms', action='store_true',
+                        help='choose to run non_maximum_suppression or not')
+    parser.set_defaults(nms=False)
     args = parser.parse_args()
     args.rgb_file_dir = os.path.join(Path(os.getcwd()).parent.parent.absolute(), 'data/scannet', args.split)
     if args.bbox == True:
@@ -267,7 +262,5 @@ if __name__ == '__main__':
     else:
         args.output_dir = os.path.join(args.output_dir, "color")
     args.output_dir = os.path.join(args.output_dir, args.mode)
-
     initialColor()
-
     generate_pred_inst_ply(args)
