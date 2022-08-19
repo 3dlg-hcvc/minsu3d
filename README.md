@@ -106,21 +106,41 @@ Note: All models are trained from scratch. We use hyperparameters listed in defa
 | [SoftGroup](https://github.com/thangvubk/SoftGroup) | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/softgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/softgroup.py)  | 42.0 | 65.3 | 78.7 | 56.0 | 70.5 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/SoftGroup_best.ckpt) |
 
 ## Visualization
+To visualize predictions as mesh, you need to load scannet's mesh file and mega file of each scans. These dataset files should be organized as follows.
+
+```
+minsu3d-internal
+├── data
+│   ├── scannet
+│   │   ├── scans
+│   │   │   ├── [scene_id]
+|   |   |   |   ├── [scene_id]_vh_clean_2.ply & [scene_id].txt
+```
+
 You can generate ply files to visualize the predictions of scannet. Please find the `generate_ply.py` under `visualize/scannet`
 ```shell
 cd visualize/scannet
-python generate_ply.py --predict_dir {path to the predictions} --split {test/val/train} --mode {semantic/instance} --output_dir {output directory of ply files}
+python generate_ply.py --predict_dir {path to the predictions} --split {test/val/train} --bbox --mode {semantic/instance} --output_dir {output directory of ply files}
 
 # example:
-# python generate_ply.py --predict_dir ../../output/ScanNet/PointGroup/test/predictions/instance --split val --mode semantic --output_dir output_ply
+# python generate_ply.py --predict_dir ../../output/ScanNet/PointGroup/test/predictions/instance --split val --bbox --mode semantic --output_dir output_ply
 ```
-The 'mode' option allows you to specify the color mode.  
+
+The `--mode` option allows you to specify the color mode.  
 In the 'semantic' mode, objects with the same semantic prediction will have the same color.  
 In the 'instance' mode, each independent object will have unique color, which allows the user to check how well the model performs on instance segmentation.  
 
-| Semantic Segmentation              | Instance Segmentation           |
+The `--bbox` option allows you to generate ply file that uses bounding box to specify the position of objects.
+
+| Semantic Segmentation(color)              | Instance Segmentation(color)           |
 |:-----------------------------------:|:-------------------------------:|
-| <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/visualize_example_semantic.png" width="400"/> | <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/visualize_example_instance.png" width="400"/> |
+| <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/color_semantic.png" width="400"/> | <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/color_instance.png" width="400"/> |
+
+| Semantic Segmentation(bbox)              | Instance Segmentation(bbox)           |
+|:-----------------------------------:|:-------------------------------:|
+| <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/bbox_semantic.png" width="400"/> | <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/bbox_instance.png" width="400"/> |
+
+With `--nms`, the program will perform non-maximum suppression before generating the bounding box. This will alleviate the overlapping of the bounding boxes but increase the running time.
 
 ## Performance
 
