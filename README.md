@@ -140,7 +140,7 @@ The `--bbox` option allows you to generate ply file that uses bounding box to sp
 |:-----------------------------------:|:-------------------------------:|
 | <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/bbox_semantic.png" width="400"/> | <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/bbox_instance.png" width="400"/> |
 
-With `--nms`, the program will perform non-maximum suppression before generating the bounding box. This will alleviate the overlapping of the bounding boxes but increase the running time.
+With `--nms`, the program will perform non-maximum suppression before generating the bounding box. This will alleviate the overlapping of the bounding boxes.
 
 ## Performance
 
