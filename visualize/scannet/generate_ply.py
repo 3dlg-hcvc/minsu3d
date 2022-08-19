@@ -35,26 +35,57 @@ def get_random_rgb_colors(num):
     return rgb_colors
 
 
-def non_maximum_suppression(instanceFileNames, labelIndexes, confidenceScores):
-    list_of_all_predicted_mask_list = []
+def get_bbox(instanceFileName, points):
+    x_min = None
+    y_min = None
+    z_min = None
+    x_max = None
+    y_max = None
+    z_max = None
+    with open(instanceFileName) as file:
+        predicted_mask_list = file.readlines()
+        predicted_mask_list = [line.rstrip() for line in predicted_mask_list]
+    for vertexIndex, xyz in enumerate(points):
+        if predicted_mask_list[vertexIndex] == "1":
+            if x_min is None or xyz[0] < x_min:
+                x_min = xyz[0]
+            if y_min is None or xyz[1] < y_min:
+                y_min = xyz[1]
+            if z_min is None or xyz[2] < z_min:
+                z_min = xyz[2]
+            if x_max is None or xyz[0] > x_max:
+                x_max = xyz[0]
+            if y_max is None or xyz[1] > y_max:
+                y_max = xyz[1]
+            if z_max is None or xyz[2] > z_max:
+                z_max = xyz[2]
+
+    return x_min, x_max, y_min, y_max, z_min, z_max
+
+
+def non_maximum_suppression(instanceFileNames, points, labelIndexes, confidenceScores):
+    list_of_bbox = []
     for index, instanceFileName in enumerate(instanceFileNames):
-        with open(instanceFileName) as file:
-            predicted_mask_list = file.readlines()
-            predicted_mask_list = [line.rstrip() for line in predicted_mask_list]
-            list_of_all_predicted_mask_list.append(predicted_mask_list)
+        x_min, x_max, y_min, y_max, z_min, z_max = get_bbox(instanceFileName, points)
+        curr_bbox = [x_min, x_max, y_min, y_max, z_min, z_max]
+        list_of_bbox.append(curr_bbox)
     pair_of_ij = []
-    for i in range(len(list_of_all_predicted_mask_list)):
-        for j in range(i + 1, len(list_of_all_predicted_mask_list)):
-            mask1 = list_of_all_predicted_mask_list[i]
-            mask2 = list_of_all_predicted_mask_list[j]
-            count_of_both_one = 0.0
-            count_of_single_one = 0.0
-            for index in range(len(mask1)):
-                if mask1[index] != str(0) and mask2[index] != str(0):
-                    count_of_both_one = count_of_both_one + 1.0
-                if mask1[index] != str(0) or mask2[index] != str(0):
-                    count_of_single_one = count_of_single_one + 1.0
-            if count_of_both_one / count_of_single_one > 0.65:
+    for i in range(len(list_of_bbox)):
+        for j in range(i + 1, len(list_of_bbox)):
+            bbox1 = list_of_bbox[i]
+            bbox2 = list_of_bbox[j]
+            x_intersection = min(bbox1[1], bbox2[1]) - max(bbox1[0], bbox2[0])
+            y_intersection = min(bbox1[3], bbox2[3]) - max(bbox1[2], bbox2[2])
+            z_intersection = min(bbox1[5], bbox2[5]) - max(bbox1[4], bbox2[4])
+            if x_intersection <= 0 or y_intersection <= 0 or z_intersection <= 0:
+                continue
+            x_union = bbox1[1] - bbox1[0] + bbox2[1] - bbox2[0] - x_intersection
+            y_union = bbox1[3] - bbox1[2] + bbox2[3] - bbox2[2] - y_intersection
+            z_union = bbox1[5] - bbox1[4] + bbox2[5] - bbox2[4] - z_intersection
+            iou = (x_intersection/x_union) * (y_intersection/y_union) * (z_intersection/z_union)
+
+
+            if iou > 0.65:
                 pair_of_ij.append([i, j])
     res = [True for i in range(len(instanceFileNames))]
     for x in pair_of_ij:
@@ -91,7 +122,8 @@ def generate_colored_ply(args, pred_sem_file, points, colors, indices, rgb_inst_
         labelIndexes.append(splitedLine[1])
         confidenceScores.append(splitedLine[2])
     if args.nms:
-        instanceFileNames, labelIndexes, confidenceScores = non_maximum_suppression(instanceFileNames, labelIndexes,
+        instanceFileNames, labelIndexes, confidenceScores = non_maximum_suppression(instanceFileNames, points,
+                                                                                    labelIndexes,
                                                                                     confidenceScores)
 
     if args.mode == "semantic":
@@ -131,38 +163,17 @@ def generate_bbox_ply(args, pred_sem_file, points, colors, indices, rgb_inst_ply
         labelIndexes.append(splitedLine[1])
         confidenceScores.append(splitedLine[2])
     if args.nms:
-        instanceFileNames, labelIndexes, confidenceScores = non_maximum_suppression(instanceFileNames, labelIndexes,
+        instanceFileNames, labelIndexes, confidenceScores = non_maximum_suppression(instanceFileNames, points,
+                                                                                    labelIndexes,
                                                                                     confidenceScores)
     b_verts = []
     b_colors = []
     b_indices = []
     for index, instanceFileName in enumerate(instanceFileNames):
-        x_min = None
-        y_min = None
-        z_min = None
-        x_max = None
-        y_max = None
-        z_max = None
-        with open(instanceFileName) as file:
-            predicted_mask_list = file.readlines()
-            predicted_mask_list = [line.rstrip() for line in predicted_mask_list]
-        for vertexIndex, xyz in enumerate(points):
-            if predicted_mask_list[vertexIndex] == "1":
-                if x_min is None or xyz[0] < x_min:
-                    x_min = xyz[0]
-                if y_min is None or xyz[1] < y_min:
-                    y_min = xyz[1]
-                if z_min is None or xyz[2] < z_min:
-                    z_min = xyz[2]
-                if x_max is None or xyz[0] > x_max:
-                    x_max = xyz[0]
-                if y_max is None or xyz[1] > y_max:
-                    y_max = xyz[1]
-                if z_max is None or xyz[2] > z_max:
-                    z_max = xyz[2]
-
-        currBbox = [(x_min + x_max) / 2.0, (y_min + y_max) / 2.0, (z_min + z_max) / 2.0, x_max - x_min, y_max - y_min,
+        x_min, x_max, y_min, y_max, z_min, z_max = get_bbox(instanceFileName, points)
+        currbbox = [(x_min + x_max) / 2.0, (y_min + y_max) / 2.0, (z_min + z_max) / 2.0, x_max - x_min, y_max - y_min,
                     z_max - z_min]
+
         if args.mode == 'semantic':
             semanticIndex = labelIndexes[index]
             chooseColor = SCANNET_COLOR_MAP[int(semanticIndex)]
@@ -170,7 +181,7 @@ def generate_bbox_ply(args, pred_sem_file, points, colors, indices, rgb_inst_ply
             color_list = get_randome_rgb_colors(len(labelIndexes))
             random.shuffle(color_list)
             chooseColor = color_list[index]
-        curr_verts, curr_colors, curr_indices = write_cylinder_bbox(np.array(currBbox), 0, None, color=chooseColor)
+        curr_verts, curr_colors, curr_indices = write_cylinder_bbox(np.array(currbbox), 0, None, color=chooseColor)
         curr_indices = np.array(curr_indices)
         curr_indices = curr_indices + len(b_verts)
         curr_indices = curr_indices.tolist()
@@ -232,9 +243,10 @@ def generate_pred_inst_ply(args):
     args.scans = os.path.join(Path(os.getcwd()).parent.parent.absolute(), 'data/scannet/scans')
 
     scene_ids = [scene_id.rstrip() for scene_id in open(scene_ids_file)]
-    for scene_id in scene_ids:
+    for scene_id in tqdm(scene_ids):
         args.scene_id = scene_id
         generate_single_ply(args)
+        # break
 
 
 if __name__ == '__main__':
@@ -262,5 +274,7 @@ if __name__ == '__main__':
     else:
         args.output_dir = os.path.join(args.output_dir, "color")
     args.output_dir = os.path.join(args.output_dir, args.mode)
+
     initialColor()
+
     generate_pred_inst_ply(args)
