@@ -36,7 +36,7 @@ def init_model(cfg):
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg):
     # fix the seed
-    pl.seed_everything(cfg.global_seed, workers=True)
+    pl.seed_everything(cfg.global_train_seed, workers=True)
 
     output_path = os.path.join(cfg.exp_output_root_path, cfg.data.dataset,
                                cfg.model.model.module, cfg.model.model.experiment_name, "training")

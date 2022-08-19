@@ -14,7 +14,7 @@ def init_model(cfg):
 def main(cfg):
 
     # fix the seed
-    pl.seed_everything(cfg.global_seed, workers=True)
+    pl.seed_everything(cfg.global_test_seed, workers=True)
 
     print("=> initializing trainer...")
     trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=1, logger=False)

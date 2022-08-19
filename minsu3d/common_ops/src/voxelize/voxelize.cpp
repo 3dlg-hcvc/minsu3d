@@ -162,25 +162,25 @@ void voxelize_bp(/* cuda float M*C */ at::Tensor d_output_feats, /* cuda float N
 }
 
 /* ================================== point_recover ================================== */
-template <typename T>
-void point_recover_fp(/* cuda float M*C */ at::Tensor feats, /* cuda float N*C */ at::Tensor output_feats, /* cuda Int M*(maxActive+1) */ at::Tensor idx_map,
-                Int nActive, Int maxActive, Int nPlane){
-    auto iF = feats.data_ptr<T>();
-    auto oF = output_feats.data_ptr<T>();
-
-    Int *rules = idx_map.data_ptr<Int>();
-
-    voxelize_bp_cuda<T>(nActive, maxActive, nPlane, iF, oF, rules, false);
-}
-
-
-template <typename T>
-void point_recover_bp(/* cuda float N*C */ at::Tensor d_output_feats, /* cuda float M*C */ at::Tensor d_feats,  /* cuda Int M*(maxActive+1) */ at::Tensor idx_map,
-                Int nActive, Int maxActive, Int nPlane){
-    auto d_oF = d_output_feats.data_ptr<T>();
-    auto d_iF = d_feats.data_ptr<T>();
-
-    Int *rules = idx_map.data_ptr<Int>();
-
-    voxelize_fp_cuda<T>(nActive, maxActive, nPlane, d_oF, d_iF, rules, false);
-}
+//template <typename T>
+//void point_recover_fp(/* cuda float M*C */ at::Tensor feats, /* cuda float N*C */ at::Tensor output_feats, /* cuda Int M*(maxActive+1) */ at::Tensor idx_map,
+//                Int nActive, Int maxActive, Int nPlane){
+//    auto iF = feats.data_ptr<T>();
+//    auto oF = output_feats.data_ptr<T>();
+//
+//    Int *rules = idx_map.data_ptr<Int>();
+//
+//    voxelize_bp_cuda<T>(nActive, maxActive, nPlane, iF, oF, rules, false);
+//}
+//
+//
+//template <typename T>
+//void point_recover_bp(/* cuda float N*C */ at::Tensor d_output_feats, /* cuda float M*C */ at::Tensor d_feats,  /* cuda Int M*(maxActive+1) */ at::Tensor idx_map,
+//                Int nActive, Int maxActive, Int nPlane){
+//    auto d_oF = d_output_feats.data_ptr<T>();
+//    auto d_iF = d_feats.data_ptr<T>();
+//
+//    Int *rules = idx_map.data_ptr<Int>();
+//
+//    voxelize_fp_cuda<T>(nActive, maxActive, nPlane, d_oF, d_iF, rules, false);
+//}
