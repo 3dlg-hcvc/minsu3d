@@ -268,7 +268,7 @@ def write_bbox(scene_bbox, out_filename):
         scene.add_geometry(convert_box_to_trimesh_fmt(box))        
     
     mesh_list = trimesh.util.concatenate(scene.dump())
-    trimesh.io.export.export_mesh(mesh_list, out_filename, file_type='ply')
+    trimesh.exchange.export.export_mesh(mesh_list, out_filename, file_type='ply')
     
 
 def write_oriented_bbox(scene_bbox, out_filename, axis='z'):
@@ -320,7 +320,7 @@ def write_lines_as_cylinders(pcl, out_filename, rad=0.005, res=64):
     trimesh.io.export.export_mesh(mesh_list, f'{out_filename}.ply', file_type='ply')
 
 
-def write_cylinder_bbox(bbox, mode, out_filename=None):
+def write_cylinder_bbox(bbox, mode, out_filename=None, color=None):
     """
     bbox: (cx, cy, cz, lx, ly, lz, r), center and length in three axis, the last is the rotation
         or (cx, cy, cz, lx, ly, lz)
@@ -404,6 +404,8 @@ def write_cylinder_bbox(bbox, mode, out_filename=None):
         1: [0, 0, 255]  # pred
     }
     chosen_color = palette[mode]
+    if color is not None:
+        chosen_color = color
     edges = get_3d_box_edges(corners)
     for k in range(len(edges)):
         cyl_verts, cyl_ind = create_cylinder_mesh(radius, edges[k][0], edges[k][1])
@@ -421,7 +423,7 @@ def write_cylinder_bbox(bbox, mode, out_filename=None):
     return verts, colors, indices
 
 
-def write_cylinder_bbox_batch(bbox, mode, out_filename):
+def write_cylinder_bbox_batch(bbox, mode, out_filename=None):
     verts_all = []
     colors_all = []
     indices_all = []
@@ -434,6 +436,7 @@ def write_cylinder_bbox_batch(bbox, mode, out_filename):
         verts_all.extend(verts)
         colors_all.extend(colors)
         indices_all.extend(indices)
-
-    write_ply_rgb_face(np.array(verts_all), np.array(colors_all), np.array(indices_all), out_filename)
+    if out_filename:
+        write_ply_rgb_face(np.array(verts_all), np.array(colors_all), np.array(indices_all), out_filename)
+    return verts_all, colors_all, indices_all
 

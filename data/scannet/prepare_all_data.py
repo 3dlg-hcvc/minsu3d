@@ -13,7 +13,7 @@ from tqdm.contrib.concurrent import process_map
 
 IGNORE_CLASS_IDS = np.array([1, 2, 22])  # exclude wall, floor and ceiling
 
-LABEL_MAP_FILE = 'meta_data/scannetv2-labels.combined.tsv'
+LABEL_MAP_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'meta_data/scannetv2-labels.combined.tsv')
 G_LABEL_NAMES = ['unannotated', 'wall', 'floor', 'chair', 'table', 'desk', 'bed', 'bookshelf', 'sofa', 'sink', 'bathtub', 'toilet', 'curtain', 'counter', 'door', 'window', 'shower curtain', 'refridgerator', 'picture', 'cabinet', 'otherfurniture']
 
 
