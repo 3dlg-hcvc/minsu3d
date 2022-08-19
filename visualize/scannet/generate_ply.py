@@ -243,7 +243,6 @@ def generate_pred_inst_ply(args):
     for scene_id in scene_ids:
         args.scene_id = scene_id
         generate_single_ply(args)
-        break
 
 
 if __name__ == '__main__':
