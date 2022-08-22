@@ -154,7 +154,7 @@ With `--nms`, the program will perform non-maximum suppression before generating
 **Training time per scene**
 | Model      | MINSU3D | Official Version |
 |:-----------|:--------|:-------|
-| [PointGroup](https://github.com/dvlab-research/PointGroup) | 420ms | - |
+| [PointGroup](https://github.com/dvlab-research/PointGroup) | 420ms | 383ms |
 | [HAIS](https://github.com/hustvl/HAIS)| 475ms | 432ms |
 | [SoftGroup](https://github.com/thangvubk/SoftGroup) | 511ms | 357ms |
 
