@@ -13,10 +13,9 @@ import open3d as o3d
 sys.path.append(os.getcwd())
 sys.path.append('../..')
 from data.scannet.model_util_scannet import SCANNET_COLOR_MAP
-from data.scannet.prepare_all_data import read_axis_align_matrix, read_mesh_file
-from minsu3d.util.pc import write_ply_rgb, write_ply_colorful, write_ply_rgb_face
+from data.scannet.prepare_all_data import read_axis_align_matrix
+from minsu3d.util.pc import write_ply_rgb_face
 from minsu3d.util.bbox import write_cylinder_bbox
-from minsu3d.util.bbox import write_bbox, write_cylinder_bbox, write_cylinder_bbox_batch
 
 allColorList = []
 

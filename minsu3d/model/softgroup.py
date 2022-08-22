@@ -4,7 +4,7 @@ import torch
 import time
 import torch.nn as nn
 import pytorch_lightning as pl
-from minsu3d.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances, rle_encode, rle_decode
+from minsu3d.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances, rle_encode
 from minsu3d.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
 from minsu3d.common_ops.functions import softgroup_ops
 from minsu3d.common_ops.functions import common_ops
@@ -13,6 +13,7 @@ from minsu3d.evaluation.semantic_segmentation import *
 from minsu3d.model.module import Backbone, TinyUnet
 from minsu3d.model.helper import clusters_voxelization, get_batch_offsets
 from minsu3d.optimizer import init_optimizer, cosine_lr_decay
+from minsu3d.util import save_prediction
 
 
 class SoftGroup(pl.LightningModule):
@@ -385,27 +386,8 @@ class SoftGroup(pl.LightningModule):
                 inference_time += end_time
             self.print(f"Average inference time: {round(inference_time / len(results), 3)}s per scan.")
             if self.hparams.inference.save_predictions:
-                inst_pred_path = os.path.join(self.hparams.inference.output_dir, "instance")
-                inst_pred_masks_path = os.path.join(inst_pred_path, "predicted_masks")
-                os.makedirs(inst_pred_masks_path, exist_ok=True)
-                scan_instance_count = {}
-
-                for preds in tqdm(all_pred_insts, desc="==> Saving predictions ..."):
-                    tmp_info = []
-                    scan_id = preds[0]["scan_id"]
-                    for pred in preds:
-                        if scan_id not in scan_instance_count:
-                            scan_instance_count[scan_id] = 0
-                        tmp_info.append(
-                            f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {pred['label_id']} {pred['conf']:.4f}\n")
-                        np.savetxt(
-                            os.path.join(inst_pred_masks_path, f"{scan_id}_{scan_instance_count[scan_id]:03d}.txt"),
-                            rle_decode(pred["pred_mask"]), fmt="%d")
-                        scan_instance_count[scan_id] += 1
-                    with open(os.path.join(inst_pred_path, f"{scan_id}.txt"), "w") as f:
-                        for mask_info in tmp_info:
-                            f.write(mask_info)
-                self.print(f"\nPredictions saved at {inst_pred_path}\n")
+                save_prediction(self.hparams.inference.output_dir, all_pred_insts, self.hparams.data.mapping_classes_ids)
+                self.print(f"\nPredictions saved at {os.path.join(self.hparams.inference.output_dir, 'instance')}\n")
 
             if self.hparams.inference.evaluate:
                 inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names,

@@ -20,6 +20,8 @@ class_names: ['cabinet', 'bed', 'chair', 'sofa', 'table', 'door', 'window', 'boo
               'counter', 'desk', 'curtain', 'refrigerator', 'shower curtain', 'toilet', 'sink',
               'bathtub', 'otherfurniture']
 
+mapping_classes_ids: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39]
+
 point_num_avg: [-1., -1., 3917., 12056., 2303.,
                 8331., 3948., 3166., 5629., 11719.,
                 1003., 3317., 4912., 10221., 3889.,
