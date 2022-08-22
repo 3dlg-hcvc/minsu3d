@@ -9,8 +9,9 @@ Supported 3D scene understanding methods:
 ## Features
 - Highly-modularized design enables researchers to easily add different models and datasets.
 - Focus on research by letting [PytorchLightning](https://github.com/Lightning-AI/lightning) handle engineering code.
+- Easy multi-GPU training.
 - Easy experiment configuration and management with [Hydra](https://github.com/facebookresearch/hydra) and [W&B](https://github.com/wandb/wandb).
-- [Faster training and inference](https://github.com/3dlg-hcvc/minsu3d-internal#performance) with [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
+
 
 ## Setup
 
