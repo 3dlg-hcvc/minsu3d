@@ -343,7 +343,7 @@ class GeneralDatasetEvaluator(object):
             pred2gt[label] = []
         num_pred_instances = 0
         # mask of void labels in the groundtruth
-        bool_void = np.logical_not(np.in1d(torch.div(gts, 1000, rounding_mode='trunc'), self.valid_class_ids))
+        bool_void = np.logical_not(np.in1d(gts // 1000, self.valid_class_ids))
         # go thru all prediction masks
         for pred in preds:
             if self.use_label:
