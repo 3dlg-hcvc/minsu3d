@@ -73,7 +73,7 @@ python setup.py develop
 
 ### ScanNet v2 dataset
 1. Download the [ScanNet v2](http://www.scan-net.org/) dataset.
-2. Preprocess the data
+2. Preprocess the data:
 ```shell
 cd data/scannet
 python prepare_all_data.py data=scannet +raw_scan_path={PATH_TO_SCANNET_V2}/scans
@@ -104,7 +104,7 @@ python eval.py model={model_name} data={dataset_name} model.model.experiment_nam
 ```
 
 ## Pretrained Models
-Note: All models are trained from scratch. We use hyperparameters listed in default config files (.yaml).
+Note: All MINSU3D models are trained from scratch. We use hyperparameters listed in default config files (.yaml).
 
 ### ScanNet v2 val set
 | Model      | Code | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% | Download |
