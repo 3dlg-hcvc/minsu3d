@@ -183,7 +183,7 @@ With `--nms`, the program will perform non-maximum suppression before generating
 | [Official SoftGroup](https://github.com/thangvubk/SoftGroup) | 46.0 | 67.6 | 78.9 | 59.4 | 71.6 |
 
 ## Customization
-MINSU3D supports custom datasets and models. All code under `minsu3d/data/dataset' and 'minsu3d/model' are automatically registered and managed by [Hydra](https://github.com/facebookresearch/hydra) using configuration files under `config/data` and `config/model`, respectively. 
+MINSU3D supports custom datasets and models. All code under `minsu3d/data/dataset` and `minsu3d/model` are automatically registered and managed by [Hydra](https://github.com/facebookresearch/hydra) using configuration files under `config/data` and `config/model`, respectively. 
 
 ### Use your own dataset
 1. Add a new dataset config file (.yaml) at `config/data/{your_dataset}.yaml`.
