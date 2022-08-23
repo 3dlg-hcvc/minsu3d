@@ -265,7 +265,7 @@ def get_gt_bbox(xyz, instance_ids, sem_labels, ignored_label, ignore_classes):
             continue
         idx = instance_ids == instance_id
         sem_label = sem_labels[idx][0]
-        if sem_label == ignored_label:
+        if sem_label in ignore_classes or sem_label == ignored_label:
             continue
         sem_label = sem_label - len(ignore_classes)
 
