@@ -10,12 +10,13 @@ def save_prediction(save_path, all_pred_insts, mapping_ids):
     inst_pred_masks_path = os.path.join(inst_pred_path, "predicted_masks")
     os.makedirs(inst_pred_masks_path, exist_ok=True)
     scan_instance_count = {}
-
+    mapping_ids = list(mapping_ids)
     for preds in tqdm(all_pred_insts, desc="==> Saving predictions ..."):
         tmp_info = []
         scan_id = preds[0]["scan_id"]
         for pred in preds:
             if scan_id not in scan_instance_count:
+
                 scan_instance_count[scan_id] = 0
             mapped_label_id = mapping_ids[pred['label_id'] - 1]
             tmp_info.append(
