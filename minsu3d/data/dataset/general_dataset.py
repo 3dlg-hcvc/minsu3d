@@ -78,13 +78,12 @@ class GeneralDataset(Dataset):
         # (n, 3), float, (meanx, meany, meanz)
         instance_info = np.empty(shape=(xyz.shape[0], 3), dtype=np.float32)
         instance_cls = np.full(shape=unique_instance_ids.shape[0], fill_value=self.cfg.data.ignore_label, dtype=np.int8)
-        instance_bboxes = np.full(shape=(unique_instance_ids.shape[0], 6), fill_value=self.cfg.data.ignore_label, dtype=np.float32)
         for index, i in enumerate(unique_instance_ids):
             inst_i_idx = np.where(instance_ids == i)[0]
+
             # instance_info
             xyz_i = xyz[inst_i_idx]
-            min_xyz_i = xyz_i.min(0)
-            max_xyz_i = xyz_i.max(0)
+
             mean_xyz_i = xyz_i.mean(0)
 
             # offset
@@ -95,12 +94,10 @@ class GeneralDataset(Dataset):
 
             # semantic label
             cls_idx = inst_i_idx[0]
-            assert sem_labels[cls_idx] not in self.cfg.data.ignore_classes
             instance_cls[index] = sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[cls_idx] != self.cfg.data.ignore_label else sem_labels[cls_idx]
             # bounding boxes
-            instance_bboxes[index] = np.concatenate((min_xyz_i, max_xyz_i))
 
-        return num_instance, instance_info, instance_num_point, instance_cls, instance_bboxes
+        return num_instance, instance_info, instance_num_point, instance_cls
 
     def __getitem__(self, idx):
         scene_id = self.scene_names[idx]
@@ -161,7 +158,7 @@ class GeneralDataset(Dataset):
             sem_labels = sem_labels[valid_idxs]
             instance_ids = self._get_cropped_inst_ids(instance_ids, valid_idxs)
 
-        num_instance, instance_info, instance_num_point, instance_semantic_cls, instance_bboxes = self._get_inst_info(
+        num_instance, instance_info, instance_num_point, instance_semantic_cls = self._get_inst_info(
             points, instance_ids, sem_labels)
 
         feats = np.zeros(shape=(len(scaled_points), 0), dtype=np.float32)
@@ -181,5 +178,4 @@ class GeneralDataset(Dataset):
         data["instance_info"] = instance_info  # (N, 12)
         data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)  # (num_instance,)
         data["instance_semantic_cls"] = instance_semantic_cls
-        data["instance_bboxes"] = instance_bboxes
         return data

@@ -1,53 +1,25 @@
 import os
-import numpy as np
 import hydra
-import torch
-import pytorch_lightning as pl
-from minsu3d.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
 from minsu3d.evaluation.object_detection import evaluate_bbox_acc, get_gt_bbox
-from minsu3d.evaluation.semantic_segmentation import *
-
-
-def read_gt_files_from_disk(data_path):
-    pth_file = torch.load(data_path)
-    return pth_file["xyz"], pth_file["sem_labels"], pth_file["instance_ids"]
-
-
-def read_pred_files_from_disk(data_path, gt_xyz):
-    pred_instances = []
-    with open(data_path, "r") as f:
-        for line in f:
-            mask_relative_path, sem_label, confidence = line.strip().split()
-            mask_path = os.path.join(os.path.dirname(data_path), mask_relative_path)
-            pred = {"scan_id": os.path.basename(data_path), "label_id": int(sem_label), "conf": float(confidence),
-                    "pred_mask": np.loadtxt(mask_path, dtype=bool)}
-            pred_xyz = gt_xyz[pred["pred_mask"]]
-            pred["pred_bbox"] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
-            pred_instances.append(pred)
-    return pred_instances
+from minsu3d.evaluation.instance_segmentation import GeneralDatasetEvaluator, get_gt_instances
+from minsu3d.util.io import read_gt_files_from_disk, read_pred_files_from_disk
 
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg):
-
-    # fix the seed
-    pl.seed_everything(cfg.global_seed, workers=True)
-
     split = cfg.model.model.inference.split
-    output_path = os.path.join(cfg.exp_output_root_path, cfg.data.dataset,
+    pred_file_path = os.path.join(cfg.exp_output_root_path, cfg.data.dataset,
                                cfg.model.model.module, cfg.model.model.experiment_name,
-                               "inference", split)
+                               "inference", cfg.model.model.inference.split, "predictions")
 
-    cfg.model.inference.output_dir = os.path.join(output_path, "predictions")
-
-    if not os.path.exists(cfg.model.inference.output_dir):
+    if not os.path.exists(pred_file_path):
         print("Error: prediction files do not exist.")
         exit(-1)
 
     print(f"==> start evaluating {split} set ...")
 
     print("==> Evaluating instance segmentation ...")
-    inst_seg_evaluator = GeneralDatasetEvaluator(cfg.data.class_names)
+    inst_seg_evaluator = GeneralDatasetEvaluator(cfg.data.class_names, cfg.data.ignore_label)
 
     all_pred_insts = []
     all_gt_insts = []
@@ -66,10 +38,12 @@ def main(cfg):
         all_gt_insts.append(gt_instances)
 
         # read prediction files
-        pred_instances = read_pred_files_from_disk(scan_path, gt_xyz)
+        pred_instances = read_pred_files_from_disk(scan_path, gt_xyz, cfg.data.mapping_classes_ids)
         all_pred_insts.append(pred_instances)
 
     inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
+    obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox,
+                      self.hparams.data.class_names, print_result=True)
 
 
 if __name__ == "__main__":

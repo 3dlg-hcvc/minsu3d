@@ -257,13 +257,24 @@ def eval_sphere(pred_all, gt_all, ovthresh, use_07_metric=False, get_iou_func=ge
     return rec, prec, ap
 
 
-def get_gt_bbox(instance_cls, instance_bboxes, ignored_label):
+def get_gt_bbox(xyz, instance_ids, sem_labels, ignored_label, ignore_classes):
     gt_bbox = []
-    assert instance_cls.shape[0] == instance_bboxes.shape[0]
-    for i in range(instance_cls.shape[0]):
-        if instance_cls[i] == ignored_label:
+    unique_inst_ids = np.unique(instance_ids)
+    for instance_id in unique_inst_ids:
+        if instance_id == ignored_label:
             continue
-        gt_bbox.append((instance_cls[i], instance_bboxes[i]))
+        idx = instance_ids == instance_id
+        sem_label = sem_labels[idx][0]
+        if sem_label == ignored_label:
+            continue
+        sem_label = sem_label - len(ignore_classes)
+
+        xyz_i = xyz[idx]
+        min_xyz = xyz_i.min(0)
+        max_xyz = xyz_i.max(0)
+
+        gt_bbox.append((sem_label, np.concatenate((min_xyz, max_xyz))))
+
     return gt_bbox
 
 

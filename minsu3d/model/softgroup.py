@@ -302,9 +302,8 @@ class SoftGroup(pl.LightningModule):
                                                       len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
-            gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
-                                            data_dict["instance_bboxes"].cpu().numpy(),
-                                            self.hparams.data.ignore_label)
+            gt_instances_bbox = get_gt_bbox(data_dict["locs"].cpu().numpy(),
+                                            data_dict["instance_ids"].cpu().numpy(), data_dict["sem_labels"].cpu().numpy(), self.hparams.data.ignore_label, self.hparams.data.ignore_classes)
 
             return pred_instances, gt_instances, gt_instances_bbox
 
@@ -359,8 +358,8 @@ class SoftGroup(pl.LightningModule):
             gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
 
-            gt_instances_bbox = get_gt_bbox(data_dict["instance_semantic_cls"].cpu().numpy(),
-                                            data_dict["instance_bboxes"].cpu().numpy(), self.hparams.data.ignore_label)
+            gt_instances_bbox = get_gt_bbox(data_dict["locs"].cpu().numpy(),
+                                            data_dict["instance_ids"].cpu().numpy(), data_dict["sem_labels"].cpu().numpy(), self.hparams.data.ignore_label, self.hparams.data.ignore_classes)
 
             return semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox, end_time
 

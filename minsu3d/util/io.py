@@ -1,6 +1,7 @@
 import os
-import numpy as np
+import torch
 from tqdm import tqdm
+from minsu3d.evaluation.semantic_segmentation import *
 from minsu3d.evaluation.instance_segmentation import rle_decode
 
 
@@ -26,3 +27,25 @@ def save_prediction(save_path, all_pred_insts, mapping_ids):
         with open(os.path.join(inst_pred_path, f"{scan_id}.txt"), "w") as f:
             for mask_info in tmp_info:
                 f.write(mask_info)
+
+
+def read_gt_files_from_disk(data_path):
+    pth_file = torch.load(data_path)
+    return pth_file["xyz"], pth_file["sem_labels"], pth_file["instance_ids"]
+
+
+def read_pred_files_from_disk(data_path, gt_xyz, mapping_ids):
+    sem_label_mapping = {}
+    for i, item in enumerate(mapping_ids, 1):
+        sem_label_mapping[item] = i
+    pred_instances = []
+    with open(data_path, "r") as f:
+        for line in f:
+            mask_relative_path, sem_label, confidence = line.strip().split()
+            mask_path = os.path.join(os.path.dirname(data_path), mask_relative_path)
+            pred = {"scan_id": os.path.basename(data_path), "label_id": sem_label_mapping[int(sem_label)], "conf": float(confidence),
+                    "pred_mask": np.loadtxt(mask_path, dtype=bool)}
+            pred_xyz = gt_xyz[pred["pred_mask"]]
+            pred["pred_bbox"] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
+            pred_instances.append(pred)
+    return pred_instances
