@@ -2,6 +2,7 @@ from minsu3d.evaluation.instance_segmentation import GeneralDatasetEvaluator
 from minsu3d.evaluation.object_detection import evaluate_bbox_acc
 from minsu3d.optimizer import init_optimizer, cosine_lr_decay
 from minsu3d.common_ops.functions import common_ops
+from minsu3d.loss import PTOffsetLoss, SemSegLoss
 from minsu3d.model.module import Backbone
 from minsu3d.util import save_prediction
 import pytorch_lightning as pl
@@ -32,10 +33,33 @@ class GeneralModel(pl.LightningModule):
         return output_dict
 
     def forward(self, data_dict):
-        pass
+        backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
+        return backbone_output_dict
 
     def _loss(self, data_dict, output_dict):
-        pass
+        losses = {}
+        total_loss = 0
+
+        """semantic loss"""
+        # semantic_scores: (N, nClass), float32, cuda
+        # semantic_labels: (N), long, cuda
+        sem_seg_criterion = SemSegLoss(self.hparams.data.ignore_label)
+        semantic_loss = sem_seg_criterion(output_dict["semantic_scores"], data_dict["sem_labels"].long())
+        losses["semantic_loss"] = semantic_loss
+
+        """offset loss"""
+        # pt_offsets: (N, 3), float, cuda
+        # coords: (N, 3), float32
+        # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
+        # instance_ids: (N), long
+        gt_offsets = data_dict["instance_info"] - data_dict["locs"]  # (N, 3)
+        valid = data_dict["instance_ids"] != self.hparams.data.ignore_label
+        pt_offset_criterion = PTOffsetLoss()
+        offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets,
+                                                                valid_mask=valid)
+        losses["offset_norm_loss"] = offset_norm_loss
+        losses["offset_dir_loss"] = offset_dir_loss
+        return losses, total_loss
 
     def training_step(self, data_dict, idx):
         # prepare input and forward

@@ -5,21 +5,18 @@ from minsu3d.evaluation.instance_segmentation import get_gt_instances, rle_encod
 from minsu3d.evaluation.object_detection import get_gt_bbox
 from minsu3d.common_ops.functions import pointgroup_ops
 from minsu3d.common_ops.functions import common_ops
-from minsu3d.loss import *
+from minsu3d.loss import ScoreLoss
 from minsu3d.model.helper import clusters_voxelization, get_batch_offsets
 from minsu3d.loss.utils import get_segmented_scores
 from minsu3d.model.module import TinyUnet
 from minsu3d.evaluation.semantic_segmentation import *
-from minsu3d.util import save_prediction
 from minsu3d.model.general_model import GeneralModel
 
 
 class PointGroup(GeneralModel):
     def __init__(self, model, data, optimizer, lr_decay, inference=None):
         super().__init__(model, data, optimizer, lr_decay, inference)
-
         output_channel = model.m
-        self.instance_classes = data.classes - len(data.ignore_classes)
 
         """
             ScoreNet Block
@@ -28,11 +25,7 @@ class PointGroup(GeneralModel):
         self.score_branch = nn.Linear(output_channel, 1)
 
     def forward(self, data_dict):
-        output_dict = {}
-
-        backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
-        output_dict.update(backbone_output_dict)
-
+        output_dict = super().forward(data_dict)
         if self.current_epoch > self.hparams.model.prepare_epochs or self.hparams.model.freeze_backbone:
             # get prooposal clusters
             batch_idxs = data_dict["vert_batch_ids"]
@@ -94,29 +87,11 @@ class PointGroup(GeneralModel):
         return output_dict
 
     def _loss(self, data_dict, output_dict):
-        losses = {}
+        losses, total_loss = super()._loss(data_dict, output_dict)
 
-        """semantic loss"""
-        # semantic_scores: (N, nClass), float32, cuda
-        # semantic_labels: (N), long, cuda
-        sem_seg_criterion = SemSegLoss(self.hparams.data.ignore_label)
-        semantic_loss = sem_seg_criterion(output_dict["semantic_scores"], data_dict["sem_labels"].long())
-        losses["semantic_loss"] = semantic_loss
-
-        """offset loss"""
-        # pt_offsets: (N, 3), float, cuda
-        # coords: (N, 3), float32
-        # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
-        # instance_ids: (N), long
-        gt_offsets = data_dict["instance_info"] - data_dict["locs"]  # (N, 3)
-        valid = data_dict["instance_ids"] != self.hparams.data.ignore_label
-        pt_offset_criterion = PTOffsetLoss()
-        offset_norm_loss, offset_dir_loss = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
-        losses["offset_norm_loss"] = offset_norm_loss
-        losses["offset_dir_loss"] = offset_dir_loss
-
-        total_loss = self.hparams.model.loss_weight[0] * semantic_loss + self.hparams.model.loss_weight[1] * offset_norm_loss + \
-                     self.hparams.model.loss_weight[2] * offset_dir_loss
+        total_loss += self.hparams.model.loss_weight[0] * losses["semantic_loss"] + \
+                      self.hparams.model.loss_weight[1] * losses["offset_norm_loss"] + \
+                      self.hparams.model.loss_weight[2] * losses["offset_dir_loss"]
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             """score loss"""

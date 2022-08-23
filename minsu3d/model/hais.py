@@ -5,21 +5,18 @@ from minsu3d.evaluation.instance_segmentation import get_gt_instances, rle_encod
 from minsu3d.evaluation.object_detection import get_gt_bbox
 from minsu3d.common_ops.functions import hais_ops
 from minsu3d.common_ops.functions import common_ops
-from minsu3d.loss import *
+from minsu3d.loss import MaskScoringLoss, ScoreLoss
 from minsu3d.model.helper import clusters_voxelization, get_batch_offsets
 from minsu3d.loss.utils import get_segmented_scores
 from minsu3d.model.module import TinyUnet
 from minsu3d.evaluation.semantic_segmentation import *
-
 from minsu3d.model.general_model import GeneralModel
 
 
 class HAIS(GeneralModel):
     def __init__(self, model, data, optimizer, lr_decay, inference=None):
         super().__init__(model, data, optimizer, lr_decay, inference)
-
         output_channel = model.m
-        self.instance_classes = data.classes - len(data.ignore_classes)
 
         """
             Intra-instance Block
@@ -33,13 +30,9 @@ class HAIS(GeneralModel):
         )
 
     def forward(self, data_dict):
-        output_dict = {}
-
-        backbone_output_dict = self.backbone(data_dict["voxel_feats"], data_dict["voxel_locs"], data_dict["v2p_map"])
-        output_dict.update(backbone_output_dict)
-
+        output_dict = super().forward(data_dict)
         if self.current_epoch > self.hparams.model.prepare_epochs:
-            # get prooposal clusters
+            # get proposal clusters
             batch_idxs = data_dict["vert_batch_ids"]
             semantic_preds = output_dict["semantic_scores"].max(1)[1]
             # set mask
@@ -99,28 +92,10 @@ class HAIS(GeneralModel):
         return output_dict
 
     def _loss(self, data_dict, output_dict):
-        losses = {}
+        losses, total_loss = super()._loss(data_dict, output_dict)
 
-        """semantic loss"""
-        # semantic_scores: (N, nClass), float32, cuda
-        # semantic_labels: (N), long, cuda
-        sem_seg_criterion = SemSegLoss(self.hparams.data.ignore_label)
-        semantic_loss = sem_seg_criterion(output_dict["semantic_scores"], data_dict["sem_labels"].long())
-        losses["semantic_loss"] = semantic_loss
-
-        """offset loss"""
-        # pt_offsets: (N, 3), float, cuda
-        # coords: (N, 3), float32
-        # instance_info: (N, 12), float32 tensor (meanxyz, center, minxyz, maxxyz)
-        # instance_ids: (N), long
-        gt_offsets = data_dict["instance_info"] - data_dict["locs"]  # (N, 3)
-        valid = data_dict["instance_ids"] != self.hparams.data.ignore_label
-        pt_offset_criterion = PTOffsetLoss()
-        offset_norm_loss, _ = pt_offset_criterion(output_dict["point_offsets"], gt_offsets, valid_mask=valid)
-        losses["offset_norm_loss"] = offset_norm_loss
-
-        total_loss = self.hparams.model.loss_weight[0] * semantic_loss + self.hparams.model.loss_weight[
-            1] * offset_norm_loss
+        total_loss += self.hparams.model.loss_weight[0] * losses["semantic_loss"] + \
+                      self.hparams.model.loss_weight[1] * losses["offset_norm_loss"]
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             """score and mask loss"""
@@ -229,8 +204,6 @@ class HAIS(GeneralModel):
 
             return semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox, end_time
 
-
-
     def _get_pred_instances(self, scan_id, gt_xyz, scores, proposals_idx, num_proposals, mask_scores, semantic_scores, num_ignored_classes):
         semantic_pred_labels = semantic_scores.max(1)[1]
         scores_pred = torch.sigmoid(scores.view(-1))
@@ -245,9 +218,6 @@ class HAIS(GeneralModel):
         _mask = mask_scores.squeeze(1) > self.hparams.model.test.test_mask_score_thre
         proposals_pred[proposals_idx[_mask][:, 0].long(), proposals_idx[_mask][:, 1].long()] = True
 
-        # semantic_id = semantic_pred_labels[
-        #     proposals_idx[:, 1][proposals_offset[:-1].long()].long()]  # (nProposal), long
-
         # score threshold
         score_mask = (scores_pred > self.hparams.model.test.TEST_SCORE_THRESH)
         scores_pred = scores_pred[score_mask]
@@ -259,19 +229,17 @@ class HAIS(GeneralModel):
         npoint_mask = (proposals_pointnum >= self.hparams.model.test.TEST_NPOINT_THRESH)
         scores_pred = scores_pred[npoint_mask]
         proposals_pred = proposals_pred[npoint_mask]
-        # semantic_id = semantic_id[npoint_mask]
 
         clusters = proposals_pred.numpy()
         cluster_scores = scores_pred.numpy()
-        # cluster_semantic_id = semantic_id.numpy()
 
         nclusters = clusters.shape[0]
 
         pred_instances = []
         for i in range(nclusters):
             cluster_i = clusters[i]
-            pred = {'scan_id': scan_id, 'label_id': semantic_pred_labels[cluster_i][0].item() - num_ignored_classes + 1, 'conf': cluster_scores[i],
-                    'pred_mask': rle_encode(cluster_i)}
+            pred = {'scan_id': scan_id, 'label_id': semantic_pred_labels[cluster_i][0].item() - num_ignored_classes + 1,
+                    'conf': cluster_scores[i], 'pred_mask': rle_encode(cluster_i)}
             pred_xyz = gt_xyz[cluster_i]
             pred['pred_bbox'] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
             pred_instances.append(pred)
