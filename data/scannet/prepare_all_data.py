@@ -13,9 +13,10 @@ from tqdm.contrib.concurrent import process_map
 
 IGNORE_CLASS_IDS = np.array([1, 2, 22])  # exclude wall, floor and ceiling
 
-LABEL_MAP_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'meta_data/scannetv2-labels.combined.tsv')
-G_LABEL_NAMES = ['unannotated', 'wall', 'floor', 'chair', 'table', 'desk', 'bed', 'bookshelf', 'sofa', 'sink', 'bathtub', 'toilet', 'curtain', 'counter', 'door', 'window', 'shower curtain', 'refridgerator', 'picture', 'cabinet', 'otherfurniture']
-
+LABEL_MAP_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'metadata/scannetv2-labels.combined.tsv')
+G_LABEL_NAMES = ['unannotated', 'wall', 'floor', 'chair', 'table', 'desk', 'bed', 'bookshelf', 'sofa', 'sink',
+                 'bathtub', 'toilet', 'curtain', 'counter', 'door', 'window', 'shower curtain', 'refridgerator',
+                 'picture', 'cabinet', 'otherfurniture']
 
 # Map relevant classes to {0,1,...,19}, and ignored classes to -1
 remapper = np.full(shape=150, fill_value=-1, dtype=np.int32)
@@ -42,13 +43,12 @@ def get_raw2scannetv2_label_map():
 OBJECT_MAPPING = get_raw2scannetv2_label_map()
 
 
-def read_mesh_file(mesh_file, axis_align_matrix):
+def read_mesh_file(mesh_file):
     mesh = o3d.io.read_triangle_mesh(mesh_file)
-    if axis_align_matrix is not None:
-        # align the mesh
-        mesh.transform(axis_align_matrix)
     mesh.compute_vertex_normals()
-    return np.asarray(mesh.vertices, dtype=np.float32), np.rint(np.asarray(mesh.vertex_colors) * 255).astype(np.uint8), np.asarray(mesh.vertex_normals, dtype=np.float32)
+    return np.asarray(mesh.vertices, dtype=np.float32), \
+           np.rint(np.asarray(mesh.vertex_colors) * 255).astype(np.uint8), \
+           np.asarray(mesh.vertex_normals, dtype=np.float32)
 
 
 def read_axis_align_matrix(meta_file):
@@ -144,13 +144,9 @@ def export(scene, cfg):
     label_file_path = os.path.join(cfg.raw_scan_path, scene, scene + '_vh_clean_2.labels.ply')
     agg_file_path = os.path.join(cfg.raw_scan_path, scene, scene + '.aggregation.json')
     seg_file_path = os.path.join(cfg.raw_scan_path, scene, scene + '_vh_clean_2.0.010000.segs.json')
-    meta_file_path = os.path.join(cfg.raw_scan_path, scene, scene + '.txt')
-
-    # read meta_file
-    # axis_align_matrix = read_axis_align_matrix(meta_file_path)
 
     # read mesh_file
-    xyz, rgb, normal = read_mesh_file(mesh_file_path, None)
+    xyz, rgb, normal = read_mesh_file(mesh_file_path)
     num_verts = len(xyz)
 
     if os.path.exists(agg_file_path):
@@ -182,7 +178,8 @@ def process_one_scan(scan, cfg, split):
     bbox_mask = np.logical_not(np.in1d(aligned_instance_bboxes[:, -2], IGNORE_CLASS_IDS))
     aligned_instance_bboxes = aligned_instance_bboxes[bbox_mask, :]
     torch.save({'xyz': xyz, 'rgb': rgb, 'normal': normal, 'sem_labels': sem_labels, 'instance_ids': instance_ids,
-                'aligned_instance_bboxes': aligned_instance_bboxes}, os.path.join(cfg.data.dataset_path, split, f"{scan}{cfg.data.file_suffix}"))
+                'aligned_instance_bboxes': aligned_instance_bboxes},
+               os.path.join(cfg.data.dataset_path, split, f"{scan}{cfg.data.file_suffix}"))
 
 
 @hydra.main(version_base=None, config_path="../../config", config_name="config")
@@ -198,7 +195,7 @@ def main(cfg):
 
     with open(cfg.data.metadata.val_list) as f:
         val_list = [line.strip() for line in f]
-    
+
     print("==> Processing train split ...")
     process_map(partial(process_one_scan, cfg=cfg, split="train"), train_list, chunksize=1)
     print("==> Processing val split ...")

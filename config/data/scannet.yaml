@@ -7,7 +7,7 @@ dataset: ScanNet
 dataset_path: ${data.dataset_root_path}/scannet
 
 metadata:
-  metadata_path: ${data.dataset_path}/meta_data
+  metadata_path: ${data.dataset_path}/metadata
   train_list: ${data.metadata.metadata_path}/scannetv2_train.txt
   val_list: ${data.metadata.metadata_path}/scannetv2_val.txt
   test_list: ${data.metadata.metadata_path}/scannetv2_test.txt
