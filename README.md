@@ -178,13 +178,13 @@ With `--nms`, the program will perform non-maximum suppression before generating
 ## Customization
 MINSU3D supports custom datasets and models. All code under `minsu3d/data/dataset` and `minsu3d/model` are automatically registered and managed by [Hydra](https://github.com/facebookresearch/hydra) using configuration files under `config/data` and `config/model`, respectively. 
 
-### Use your own dataset
+### Implement your own dataset
 1. Add a new dataset config file (.yaml) at `config/data/{your_dataset}.yaml`.
-2. Add a new dataset processing code at `minsu3d/data/dataset/{your_dataset}.py`, it should inherit the `GeneralDataset()` class from `lib/data/dataset/general_dataset.py`.
+2. Add a new dataset processing code at `minsu3d/data/dataset/{your_dataset}.py`, it should inherit the `GeneralDataset()` class from `minsu3d/data/dataset/general_dataset.py`.
 
 ### Implement your own model
 1. Add a new model config file (.yaml) at `config/model/{your_model}.yaml`.
-2. Add a new model code at `minsu3d/model/{your_model}.py`.
+2. Add a new model code at `minsu3d/model/{your_model}.py`, it should inherit the `GeneralModel()` class from `minsu3d/model/general_model.py`.
 
 ## Acknowledgement
 This repo is built upon [PointGroup](https://github.com/dvlab-research/PointGroup), [HAIS](https://github.com/hustvl/HAIS), [SoftGroup](https://github.com/thangvubk/SoftGroup) and [ScanNet](https://github.com/ScanNet/ScanNet). To use their work, please cite them.
