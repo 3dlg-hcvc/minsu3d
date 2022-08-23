@@ -85,15 +85,22 @@ Note: Configuration files are managed by [Hydra](https://hydra.cc/), you can eas
 # train a model from scratch
 python train.py model={model_name} data={dataset_name}
 
+# train a model from scratch with 2 GPUs
+python train.py model={model_name} data={dataset_name} model.trainer.devices=2
+
 # train a model from a checkpoint
 python train.py model={model_name} data={dataset_name} model.ckpt_path={checkpoint_path}
 
-# test and evaluate a pretrained model
+# test a pretrained model
 python test.py model={model_name} data={dataset_name} model.ckpt_path={pretrained_model_path}
+
+# evaluate inference results
+python eval.py model={model_name} data={dataset_name} model.model.experiment_name={experiment_name}
 
 # examples:
 # python train.py model=pointgroup data=scannet model.trainer.max_epochs=480
-# python test.py model=pointgroup data=scannet model.ckpt_path=pretrained.ckpt
+# python test.py model=pointgroup data=scannet model.ckpt_path=PointGroup_best.ckpt
+# python eval.py model=hais data=scannet model.model.experiment_name=run_1
 ```
 
 ## Pretrained Models
@@ -178,12 +185,12 @@ With `--nms`, the program will perform non-maximum suppression before generating
 ## Customization
 
 ### Use your own dataset
-1. Add a new dataset config file (.yaml) at `config/data/{your_dataset}.yaml`
-2. Add a new dataset processing code at `minsu3d/data/dataset/{your_dataset}.py`, it should inherit the `GeneralDataset()` class from `lib/data/dataset/general_dataset.py`
+1. Add a new dataset config file (.yaml) at `config/data/{your_dataset}.yaml`.
+2. Add a new dataset processing code at `minsu3d/data/dataset/{your_dataset}.py`, it should inherit the `GeneralDataset()` class from `lib/data/dataset/general_dataset.py`.
 
 ### Implement your own model
-1. Add a new model config file (.yaml) at `config/model/{your_model}.yaml`
-2. Add a new model code at `minsu3d/model/{your_model}.py`
+1. Add a new model config file (.yaml) at `config/model/{your_model}.yaml`.
+2. Add a new model code at `minsu3d/model/{your_model}.py`.
 
 ## Acknowledgement
 This repo is built upon [PointGroup](https://github.com/dvlab-research/PointGroup), [HAIS](https://github.com/hustvl/HAIS), [SoftGroup](https://github.com/thangvubk/SoftGroup) and [ScanNet](https://github.com/ScanNet/ScanNet). To use their work, please cite them.
