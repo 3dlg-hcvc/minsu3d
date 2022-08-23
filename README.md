@@ -103,7 +103,7 @@ Note: All models are trained from scratch. We use hyperparameters listed in defa
 | Model      | Code | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% | Download |
 |:-----------|:--------|:--------|:-------|:-------|:------------|:------------|:---------|
 | [PointGroup](https://github.com/dvlab-research/PointGroup) | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/pointgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/pointgroup.py) | 36.1 | 57.8 | 71.4 | 50.4 | 61.2 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
-| [HAIS](https://github.com/hustvl/HAIS)  | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/hais.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/hais.py)  | 42.2 | 62.3 | 73.3 | 51.7 | 63.1 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/HAIS_best.ckpt) |
+| [HAIS](https://github.com/hustvl/HAIS)  | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/hais.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/hais.py)  | 42.1 | 62.0 | 73.8 | 52.8 | 62.6 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/HAIS_best.ckpt) |
 | [SoftGroup](https://github.com/thangvubk/SoftGroup) | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/softgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/softgroup.py)  | 42.2 | 65.5 | 78.0 | 56.0 | 69.5 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/SoftGroup_best.ckpt) |
 
 ## Visualization
@@ -161,7 +161,7 @@ With `--nms`, the program will perform non-maximum suppression before generating
 **Inference time per scene**
 | Model      | MINSU3D | Official Version |
 |:-----------|:--------|:-------|
-| [PointGroup](https://github.com/dvlab-research/PointGroup) | 179ms | - |
+| [PointGroup](https://github.com/dvlab-research/PointGroup) | 179ms | 176ms |
 | [HAIS](https://github.com/hustvl/HAIS)| 160ms | 165ms |
 | [SoftGroup](https://github.com/thangvubk/SoftGroup) | 165ms | 204ms |
 
@@ -170,7 +170,7 @@ With `--nms`, the program will perform non-maximum suppression before generating
 |:-----------|:--------|:-------|:-------|:------------|:------------|
 | MINSU3D PointGroup | 36.1 | 57.8 | 71.4 | 50.4 | 61.2 |
 | [Official PointGroup](https://github.com/dvlab-research/PointGroup) | 35.2 | 57.1 | 71.4 | - | - |
-| MINSU3D HAIS | 42.2 | 62.3 | 73.3 | 51.7 | 63.1 |
+| MINSU3D HAIS | 42.1 | 62.0 | 73.8 | 52.8 | 62.6 |
 | [Official HAIS](https://github.com/hustvl/HAIS)  | 44.1 | 64.4 | 75.7 | - | - | 
 | MINSU3D SoftGroup | 42.2 | 65.5 | 78.0 | 56.0 | 69.5 |
 | [Official SoftGroup](https://github.com/thangvubk/SoftGroup) | 46.0 | 67.6 | 78.9 | 59.4 | 71.6 |
