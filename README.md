@@ -1,5 +1,5 @@
 # MINSU3D
-MINSU3D：**Min**kowskiEngine-powered **S**cene **U**nderstanding in **3D** is a repository that contains reimplementation of state-of-the-art 3D scene understanding methods on point clouds for both instance segmentation and adapted to object detection powered by [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
+MINSU3D：**Min**kowskiEngine-powered **S**cene **U**nderstanding in **3D** contains reimplementation of state-of-the-art 3D scene understanding methods on point clouds for both instance segmentation and adapted to object detection powered by [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
 
 Supported 3D scene understanding methods:
 - [PointGroup](https://github.com/dvlab-research/PointGroup)
