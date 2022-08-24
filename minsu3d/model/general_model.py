@@ -8,7 +8,6 @@ from minsu3d.util import save_prediction
 import pytorch_lightning as pl
 import MinkowskiEngine as ME
 import numpy as np
-import logging
 import torch
 import os
 
@@ -23,7 +22,6 @@ class GeneralModel(pl.LightningModule):
                                  block_channels=model.blocks,
                                  block_reps=model.block_reps,
                                  sem_classes=data.classes)
-        self.loger = logging.getLogger('lightning')
 
     def configure_optimizers(self):
         return init_optimizer(parameters=self.parameters(), **self.hparams.optimizer)
