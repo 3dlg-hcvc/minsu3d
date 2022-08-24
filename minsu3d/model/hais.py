@@ -3,14 +3,12 @@ import time
 import torch.nn as nn
 from minsu3d.evaluation.instance_segmentation import get_gt_instances, rle_encode
 from minsu3d.evaluation.object_detection import get_gt_bbox
-from minsu3d.common_ops.functions import hais_ops
-from minsu3d.common_ops.functions import common_ops
+from minsu3d.common_ops.functions import hais_ops, common_ops
 from minsu3d.loss import MaskScoringLoss, ScoreLoss
-from minsu3d.model.helper import clusters_voxelization, get_batch_offsets
 from minsu3d.loss.utils import get_segmented_scores
 from minsu3d.model.module import TinyUnet
 from minsu3d.evaluation.semantic_segmentation import *
-from minsu3d.model.general_model import GeneralModel
+from minsu3d.model.general_model import GeneralModel, clusters_voxelization, get_batch_offsets
 
 
 class HAIS(GeneralModel):
@@ -154,7 +152,7 @@ class HAIS(GeneralModel):
                                                    ignore_label=self.hparams.data.ignore_label)
         self.log("val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
         self.log("val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
-
+        
         if self.current_epoch > self.hparams.model.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
                                                       data_dict["locs"].cpu().numpy(),

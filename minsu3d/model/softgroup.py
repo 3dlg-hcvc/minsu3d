@@ -3,13 +3,11 @@ import time
 import torch.nn as nn
 from minsu3d.evaluation.instance_segmentation import get_gt_instances, rle_encode
 from minsu3d.evaluation.object_detection import get_gt_bbox
-from minsu3d.common_ops.functions import softgroup_ops
-from minsu3d.common_ops.functions import common_ops
+from minsu3d.common_ops.functions import softgroup_ops, common_ops
 from minsu3d.loss import ClassificationLoss, MaskScoringLoss, IouScoringLoss
 from minsu3d.evaluation.semantic_segmentation import *
 from minsu3d.model.module import TinyUnet
-from minsu3d.model.helper import clusters_voxelization, get_batch_offsets
-from minsu3d.model.general_model import GeneralModel
+from minsu3d.model.general_model import GeneralModel, clusters_voxelization, get_batch_offsets
 
 
 class SoftGroup(GeneralModel):

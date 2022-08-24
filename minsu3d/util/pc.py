@@ -1,7 +1,4 @@
 import numpy as np
-
-
-# Point cloud IO
 from plyfile import PlyData, PlyElement
 
 # Mesh IO
