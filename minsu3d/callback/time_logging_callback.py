@@ -6,19 +6,24 @@ import time
 class TimeLoggingCallback(Callback):
 
     def setup(self, trainer, pl_module, stage=None):
-        self.loger = logging.getLogger('lightning')
-        self.start_time_memory = 0
+        self.loger = logging.getLogger("pytorch_lightning")
+        self.training_start_time_memory = None
+        self.validation_start_time_memory = None
+        self.validation_epoch_duration = 0
 
     def on_train_epoch_start(self, trainer, pl_module):
-        self.start_time_memory = time.time()
+        self.training_start_time_memory = time.time()
 
     def on_train_epoch_end(self, trainer, pl_module):
-        epoch_duration = time.time() - self.start_time_memory
-        self.loger.info(f"Training time for epoch {trainer.current_epoch}: {epoch_duration}")
+        epoch_duration = time.time() - self.training_start_time_memory - self.validation_epoch_duration
+        self.loger.info(f" Epoch training time: {epoch_duration:.2f}s")
+        self.training_start_time_memory = None
+        self.validation_epoch_duration = 0
 
     def on_validation_epoch_start(self, trainer, pl_module):
-        self.start_time_memory = time.time()
+        self.validation_start_time_memory = time.time()
 
     def on_validation_epoch_end(self, trainer, pl_module):
-        epoch_duration = time.time() - self.start_time_memory
-        self.loger.info(f"Validation time: {epoch_duration}")
+        self.validation_epoch_duration = time.time() - self.validation_start_time_memory
+        self.loger.info(f" Epoch validation time: {self.validation_epoch_duration:.2f}s")
+        self.validation_start_time_memory = None
