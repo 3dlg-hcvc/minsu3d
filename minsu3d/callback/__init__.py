@@ -1,1 +1,2 @@
 from .gpu_cache_clean_callback import GPUCacheCleanCallback
+from .time_logging_callback import TimeLoggingCallback
