@@ -161,14 +161,21 @@ With `--nms`, the program will perform non-maximum suppression before generating
 - GPU: NVIDIA GeForce RTX 2080 Ti 11GB
 - System: Ubuntu 20.04.2 LTS
 
-**Training time per scene**
+**Training time in total (without validation)**
+| Model      | Epochs | Batch Size | MINSU3D | Official Version |
+|:-----------|:--------|:--------|:--------|:-------|
+| [PointGroup](https://github.com/dvlab-research/PointGroup) | 450 | 4 | 55hr | - |
+| [HAIS](https://github.com/hustvl/HAIS)| 450 | 4 | - | - |
+| [SoftGroup](https://github.com/thangvubk/SoftGroup) | 256 | 4 | - | - |
+
+**Training time per scene (avg)**
 | Model      | MINSU3D | Official Version |
 |:-----------|:--------|:-------|
 | [PointGroup](https://github.com/dvlab-research/PointGroup) | 420ms | 383ms |
 | [HAIS](https://github.com/hustvl/HAIS)| 475ms | 432ms |
 | [SoftGroup](https://github.com/thangvubk/SoftGroup) | 511ms | 357ms |
 
-**Inference time per scene**
+**Inference time per scene (avg)**
 | Model      | MINSU3D | Official Version |
 |:-----------|:--------|:-------|
 | [PointGroup](https://github.com/dvlab-research/PointGroup) | 179ms | 176ms |
