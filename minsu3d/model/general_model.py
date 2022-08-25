@@ -23,6 +23,11 @@ class GeneralModel(pl.LightningModule):
                                  block_reps=model.block_reps,
                                  sem_classes=data.classes)
 
+        if self.current_epoch > model.prepare_epochs and model.freeze_backbone:
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+
+
     def configure_optimizers(self):
         return init_optimizer(parameters=self.parameters(), **self.hparams.optimizer)
 

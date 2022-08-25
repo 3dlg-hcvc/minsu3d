@@ -40,11 +40,6 @@ model:
   score_scale: 50  # the minimal voxel size is 2cm
   score_fullscale: 14
 
-  use_checkpoint: 
-  pretrained_path: 
-  pretrained_module: #[backbone] # [backbone, sem_seg, offset_net, score_net, score_linear]
-  pretrained_module_path: 
-  freeze_module: [ ]
   freeze_backbone: False
   prepare_epochs: 128
 

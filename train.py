@@ -1,7 +1,6 @@
 import os
 import hydra
 from importlib import import_module
-import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from minsu3d.callback import *
@@ -21,16 +20,6 @@ def init_callbacks(cfg, output_path):
 def init_model(cfg):
     model = getattr(import_module("minsu3d.model"), cfg.model.model.module) \
         (cfg.model.model, cfg.data, cfg.model.optimizer, cfg.model.lr_decay, None)
-    if cfg.model.model.pretrained_module:
-        print("=> loading pretrained module from {} ...".format(cfg.model.pretrained_module_path))
-        model_dict = model.state_dict()
-        ckp = torch.load(cfg.model.pretrained_module_path)
-        pretrained_module_dict = {k: v for k, v in ckp.items() if k.startswith(tuple(cfg.model.pretrained_module))}
-        model_dict.update(pretrained_module_dict)
-        model.load_state_dict(model_dict)
-    if cfg.model.model.freeze_backbone:
-        for param in model.unet.parameters():
-            param.requires_grad = False
     return model
 
 
