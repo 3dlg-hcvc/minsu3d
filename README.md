@@ -165,8 +165,8 @@ With `--nms`, the program will perform non-maximum suppression before generating
 **Training time in total (without validation)**
 | Model      | Epochs | Batch Size | MINSU3D | Official Version |
 |:-----------|:--------|:--------|:--------|:-------|
-| [PointGroup](https://github.com/dvlab-research/PointGroup) | 450 | 4 | 55hr | - |
-| [HAIS](https://github.com/hustvl/HAIS)| 450 | 4 | 68hr | - |
+| [PointGroup](https://github.com/dvlab-research/PointGroup) | 450 | 4 | 55hr | 51hr |
+| [HAIS](https://github.com/hustvl/HAIS)| 450 | 4 | 68hr | 60hr |
 | [SoftGroup](https://github.com/thangvubk/SoftGroup) | 256 | 4 | 45hr | - |
 
 **Training time per scene (avg)**
