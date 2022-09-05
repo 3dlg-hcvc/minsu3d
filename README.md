@@ -1,17 +1,18 @@
 # MINSU3D
-MINSU3D：**Min**kowskiEngine-powered **S**cene **U**nderstanding in **3D** contains reimplementation of state-of-the-art 3D scene understanding methods on point clouds for both instance segmentation and adapted to object detection powered by [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).
+MINSU3D：**Min**kowskiEngine-powered **S**cene **U**nderstanding in **3D** contains reimplementation of state-of-the-art 3D scene understanding methods on point clouds powered by [MinkowskiEngine](https://github.com/NVIDIA/MinkowskiEngine).  
 
-Supported 3D scene understanding methods:
+We support the following instance segmentation methods:
 - [PointGroup](https://github.com/dvlab-research/PointGroup)
 - [HAIS](https://github.com/hustvl/HAIS)
 - [SoftGroup](https://github.com/thangvubk/SoftGroup)
 
+We also provide bounding boxes predictions based on instance segmentation for 3D object detection.
+
 ## Features
 - Highly-modularized design enables researchers to easily add different models and datasets.
 - Focus on research by letting [PytorchLightning](https://github.com/Lightning-AI/lightning) handle engineering code.
-- Easy multi-GPU training.
-- Easy experiment configuration and management with [Hydra](https://github.com/facebookresearch/hydra) and [W&B](https://github.com/wandb/wandb).
-
+- Easy multi-GPU training.  
+- Easy experiment configuration and management with [Hydra](https://github.com/facebookresearch/hydra) and [W&B](https://github.com/wandb/wandb)
 
 ## Setup
 
@@ -44,8 +45,8 @@ cd minsu3d/common_ops
 python setup.py develop
 ```
 
-### Pip
-Note: Setting up via Pip requires [OpenBLAS](https://github.com/xianyi/OpenBLAS) and [SparseHash](https://github.com/sparsehash/sparsehash) pre-installed in your system.
+### Pip (without conda)
+Note: Setting up with Pip (no conda) requires [OpenBLAS](https://github.com/xianyi/OpenBLAS) and [SparseHash](https://github.com/sparsehash/sparsehash) to be pre-installed in your system.
 ```shell
 # install OpenBLAS and SparseHash via APT
 sudo apt install libopenblas-dev libsparsehash-dev
