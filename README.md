@@ -107,7 +107,7 @@ python eval.py model={model_name} data={dataset_name} model.model.experiment_nam
 
 ## Pretrained Models
 
-We provide pretrained models for ScanNet v2 (trained on the v2 train split of 1201 scans).  The pretrained model, corresponding config file, and performance on ScanNet v2 val set is reported below.  Note that all Minsu3D models are trained from scratch.  
+We provide pretrained models for ScanNet v2 (trained on the v2 train split of 1201 scans).  The pretrained model, corresponding config file, and performance on ScanNet v2 val set are given below.  Note that all Minsu3D models are trained from scratch.  
 
 ### ScanNet v2 val set
 | Model      | Code | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% | Download |
@@ -120,7 +120,7 @@ We provide pretrained models for ScanNet v2 (trained on the v2 train split of 12
 | [Official SoftGroup](https://github.com/thangvubk/SoftGroup) | - | 46.0 | 67.6 | 78.9 | 59.4 | 71.6 | - |
 
 ## Visualization
-To visualize predictions as mesh, you need to load scannet's mesh file and mega file of each scans. These dataset files should be organized as follows.
+We provide scripts to visualize the predictions.  You will need to provide mesh file and meta file for each scan. For Scannet, these dataset files should be organized as follows.
 
 ```
 minsu3d-internal
