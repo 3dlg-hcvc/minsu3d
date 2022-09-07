@@ -10,7 +10,6 @@ import math
 import torch
 import open3d as o3d
 
-sys.path.append(os.getcwd())
 sys.path.append('../..')
 from data.scannet.model_util_scannet import SCANNET_COLOR_MAP
 from data.scannet.prepare_all_data import read_axis_align_matrix
@@ -209,7 +208,6 @@ def generate_single_ply(args):
     os.makedirs(args.output_dir, exist_ok=True)
 
     # define position of necessary files
-    rgb_file = os.path.join(args.rgb_file_dir, f'{args.scene_id}.pth')
     ply_file = os.path.join(args.scans, args.scene_id, f'{args.scene_id}_vh_clean_2.ply')
     meta_file = os.path.join(args.scans, args.scene_id, f'{args.scene_id}.txt')
     pred_sem_file = os.path.join(args.predict_dir, f'{args.scene_id}.txt')
@@ -237,7 +235,7 @@ def generate_single_ply(args):
 
 
 def generate_pred_inst_ply(args):
-    metadata_path = os.path.join(Path(os.getcwd()).parent.parent.absolute(), 'data/scannet/meta_data')
+    metadata_path = os.path.join(Path(os.getcwd()).parent.parent.absolute(), 'data/scannet/metadata')
     scene_ids_file = os.path.join(metadata_path, f'scannetv2_{args.split}.txt')
     args.scans = os.path.join(Path(os.getcwd()).parent.parent.absolute(), 'data/scannet/scans')
 
@@ -245,7 +243,6 @@ def generate_pred_inst_ply(args):
     for scene_id in tqdm(scene_ids):
         args.scene_id = scene_id
         generate_single_ply(args)
-        # break
 
 
 if __name__ == '__main__':
@@ -253,7 +250,7 @@ if __name__ == '__main__':
 
     parser.add_argument('-p', '--predict_dir', type=str,
                         default='../../output/ScanNet/SoftGroup/test/predictions/instance',
-                        help='Spiciy the directory of the predictions. Eg:"../../output/ScanNet/SoftGroup/test/predictions/instanc"')
+                        help='the directory of the predictions. Eg:"../../output/ScanNet/SoftGroup/test/predictions/instanc"')
     parser.add_argument('-s', '--split', type=str, default='val', choices=['test', 'val'],
                         help='specify the split of data: val | test')
     parser.add_argument('-b', '--bbox', action='store_true',
@@ -262,7 +259,7 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--mode', type=str, default='semantic', choices=['semantic', 'instance'],
                         help='specify instance or semantic mode: semantic | instance')
     parser.add_argument('-o', '--output_dir', type=str, default='output_ply',
-                        help='Spiciy the directory of the output ply')
+                        help='the directory of the output ply')
     parser.add_argument('--nms', action='store_true',
                         help='choose to run non_maximum_suppression or not')
     parser.set_defaults(nms=False)

@@ -138,10 +138,10 @@ minsu3d-internal
 To visualize the predictions, use `visualize/scannet/generate_ply.py` to generate ply files with vertices colored according to the semantic or instance.
 ```shell
 cd visualize/scannet
-python generate_ply.py --predict_dir {path to the predictions} --split {test/val/train} --bbox --mode {semantic/instance} --output_dir {output directory of ply files}
+python generate_prediction_ply.py --predict_dir {path to the predictions} --split {test/val/train} --bbox --mode {semantic/instance} --output_dir {output directory of ply files}
 
 # example:
-# python generate_ply.py --predict_dir ../../output/ScanNet/PointGroup/test/predictions/instance --split val --bbox --mode semantic --output_dir output_ply
+# python generate_prediction_ply.py --predict_dir ../../output/ScanNet/PointGroup/test/predictions/instance --split val --bbox --mode semantic --output_dir output_ply
 ```
 
 The `--mode` option allows you to specify the color mode.  
