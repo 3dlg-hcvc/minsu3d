@@ -28,6 +28,12 @@ We recommend the use of [miniconda](https://docs.conda.io/en/latest/miniconda.ht
 conda create -n minsu3d python=3.8
 conda activate minsu3d
 
+# install OpenBLAS and SparseHash via Conda
+conda install openblas-devel -c anaconda
+conda install -c bioconda google-sparsehash
+export CPATH=$CONDA_PREFIX/include:$CPATH
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+
 # install PyTorch 1.8.2
 conda install pytorch cudatoolkit=11.1 -c pytorch-lts -c nvidia
 
@@ -35,14 +41,10 @@ conda install pytorch cudatoolkit=11.1 -c pytorch-lts -c nvidia
 pip install -e .
 
 # install MinkowskiEngine
-conda install openblas-devel -c anaconda
 pip install -U git+https://github.com/NVIDIA/MinkowskiEngine -v --no-deps \
 --install-option="--blas_include_dirs=${CONDA_PREFIX}/include" --install-option="--blas=openblas"
 
 # install C++ extensions
-conda install -c bioconda google-sparsehash
-export CPATH=$CONDA_PREFIX/include:$CPATH
-export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 cd minsu3d/common_ops
 python setup.py develop
 ```
@@ -59,8 +61,8 @@ sudo apt install libopenblas-dev libsparsehash-dev
 virtualenv --no-download env
 source env/bin/activate
 
-# install PyTorch
-pip3 install torch==1.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cu111
+# install PyTorch 1.8.2
+pip install torch==1.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cu111
 
 # install Python libraries
 pip install -e .
