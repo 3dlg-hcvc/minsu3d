@@ -77,7 +77,15 @@ python setup.py develop
 ## Data Preparation
 
 ### ScanNet v2 dataset
-1. Download the [ScanNet v2](http://www.scan-net.org/) dataset.
+1. Download the [ScanNet v2](http://www.scan-net.org/) dataset. To acquire the access to the dataset, please refer to their [instructions](https://github.com/ScanNet/ScanNet#scannet-data). You will get a `download-scannet.py` script after your request is approved:
+
+```shell
+# about 10.7GB in total
+python download-scannet.py -o data/scannet --type _vh_clean_2.ply
+python download-scannet.py -o data/scannet --type _vh_clean.aggregation.json
+python download-scannet.py -o data/scannet --type _vh_clean_2.0.010000.segs.json
+```
+
 2. Preprocess the data:
 ```shell
 cd data/scannet
