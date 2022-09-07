@@ -124,7 +124,7 @@ We provide pretrained models for ScanNet v2.  The pretrained model, correspondin
 <sup>1</sup> The official pretrained SoftGroup model was trained with HAIS checkpoint as pretrained backbone.
 
 ## Visualization
-We provide scripts to visualize the predicted segmentations and bounding boxes. To use the visualization scripts, place the mesh (ply) file and metadata file from the Scannet dataset as follows.
+We provide scripts to visualize the predicted segmentations and bounding boxes. To use the visualization scripts, place the mesh (ply) file and alignment file from the Scannet dataset as follows.
 
 ```
 minsu3d-internal
