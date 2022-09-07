@@ -209,14 +209,14 @@ def generate_single_ply(args):
 
     # define position of necessary files
     ply_file = os.path.join(args.scans, args.scene_id, f'{args.scene_id}_vh_clean_2.ply')
-    meta_file = os.path.join(args.scans, args.scene_id, f'{args.scene_id}.txt')
+    alignment_file = os.path.join(args.scans, args.scene_id, f'{args.scene_id}.txt')
     pred_sem_file = os.path.join(args.predict_dir, f'{args.scene_id}.txt')
 
     # define where to output the ply file
     rgb_inst_ply = os.path.join(args.output_dir, f'{args.scene_id}.ply')
 
     # get mesh
-    axis_align_matrix = read_axis_align_matrix(meta_file)
+    axis_align_matrix = read_axis_align_matrix(alignment_file)
     scannet_data = o3d.io.read_triangle_mesh(ply_file)
     if axis_align_matrix is not None:
         # align the mesh
