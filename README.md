@@ -118,7 +118,7 @@ python eval.py model={model_name} data={dataset_name} model.model.experiment_nam
 
 ## Pretrained Models
 
-We provide pretrained models for ScanNet v2.  The pretrained model, corresponding config file, and performance on ScanNet v2 val set are given below.  Note that all Minsu3D models are trained from scratch.  
+We provide pretrained models for ScanNet v2. The pretrained model, corresponding config file, and performance on ScanNet v2 val set are given below.  Note that all MINSU3D models are trained from scratch. After downloading a pretrained model, run `test.py` to do inference as described in the above section.
 
 ### ScanNet v2 val set
 | Model      | Code | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% | Download |
