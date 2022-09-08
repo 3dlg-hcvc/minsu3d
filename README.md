@@ -132,6 +132,8 @@ We provide pretrained models for ScanNet v2. The pretrained model, corresponding
 
 <sup>1</sup> The official pretrained SoftGroup model was trained with HAIS checkpoint as pretrained backbone.
 
+<sup>2</sup> The MINSU3D HAIS model's scores are 2-3 lower than the official pretrained HAIS's. To investigate, we retrained the official HAIS model using their code, the best scores we can get are 42.2 / 61.0 / 72.9 for mean AP / AP 50% / AP 25%, which match our MINSU3D HAIS model's scores.
+
 ## Visualization
 We provide scripts to visualize the predicted segmentations and bounding boxes. To use the visualization scripts, place the mesh (ply) file from the Scannet dataset as follows.
 
