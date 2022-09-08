@@ -54,7 +54,6 @@ model:
     max_proposal_num: 200
     pos_iou_thr: 0.5
   test_cfg:
-    TEST_NMS_THRESH: 1
     cls_score_thr: 0.001
     mask_score_thr: -0.5
     min_npoint: 100

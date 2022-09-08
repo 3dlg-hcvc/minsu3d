@@ -47,6 +47,7 @@ lr_decay:
 
 
 inference:
+  TEST_NMS_THRESH: 1
   split: val
   evaluate: True
   save_predictions: True

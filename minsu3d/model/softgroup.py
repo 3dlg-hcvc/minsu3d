@@ -312,10 +312,10 @@ class SoftGroup(GeneralModel):
 
         if score_pred.shape[0] == 0:
             pick_idxs = np.empty(0)
-        elif self.hparams.model.test_cfg.TEST_NMS_THRESH >= 1:
+        elif self.hparams.model.inference.TEST_NMS_THRESH >= 1:
             pick_idxs = list(range(0, score_pred.shape[0]))
         else:
-            pick_idxs = get_nms_instance(mask_pred.float(), score_pred.numpy(), self.hparams.model.test_cfg.TEST_NMS_THRESH)
+            pick_idxs = get_nms_instance(mask_pred.float(), score_pred.numpy(), self.hparams.model.inference.TEST_NMS_THRESH)
         mask_pred = mask_pred[pick_idxs].numpy()  # int, (nCluster, N)
         score_pred = score_pred[pick_idxs].numpy()  # float, (nCluster,)
         cls_pred = cls_pred[pick_idxs].numpy()

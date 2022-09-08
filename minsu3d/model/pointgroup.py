@@ -190,10 +190,10 @@ class PointGroup(GeneralModel):
         # instance masks non_max_suppression
         if proposals_score.shape[0] == 0:
             pick_idxs = np.empty(0)
-        elif self.hparams.model.test.TEST_NMS_THRESH >= 1:
+        elif self.hparams.model.inference.TEST_NMS_THRESH >= 1:
             pick_idxs = list(range(0, proposals_score.shape[0]))
         else:
-            pick_idxs = get_nms_instance(proposals_mask.float(), proposals_score.numpy(), self.hparams.model.test.TEST_NMS_THRESH)
+            pick_idxs = get_nms_instance(proposals_mask.float(), proposals_score.numpy(), self.hparams.model.inference.TEST_NMS_THRESH)
 
         clusters_mask = proposals_mask[pick_idxs].numpy()  # int, (nCluster, N)
         score_pred = proposals_score[pick_idxs].numpy()  # float, (nCluster,)
