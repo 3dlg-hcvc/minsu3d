@@ -133,7 +133,7 @@ We provide pretrained models for ScanNet v2. The pretrained model, corresponding
 <sup>1</sup> The official pretrained SoftGroup model was trained with HAIS checkpoint as pretrained backbone.
 
 ## Visualization
-We provide scripts to visualize the predicted segmentations and bounding boxes. To use the visualization scripts, place the mesh (ply) file and alignment file from the Scannet dataset as follows.
+We provide scripts to visualize the predicted segmentations and bounding boxes. To use the visualization scripts, place the mesh (ply) file from the Scannet dataset as follows.
 
 ```
 minsu3d-internal
@@ -141,7 +141,7 @@ minsu3d-internal
 │   ├── scannet
 │   │   ├── scans
 │   │   │   ├── [scene_id]
-|   |   |   |   ├── [scene_id]_vh_clean_2.ply & [scene_id].txt
+|   |   |   |   ├── [scene_id]_vh_clean_2.ply
 ```
 
 To visualize the predictions, use `visualize/scannet/generate_ply.py` to generate ply files with vertices colored according to the semantic or instance.
@@ -167,7 +167,7 @@ The `--bbox` option allows you to generate ply file that uses bounding box to sp
 |:-----------------------------------:|:-------------------------------:|
 | <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/bbox_semantic.png" width="400"/> | <img src="https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/visualize/example/bbox_instance.png" width="400"/> |
 
-With `--nms`, the program will perform non-maximum suppression before generating the bounding box. This will alleviate the overlapping of the bounding boxes.
+If you find that many bounding boxes are overlapping, you can choose to do non maximum suppression during the inference phase. This can be achieved by adjusting `TEST_NMS_THRESH` in the config file
 
 ## Performance
 
