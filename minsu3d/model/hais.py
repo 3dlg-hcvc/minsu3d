@@ -9,6 +9,7 @@ from minsu3d.loss.utils import get_segmented_scores
 from minsu3d.model.module import TinyUnet
 from minsu3d.evaluation.semantic_segmentation import *
 from minsu3d.model.general_model import GeneralModel, clusters_voxelization, get_batch_offsets
+from minsu3d.util.nms import get_nms_instance
 
 
 class HAIS(GeneralModel):
@@ -228,8 +229,15 @@ class HAIS(GeneralModel):
         scores_pred = scores_pred[npoint_mask]
         proposals_pred = proposals_pred[npoint_mask]
 
-        clusters = proposals_pred.numpy()
-        cluster_scores = scores_pred.numpy()
+        if scores_pred.shape[0] == 0:
+            pick_idxs = np.empty(0)
+        elif self.hparams.model.test.TEST_NMS_THRESH >= 1:
+            pick_idxs = list(range(0, scores_pred.shape[0]))
+        else:
+            pick_idxs = get_nms_instance(proposals_pred.float(), scores_pred.numpy(), self.hparams.model.test.TEST_NMS_THRESH)
+
+        clusters = proposals_pred[pick_idxs].numpy()
+        cluster_scores = scores_pred[pick_idxs].numpy()
 
         nclusters = clusters.shape[0]
 

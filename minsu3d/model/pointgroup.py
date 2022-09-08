@@ -9,6 +9,7 @@ from minsu3d.loss.utils import get_segmented_scores
 from minsu3d.model.module import TinyUnet
 from minsu3d.evaluation.semantic_segmentation import *
 from minsu3d.model.general_model import GeneralModel, clusters_voxelization, get_batch_offsets
+from minsu3d.util.nms import get_nms_instance
 
 
 class PointGroup(GeneralModel):
@@ -167,29 +168,6 @@ class PointGroup(GeneralModel):
                                             data_dict["instance_ids"].cpu().numpy(), data_dict["sem_labels"].cpu().numpy(), self.hparams.data.ignore_label, self.hparams.data.ignore_classes)
             return semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox, end_time
 
-    def _get_nms_instances(self, cross_ious, scores, threshold):
-        """ non max suppression for 3D instance proposals based on cross ious and scores
-
-        Args:
-            ious (np.array): cross ious, (n, n)
-            scores (np.array): scores for each proposal, (n,)
-            threshold (float): iou threshold
-
-        Returns:
-            np.array: idx of picked instance proposals
-        """
-        ixs = np.argsort(-scores)  # descending order
-        pick = []
-        while len(ixs) > 0:
-            i = ixs[0]
-            pick.append(i)
-            ious = cross_ious[i, ixs[1:]]
-            remove_ixs = np.where(ious > threshold)[0] + 1
-            ixs = np.delete(ixs, remove_ixs)
-            ixs = np.delete(ixs, 0)
-
-        return np.array(pick, dtype=np.int32)
-
     def _get_pred_instances(self, scan_id, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores, num_ignored_classes):
         semantic_pred_labels = semantic_scores.max(1)[1]
         proposals_score = torch.sigmoid(proposals_scores.view(-1))  # (nProposal,) float
@@ -212,16 +190,10 @@ class PointGroup(GeneralModel):
         # instance masks non_max_suppression
         if proposals_score.shape[0] == 0:
             pick_idxs = np.empty(0)
+        elif self.hparams.model.test.TEST_NMS_THRESH >= 1:
+            pick_idxs = list(range(0, proposals_score.shape[0]))
         else:
-            proposals_mask_f = proposals_mask.float()  # (nProposal, N), float
-            intersection = torch.mm(proposals_mask_f, proposals_mask_f.t())  # (nProposal, nProposal), float
-            proposals_npoint = proposals_mask_f.sum(1)  # (nProposal), float, cuda
-            proposals_np_repeat_h = proposals_npoint.unsqueeze(-1).repeat(1, proposals_npoint.shape[0])
-            proposals_np_repeat_v = proposals_npoint.unsqueeze(0).repeat(proposals_npoint.shape[0], 1)
-            cross_ious = intersection / (
-                    proposals_np_repeat_h + proposals_np_repeat_v - intersection)  # (nProposal, nProposal), float, cuda
-            pick_idxs = self._get_nms_instances(cross_ious.numpy(), proposals_score.numpy(),
-                                          self.hparams.model.test.TEST_NMS_THRESH)  # int, (nCluster,)
+            pick_idxs = get_nms_instance(proposals_mask.float(), proposals_score.numpy(), self.hparams.model.test.TEST_NMS_THRESH)
 
         clusters_mask = proposals_mask[pick_idxs].numpy()  # int, (nCluster, N)
         score_pred = proposals_score[pick_idxs].numpy()  # float, (nCluster,)
