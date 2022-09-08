@@ -47,8 +47,8 @@ lr_decay:
 
 
 inference:
-  TEST_NMS_THRESH: 1
+  TEST_NMS_THRESH: 1 #Not doing nms will significantly lower the score of pointgroup. Hence, the TEST_NMS_THRESH of pointgroup is set independently in pointgrou.yaml
   split: val
   evaluate: True
-  save_predictions: True
+  save_predictions: False
   output_dir: prediction
