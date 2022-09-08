@@ -231,10 +231,10 @@ class HAIS(GeneralModel):
 
         if scores_pred.shape[0] == 0:
             pick_idxs = np.empty(0)
-        elif self.hparams.model.inference.TEST_NMS_THRESH >= 1:
+        elif self.hparams.inference.TEST_NMS_THRESH >= 1:
             pick_idxs = list(range(0, scores_pred.shape[0]))
         else:
-            pick_idxs = get_nms_instance(proposals_pred.float(), scores_pred.numpy(), self.hparams.model.inference.TEST_NMS_THRESH)
+            pick_idxs = get_nms_instance(proposals_pred.float(), scores_pred.numpy(), self.hparams.inference.TEST_NMS_THRESH)
 
         clusters = proposals_pred[pick_idxs].numpy()
         cluster_scores = scores_pred[pick_idxs].numpy()
