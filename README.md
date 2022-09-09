@@ -10,9 +10,10 @@ We also provide bounding boxes predictions based on instance segmentation for 3D
 
 ## Features
 - Highly-modularized design enables researchers to easily add different models and datasets.
-- Focus on research by letting [PytorchLightning](https://github.com/Lightning-AI/lightning) handle engineering code.
-- Easy multi-GPU training.  
-- Easy experiment configuration and management with [Hydra](https://github.com/facebookresearch/hydra) and [W&B](https://github.com/wandb/wandb)
+- Focus on research by letting [PytorchLightning](https://github.com/Lightning-AI/lightning) handle engineering code, easy to train with multiple GPUs.
+- Better logging with [W&B](https://github.com/wandb/wandb), periodic evaluation during training.
+- Easy experiment configuration and management with [Hydra](https://github.com/facebookresearch/hydra).
+- Unified and optimized C++ and CUDA extensions.
 
 ## Setup
 
