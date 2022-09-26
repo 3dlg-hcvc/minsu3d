@@ -127,6 +127,7 @@ We provide pretrained models for ScanNet v2. The pretrained model, corresponding
 | MINSU3D PointGroup | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/pointgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/pointgroup.py) | 36.1 | 57.8 | 71.4 | 50.4 | 61.2 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
 | [Official PointGroup](https://github.com/dvlab-research/PointGroup) | - | 35.2 | 57.1 | 71.4 | - | - | - |
 | MINSU3D HAIS | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/hais.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/hais.py)  | 42.1 | 62.0 | 73.8 | 52.8 | 62.6 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/HAIS_best.ckpt) |
+| [Official HAIS (retrained)](https://github.com/hustvl/HAIS)  | - | 42.2 | 61.0 | 72.9 | - | - | - |
 | [Official HAIS](https://github.com/hustvl/HAIS)  | - | 44.1 | 64.4 | 75.7 | - | - | - |
 | MINSU3D SoftGroup | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/softgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/softgroup.py)  | 42.2 | 65.5 | 78.0 | 56.0 | 69.5 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/SoftGroup_best.ckpt) |
 | [Official SoftGroup](https://github.com/thangvubk/SoftGroup<sup>1</sup>) | - | 46.0 | 67.6 | 78.9 | 59.4 | 71.6 | - |
