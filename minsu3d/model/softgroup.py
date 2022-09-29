@@ -1,5 +1,6 @@
 import torch
 import time
+import numpy as np
 import torch.nn as nn
 from minsu3d.evaluation.instance_segmentation import get_gt_instances, rle_encode
 from minsu3d.evaluation.object_detection import get_gt_bbox
@@ -8,7 +9,6 @@ from minsu3d.loss import ClassificationLoss, MaskScoringLoss, IouScoringLoss
 from minsu3d.evaluation.semantic_segmentation import *
 from minsu3d.model.module import TinyUnet
 from minsu3d.model.general_model import GeneralModel, clusters_voxelization, get_batch_offsets
-from minsu3d.util.nms import get_nms_instance
 
 
 class SoftGroup(GeneralModel):
@@ -306,19 +306,9 @@ class SoftGroup(GeneralModel):
             score_pred_list.append(score_pred)
             mask_pred_list.append(mask_pred)
 
-        cls_pred = torch.cat(cls_pred_list)
-        score_pred = torch.cat(score_pred_list)
-        mask_pred = torch.cat(mask_pred_list)
-
-        if score_pred.shape[0] == 0:
-            pick_idxs = np.empty(0)
-        elif self.hparams.inference.TEST_NMS_THRESH >= 1:
-            pick_idxs = list(range(0, score_pred.shape[0]))
-        else:
-            pick_idxs = get_nms_instance(mask_pred.float(), score_pred.numpy(), self.hparams.inference.TEST_NMS_THRESH)
-        mask_pred = mask_pred[pick_idxs].numpy()  # int, (nCluster, N)
-        score_pred = score_pred[pick_idxs].numpy()  # float, (nCluster,)
-        cls_pred = cls_pred[pick_idxs].numpy()
+        cls_pred = torch.cat(cls_pred_list).numpy()
+        score_pred = torch.cat(score_pred_list).numpy()
+        mask_pred = torch.cat(mask_pred_list).numpy()
 
         pred_instances = []
         for i in range(cls_pred.shape[0]):
