@@ -15,8 +15,6 @@ from data.scannet.model_util_scannet import SCANNET_COLOR_MAP
 from minsu3d.util.pc import write_ply_rgb_face
 from minsu3d.util.bbox import write_cylinder_bbox
 
-allColorList = []
-
 
 def get_bbox(predicted_mask, points):
     x_min = None
@@ -26,7 +24,7 @@ def get_bbox(predicted_mask, points):
     y_max = None
     z_max = None
     for vertexIndex, xyz in enumerate(points):
-        if predicted_mask[vertexIndex] == "1":
+        if predicted_mask[vertexIndex] == True:
             if x_min is None or xyz[0] < x_min:
                 x_min = xyz[0]
             if y_min is None or xyz[1] < y_min:
@@ -42,17 +40,15 @@ def get_bbox(predicted_mask, points):
     return x_min, x_max, y_min, y_max, z_min, z_max
 
 
-def initialColor():
-    for r in range(255):
-        for g in range(255):
-            for b in range(255):
-                allColorList.append([r, g, b])
+def get_random_color():
+    r = random.randint(0, 255)
+    g = random.randint(0, 255)
+    b = random.randint(0, 255)
+    return [r, g, b]
 
 
 def get_random_rgb_colors(num):
-    numberToSkip = math.floor(len(allColorList) / num)
-    rgb_colors = allColorList[::numberToSkip]
-    random.shuffle(rgb_colors)
+    rgb_colors = [get_random_color() for _ in range(num)]
     return rgb_colors
 
 
@@ -63,14 +59,14 @@ def generate_colored_ply(args, predicted_mask_list, labelIndexes, points, colors
             semanticIndex = labelIndexes[index]
             # confidence = confidenceScores[index]
             for vertexIndex, color in enumerate(colors):
-                if predicted_mask[vertexIndex] == "1":
+                if predicted_mask[vertexIndex] == True:
                     colors[vertexIndex] = SCANNET_COLOR_MAP[int(semanticIndex)]
     elif args.mode == "instance":
         color_list = get_random_rgb_colors(len(labelIndexes))
         random.shuffle(color_list)
         for index, predicted_mask in enumerate(predicted_mask_list):
             for vertexIndex, color in enumerate(colors):
-                if predicted_mask[vertexIndex] == "1":
+                if predicted_mask[vertexIndex] == True:
                     colors[vertexIndex] = color_list[index]
     write_ply_rgb_face(points, colors, indices, rgb_inst_ply)
     return 0
@@ -151,10 +147,7 @@ def generate_single_ply(args):
         confidenceScores.append(splitedLine[2])
 
     for instanceFileName in instanceFileNames:
-        with open(instanceFileName) as file:
-            predicted_mask = file.readlines()
-            predicted_mask = [line.rstrip() for line in predicted_mask]
-            predicted_mask_list.append(predicted_mask)
+        predicted_mask_list.append(np.loadtxt(instanceFileName, dtype=bool))
 
     if not args.bbox:
         generate_colored_ply(args, predicted_mask_list, labelIndexes, points, colors, indices,
@@ -197,7 +190,5 @@ if __name__ == '__main__':
     else:
         args.output_dir = os.path.join(args.output_dir, "color")
     args.output_dir = os.path.join(args.output_dir, args.mode)
-
-    initialColor()
 
     generate_pred_inst_ply(args)
