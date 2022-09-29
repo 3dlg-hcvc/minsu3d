@@ -102,10 +102,13 @@ class Instance(object):
 
 class GeneralDatasetEvaluator(object):
 
-    def __init__(self, class_labels, ignored_label, iou_type=None, use_label=True):
-        self.valid_class_labels = class_labels
+    def __init__(self, class_labels, ignored_label, ignored_classes_indices, iou_type=None, use_label=True):
+        valid_class_labels = class_labels.copy()
+        for ignored_class_idx in ignored_classes_indices:
+            del valid_class_labels[ignored_class_idx]
+        self.valid_class_labels = valid_class_labels
         self.ignored_label = ignored_label
-        self.valid_class_ids = np.arange(len(class_labels)) + 1
+        self.valid_class_ids = np.arange(len(valid_class_labels)) + 1
         self.id2label = {}
         self.label2id = {}
         for i in range(len(self.valid_class_ids)):

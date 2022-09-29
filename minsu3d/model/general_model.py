@@ -30,14 +30,14 @@ class GeneralModel(pl.LightningModule):
 
         self.custom_logger = logging.getLogger("pytorch_lightning")
 
-
     def configure_optimizers(self):
         return init_optimizer(parameters=self.parameters(), **self.hparams.optimizer)
 
     def _feed(self, data_dict):
         if self.hparams.model.use_coord:
             data_dict["feats"] = torch.cat((data_dict["feats"], data_dict["locs"]), dim=1)
-        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"], data_dict["p2v_map"]) # (M, C), float, cuda
+        data_dict["voxel_feats"] = common_ops.voxelization(data_dict["feats"],
+                                                           data_dict["p2v_map"])  # (M, C), float, cuda
         output_dict = self.forward(data_dict)
         return output_dict
 
@@ -98,11 +98,13 @@ class GeneralModel(pl.LightningModule):
                 all_gt_insts_bbox.append(gt_instances_bbox)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
-            inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names, self.hparams.data.ignore_label)
+            inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names,
+                                                         self.hparams.data.ignore_classes,
+                                                         self.hparams.data.ignore_label)
             inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
 
             obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.data.class_names,
-                                                       print_result=False)
+                                                       self.hparams.data.ignore_classes, print_result=False)
 
             self.log("val_eval/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
             self.log("val_eval/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
@@ -133,16 +135,20 @@ class GeneralModel(pl.LightningModule):
                 inference_time += end_time
             self.print(f"Average inference time: {round(inference_time / len(results), 3)}s per scan.")
             if self.hparams.inference.save_predictions:
-                save_prediction(self.hparams.inference.output_dir, all_pred_insts, self.hparams.data.mapping_classes_ids)
-                self.custom_logger.info(f"\nPredictions saved at {os.path.join(self.hparams.inference.output_dir, 'instance')}\n")
+                save_prediction(self.hparams.inference.output_dir, all_pred_insts,
+                                self.hparams.data.mapping_classes_ids, self.hparams.cfg.data.ignore_classes)
+                self.custom_logger.info(
+                    f"\nPredictions saved at {os.path.join(self.hparams.inference.output_dir, 'instance')}\n")
 
             if self.hparams.inference.evaluate:
                 inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names,
+                                                             self.hparams.data.ignore_classes,
                                                              self.hparams.data.ignore_label)
                 self.custom_logger.info("Evaluating instance segmentation ...")
                 inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
                 obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox,
-                                                           self.hparams.data.class_names, print_result=True)
+                                                           self.hparams.data.class_names,
+                                                           self.hparams.data.ignore_classes, print_result=True)
 
                 sem_miou_avg = np.mean(np.array(all_sem_miou))
                 sem_acc_avg = np.mean(np.array(all_sem_acc))
@@ -184,8 +190,10 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
     clusters_coords = clusters_coords.cpu().int()
 
     clusters_voxel_coords, clusters_p2v_map, clusters_v2p_map = common_ops.voxelization_idx(clusters_coords,
-                                                                                            clusters_idx[:, 0].to(torch.int16),
-                                                                                            int(clusters_idx[-1, 0]) + 1, mode)
+                                                                                            clusters_idx[:, 0].to(
+                                                                                                torch.int16),
+                                                                                            int(clusters_idx[
+                                                                                                    -1, 0]) + 1, mode)
     clusters_voxel_feats = common_ops.voxelization(feats, clusters_v2p_map.cuda(), mode)
     clusters_voxel_feats = ME.SparseTensor(features=clusters_voxel_feats,
                                            coordinates=clusters_voxel_coords.int().cuda())

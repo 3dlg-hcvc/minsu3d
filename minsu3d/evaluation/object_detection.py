@@ -278,7 +278,7 @@ def get_gt_bbox(xyz, instance_ids, sem_labels, ignored_label, ignore_classes):
     return gt_bbox
 
 
-def evaluate_bbox_acc(all_preds, all_gts, class_names, print_result):
+def evaluate_bbox_acc(all_preds, all_gts, class_names, ignored_classes_indicies, print_result):
     iou_thresholds = [0.25, 0.5]  # adjust threshold here
     pred_all = {}
     gt_all = {}
@@ -294,11 +294,11 @@ def evaluate_bbox_acc(all_preds, all_gts, class_names, print_result):
         eval_res[-1]["avg"] = m_ap
         bbox_aps[f"all_bbox_ap_{iou_threshold}"] = eval_res[-1]
     if print_result:
-        print_results(bbox_aps, class_names)
+        print_results(bbox_aps, class_names, ignored_classes_indicies)
     return bbox_aps
 
 
-def print_results(bbox_aps, class_names):
+def print_results(bbox_aps, class_names, ignored_classes_indices):
     sep = ''
     col1 = ':'
     lineLen = 46
@@ -312,7 +312,11 @@ def print_results(bbox_aps, class_names):
     print(line)
     print('#' * lineLen)
 
-    for (li, label_name) in enumerate(class_names):
+    filtered_class_names = class_names.copy()
+    for ignored_class_idx in ignored_classes_indices:
+        del filtered_class_names[ignored_class_idx]
+
+    for (li, label_name) in enumerate(filtered_class_names):
         ap_50o = bbox_aps['all_bbox_ap_0.5'][li]
         ap_25o = bbox_aps['all_bbox_ap_0.25'][li]
         line = '{:<15}'.format(label_name) + sep + col1
