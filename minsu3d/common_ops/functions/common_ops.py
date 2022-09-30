@@ -275,7 +275,7 @@ class GetMaskIoUOnCluster(Function):
         :param ctx:
         :param proposals_idx: (sumNPoint), int
         :param proposals_offset: (nProposal + 1), int
-        :param instance_labels: (N), long, 0~total_nInst-1, -100
+        :param instance_labels: (N), long, 0~total_nInst-1, -1
         :param instance_pointnum: (total_nInst), int
         :param mask_scores_sigmoid: (sumNPoint), float
         :param mode: int, mode = 1 if cal IoU based on mask else mode = 0
@@ -315,7 +315,7 @@ class GetMaskIoUOnPred(Function):
         :param ctx:
         :param proposals_idx: (sumNPoint), int
         :param proposals_offset: (nProposal + 1), int
-        :param instance_labels: (N), long, 0~total_nInst-1, -100
+        :param instance_labels: (N), long, 0~total_nInst-1, -1
         :param instance_pointnum: (total_nInst), int
         :param mask_scores_sigmoid: (sumNPoint), float
         :param mode: int, mode = 1 if cal IoU based on mask else mode = 0
@@ -357,7 +357,7 @@ class GetMaskLabel(Function):
         :param ctx:
         :param proposals_idx: (sumNPoint), int
         :param proposals_offset: (nProposal + 1), int
-        :param instance_labels: (N), long, 0~total_nInst-1, -100
+        :param instance_labels: (N), long, 0~total_nInst-1, -1
         :param mask_scores_sigmoid: (sumNPoint), float
         :param mode: int, mode = 1 if cal IoU based on mask else mode = 0
 

@@ -1,6 +1,7 @@
 # data
 data/*/train
 data/*/val
+data/*/test
 
 # log
 log/

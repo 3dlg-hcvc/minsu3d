@@ -108,7 +108,7 @@ __global__ void get_mask_label_cuda_(int nInstance, int nProposal, int ignored_l
 // input: nProposal (1,), int
 // input: proposals_idx (sumNPoint), int
 // input: proposals_offset (nProposal + 1), int
-// input: instance_labels (N), long, 0~total_nInst-1, -100
+// input: instance_labels (N), long, 0~total_nInst-1, -1
 // input: instance_pointnum (total_nInst), int
 // input: mask_scores_sigmoid (sumNPoint, 1), float
 // output: proposals_iou (nProposal, total_nInst), float

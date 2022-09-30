@@ -52,6 +52,5 @@ if __name__ == '__main__':
         else:
             semantic_label = semantic_label_idxs[sem_id]
         instance_ids_new[instance_mask] = semantic_label * 1000 + inst_id + 1
-        # instance_ids_new[instance_mask] += inst_id + 1
 
     np.savetxt(os.path.join(cfg.SCANNETV2_PATH.splited_gt, cfg.split, "{}.txt".format(scene_name)), instance_ids_new, fmt='%d')
