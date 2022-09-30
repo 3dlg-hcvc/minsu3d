@@ -51,7 +51,7 @@ python setup.py develop
 ```
 
 ### Pip (without conda)
-Note: Setting up with Pip (no conda) requires [OpenBLAS](https://github.com/xianyi/OpenBLAS) and [SparseHash](https://github.com/sparsehash/sparsehash) to be pre-installed in your system.
+Note: Setting up with pip (no conda) requires [OpenBLAS](https://github.com/xianyi/OpenBLAS) and [SparseHash](https://github.com/sparsehash/sparsehash) to be pre-installed in your system.
 
 ```shell
 # create and activate the virtual environment
