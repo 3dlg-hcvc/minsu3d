@@ -28,3 +28,10 @@ radius_avg: [-1., -1., -1., 1.246813, 0.852165,
               0.376610, 0.403388, 0.448872, 1.077033,
               0.384742, 0.344384, 0.478019, 0.358381,
               1.432853, 0.867658, 0.563205]
+
+augmentation:
+  jitter_xyz: True
+  flip: True
+  rotation: False
+  elastic: False
+  jitter_rgb: False
