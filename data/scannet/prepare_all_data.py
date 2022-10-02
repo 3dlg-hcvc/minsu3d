@@ -147,7 +147,7 @@ def main(cfg):
     print("==> Processing val split ...")
     process_map(partial(process_one_scan, cfg=cfg, split="val", label_map=label_map), val_list, chunksize=1)
     print("==> Processing test split ...")
-    process_map(partial(process_one_scan, cfg=cfg, split="test", label_map=label_map), val_list, chunksize=1)
+    process_map(partial(process_one_scan, cfg=cfg, split="test", label_map=label_map), test_list, chunksize=1)
 
 
 if __name__ == '__main__':
