@@ -135,18 +135,18 @@ class GeneralDataset(Dataset):
         # crop
         if self.split == "train":
             # HACK, in case there are few points left
-            max_tries = 10
+            max_tries = 20
             valid_idxs_count = 0
             valid_idxs = np.ones(shape=scaled_points.shape[0], dtype=np.bool)
             if valid_idxs.shape[0] > self.max_num_point:
                 while max_tries > 0:
                     points_tmp, valid_idxs = crop(scaled_points, self.max_num_point, self.full_scale[1])
                     valid_idxs_count = np.count_nonzero(valid_idxs)
-                    if valid_idxs_count >= 5000:
+                    if valid_idxs_count >= (self.max_num_point // 2) and np.any(sem_labels[valid_idxs] != self.cfg.data.ignore_label) and np.any(instance_ids[valid_idxs] != self.cfg.data.ignore_label):
                         scaled_points = points_tmp
                         break
                     max_tries -= 1
-                if valid_idxs_count < 5000:
+                if valid_idxs_count < (self.max_num_point // 2) or np.all(sem_labels[valid_idxs] == self.cfg.data.ignore_label) and np.all(instance_ids[valid_idxs] == self.cfg.data.ignore_label):
                     raise Exception("Over-cropped!")
 
             scaled_points = scaled_points[valid_idxs]
