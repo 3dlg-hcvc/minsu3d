@@ -13,6 +13,7 @@ metadata:
   test_list: ${data.metadata.metadata_path}/multiscan_part_test.txt
 
 classes: 5
+batch_size: 64
 ignore_classes: []
 class_names: ['static_part', 'door', 'drawer', 'window', 'lid']
 
