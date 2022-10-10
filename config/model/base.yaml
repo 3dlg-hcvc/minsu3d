@@ -50,5 +50,5 @@ lr_decay:
 inference:
   split: val
   evaluate: True
-  save_predictions: False
-  output_dir: prediction
+  save_predictions: True
+  output_dir: predictions

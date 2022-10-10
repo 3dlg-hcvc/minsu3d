@@ -136,7 +136,7 @@ class GeneralModel(pl.LightningModule):
             self.print(f"Average inference time: {round(inference_time / len(results), 3)}s per scan.")
             if self.hparams.inference.save_predictions:
                 save_prediction(self.hparams.inference.output_dir, all_pred_insts,
-                                self.hparams.data.mapping_classes_ids, self.hparams.cfg.data.ignore_classes)
+                                self.hparams.data.mapping_classes_ids, self.hparams.data.ignore_classes)
                 self.custom_logger.info(
                     f"\nPredictions saved at {os.path.join(self.hparams.inference.output_dir, 'instance')}\n")
 
