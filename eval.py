@@ -13,6 +13,8 @@ def main(cfg):
                                cfg.model.model.module, cfg.model.model.experiment_name,
                                "inference", cfg.model.inference.split, "predictions", "instance")
 
+    # pred_file_path = "/project/3dlg-hcvc/multiscan/benchmark_result/MultiScanObj_New/SSTNet/seed-789-obj/inference/val/predictions/instance"
+
     if not os.path.exists(pred_file_path):
         print("Error: prediction files do not exist.")
         exit(-1)

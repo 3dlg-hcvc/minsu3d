@@ -39,11 +39,11 @@ def read_gt_files_from_disk(data_path):
     return pth_file["xyz"], pth_file["sem_labels"], pth_file["instance_ids"]
 
 
-def read_pred_files_from_disk(data_path, gt_xyz, mapping_ids):
+def read_pred_files_from_disk(data_path, gt_xyz, mapping_ids, ignored_classes_indices):
 
     sem_label_mapping = {}
 
-    filtered_mapping_ids = mapping_ids
+    filtered_mapping_ids = [elem for i, elem in enumerate(mapping_ids) if i not in ignored_classes_indices]
 
     for i, item in enumerate(filtered_mapping_ids, 1):
         sem_label_mapping[item] = i
