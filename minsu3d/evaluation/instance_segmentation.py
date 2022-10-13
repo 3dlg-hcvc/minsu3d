@@ -67,7 +67,6 @@ def get_gt_instances(semantic_labels, instance_labels, ignored_classes):
     # scannet encoding rule
     gt_ins = semantic_labels * 1000 + instance_labels
     gt_ins[ignore_inds] = 0
-    gt_ins = gt_ins
     return gt_ins
 
 
@@ -124,6 +123,9 @@ class GeneralDatasetEvaluator(object):
         else:
             self.eval_class_labels = ['class_agnostic']
 
+        # HARD CODE FOR MULTISCAN
+        self.gt_pred_match = {}
+
     def evaluate_matches(self, matches):
         ious = self.ious
         min_region_sizes = [self.min_region_sizes[0]]
@@ -133,11 +135,19 @@ class GeneralDatasetEvaluator(object):
         # results: class x iou
         ap = np.zeros((len(dist_threshes), len(self.eval_class_labels), len(ious)), np.float)
         rc = np.zeros((len(dist_threshes), len(self.eval_class_labels), len(ious)), np.float)
+
+        # HARD CODE FOR MULTISCAN
+        self.gt_pred_match = {}
+
         for di, (min_region_size, distance_thresh,
                  distance_conf) in enumerate(zip(min_region_sizes, dist_threshes, dist_confs)):
             for oi, iou_th in enumerate(ious):
                 pred_visited = {}
                 for m in matches:
+                    # HARD CODE FOR MULTISCAN
+                    if iou_th == 0.5:
+                        self.gt_pred_match[m] = {}
+
                     for _ in matches[m]['pred']:
                         for label_name in self.eval_class_labels:
                             for p in matches[m]['pred'][label_name]:
@@ -168,12 +178,14 @@ class GeneralDatasetEvaluator(object):
                         cur_match = np.zeros(len(gt_instances), dtype=np.bool)
                         # collect matches
                         for (gti, gt) in enumerate(gt_instances):
+                            # HARD CODE FOR MULTISCAN
+                            if iou_th == 0.5:
+                                self.gt_pred_match[m][gt["instance_id"]] = ''
                             found_match = False
                             for pred in gt['matched_pred']:
                                 # greedy assignments
                                 if pred_visited[pred['filename']]:
                                     continue
-                                # TODO change to use compact iou
                                 iou = pred['iou']
                                 if iou > iou_th:
                                     confidence = pred['confidence']
@@ -181,6 +193,12 @@ class GeneralDatasetEvaluator(object):
                                     # the prediction with the lower score is
                                     # automatically a FP
                                     if cur_match[gti]:
+                                        # HARD CODE FOR MULTISCAN
+                                        if cur_score[gti] < confidence and iou_th == 0.5:
+                                            self.gt_pred_match[m][gt["instance_id"]] = pred['filename']
+                                            # self.gt_pred_match[pred['filename'][:-6]][gt["instance_id"]] = pred['filename']
+
+
                                         max_score = max(cur_score[gti], confidence)
                                         min_score = min(cur_score[gti], confidence)
                                         cur_score[gti] = max_score
@@ -190,6 +208,10 @@ class GeneralDatasetEvaluator(object):
                                         cur_match = np.append(cur_match, True)
                                     # otherwise set score
                                     else:
+                                        # HARD CODE FOR MULTISCAN
+                                        if iou_th == 0.5:
+                                            # self.gt_pred_match[pred['filename'][:-6]][gt["instance_id"]] = pred['filename']
+                                            self.gt_pred_match[m][gt["instance_id"]] = pred['filename']
                                         found_match = True
                                         cur_match[gti] = True
                                         cur_score[gti] = confidence
@@ -417,6 +439,20 @@ class GeneralDatasetEvaluator(object):
             matches[matches_key]['pred'] = pred2gt
         ap_scores, rc_scores = self.evaluate_matches(matches)
         avgs = self.compute_averages(ap_scores, rc_scores)
+
+        # HARD CODE FOR MULTISCAN
+        import os, json
+        new_json = {}
+        for gt, content in self.gt_pred_match.items():
+            for key2, content2 in content.items():
+                if content2 != "":
+                    new_json[content2[:-6]] = content
+                    break
+
+        with open(os.path.join("/localhome/yza440/Research/tmp/matching_tmppp", 'gt_pred_match_new.json'), 'w+') as fp:
+            json.dump(new_json, fp, indent=2)
+        #
+
         if print_result:
             self.print_results(avgs)
         return avgs
@@ -440,6 +476,10 @@ class GeneralDatasetEvaluator(object):
         print(line)
         print('#' * lineLen)
 
+        ap = []
+        ap_50 = []
+        ap_25 = []
+
         for (li, label_name) in enumerate(self.eval_class_labels):
             ap_avg = avgs['classes'][label_name]['ap']
             ap_50o = avgs['classes'][label_name]['ap50%']
@@ -455,6 +495,9 @@ class GeneralDatasetEvaluator(object):
             line += sep + '{:>8.3f}'.format(rc_50o) + sep
             line += sep + '{:>8.3f}'.format(rc_25o) + sep
             print(line)
+            ap.append(str(round(ap_avg * 100, 1)))
+            ap_50.append(str(round(ap_50o * 100, 1)))
+            ap_25.append(str(round(ap_25o * 100, 1)))
 
         all_ap_avg = avgs['all_ap']
         all_ap_50o = avgs['all_ap_50%']
@@ -474,3 +517,10 @@ class GeneralDatasetEvaluator(object):
         print(line)
         print('#' * lineLen)
         print()
+
+        ap = [str(round(all_ap_avg * 100, 1))] + ap
+        ap_50 = [str(round(all_ap_50o * 100, 1))] + ap_50
+        ap_25 = [str(round(all_ap_25o * 100, 1))] + ap_25
+        print(",".join(ap))
+        print(",".join(ap_50))
+        print(",".join(ap_25))

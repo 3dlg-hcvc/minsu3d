@@ -36,10 +36,10 @@ def save_prediction(save_path, all_pred_insts, mapping_ids, ignored_classes_indi
 def read_gt_files_from_disk(data_path):
     pth_file = torch.load(data_path)
     pth_file["xyz"] -= pth_file["xyz"].mean(axis=0)
-    return pth_file["xyz"], pth_file["sem_labels"], pth_file["instance_ids"]
+    return pth_file["xyz"], pth_file["sem_labels"], pth_file["instance_ids"], pth_file
 
 
-def read_pred_files_from_disk(data_path, gt_xyz, mapping_ids, ignored_classes_indices):
+def read_pred_files_from_disk(data_path, gt_xyz, mapping_ids, ignored_classes_indices, erase_pred):
 
     sem_label_mapping = {}
 
@@ -56,7 +56,17 @@ def read_pred_files_from_disk(data_path, gt_xyz, mapping_ids, ignored_classes_in
             pred_mask = np.loadtxt(mask_path, dtype=bool)
             pred = {"scan_id": os.path.basename(data_path), "label_id": sem_label_mapping[int(sem_label)],
                     "conf": float(confidence), "pred_mask": rle_encode(pred_mask)}
-            pred_xyz = gt_xyz[pred_mask]
-            pred["pred_bbox"] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
+
+            # for multiscan part seg using pred obj
+            if pred_mask.shape[0] < gt_xyz.shape[0]:
+                pred_mask = np.concatenate((pred_mask, np.zeros(shape=gt_xyz.shape[0] - pred_mask.shape[0], dtype=bool)), axis=0)
+            if erase_pred:
+                pred_mask = np.zeros_like(pred_mask, dtype=bool)
+            pred["pred_mask"] = rle_encode(pred_mask)
+
+            assert len(pred_mask) == len(gt_xyz)
+
+            # pred_xyz = gt_xyz[pred_mask]
+            # pred["pred_bbox"] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
             pred_instances.append(pred)
     return pred_instances
