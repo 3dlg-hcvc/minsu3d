@@ -60,7 +60,7 @@ class SoftGroup(GeneralModel):
                                                               self.hparams.model.grouping_cfg.mean_active)
 
                 proposals_idx, proposals_offset = softgroup_ops.sg_bfs_cluster(
-                    self.hparams.model.grouping_cfg.class_numpoint_mean, idx.cpu(),
+                    self.hparams.data.point_num_avg, idx.cpu(),
                     start_len.cpu(),
                     self.hparams.model.grouping_cfg.npoint_thr, class_id)
                 proposals_idx[:, 1] = object_idxs.cpu()[proposals_idx[:, 1].long()].int()
