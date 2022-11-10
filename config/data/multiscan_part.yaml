@@ -19,7 +19,7 @@ class_names: ['static_part', 'door', 'drawer', 'window', 'lid']
 
 mapping_classes_ids: [1, 2, 3, 4, 5]
 
-point_num_avg: [4223, 1941, 624, 2599, 717]
+point_num_avg: [4632, 1847, 578, 2481, 682]
 radius_avg: [1.012157, 0.564342, 0.281144, 0.730079, 0.303201]
 
 augmentation:
