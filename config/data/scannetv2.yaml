@@ -3,8 +3,8 @@
 defaults:
   - base
 
-dataset: ScanNet
-dataset_path: ${data.dataset_root_path}/scannet
+dataset: ScanNetv2
+dataset_path: ${data.dataset_root_path}/scannetv2
 
 metadata:
   metadata_path: ${data.dataset_path}/metadata

@@ -90,7 +90,7 @@ python download-scannet.py -o data/scannet --type _vh_clean_2.0.010000.segs.json
 2. Preprocess the data, it converts original meshes and annotations to `.pth` data:
 ```shell
 cd data/scannet
-python prepare_all_data.py data=scannet +raw_scan_path={PATH_TO_SCANNET_V2}/scans
+python preprocess_all_data.py data=scannetv2 +raw_scan_path={PATH_TO_SCANNETV2}/scans
 ```
 
 ## Training, Inference and Evaluation
@@ -115,9 +115,9 @@ python test.py model={model_name} data={dataset_name} model.ckpt_path={pretraine
 python eval.py model={model_name} data={dataset_name} model.model.experiment_name={experiment_name}
 
 # examples:
-# python train.py model=pointgroup data=scannet model.trainer.max_epochs=480
-# python test.py model=pointgroup data=scannet model.ckpt_path=PointGroup_best.ckpt
-# python eval.py model=hais data=scannet model.model.experiment_name=run_1
+# python train.py model=pointgroup data=scannetv2 model.trainer.max_epochs=480
+# python test.py model=pointgroup data=scannetv2 model.ckpt_path=PointGroup_best.ckpt
+# python eval.py model=hais data=scannetv2 model.model.experiment_name=run_1
 ```
 
 ## Pretrained Models
@@ -143,9 +143,9 @@ We provide pretrained models for ScanNet v2. The pretrained model, corresponding
 We provide scripts to visualize the predicted segmentations and bounding boxes. To use the visualization scripts, place the mesh (ply) file from the Scannet dataset as follows.
 
 ```
-minsu3d-internal
+minsu3d
 ├── data
-│   ├── scannet
+│   ├── scannetv2
 │   │   ├── scans
 │   │   │   ├── [scene_id]
 |   |   |   |   ├── [scene_id]_vh_clean_2.ply

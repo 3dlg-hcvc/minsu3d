@@ -38,7 +38,7 @@ class HAIS(GeneralModel):
             semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
             for class_label in self.hparams.data.ignore_classes:
                 semantic_preds_mask = semantic_preds_mask & (semantic_preds != class_label)
-            object_idxs = torch.nonzero(semantic_preds_mask).view(-1)  # exclude predicted wall and floor
+            object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
             batch_idxs_ = batch_idxs[object_idxs].int()
             batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.data.batch_size, self.device)
@@ -77,7 +77,7 @@ class HAIS(GeneralModel):
             score_feats = inst_score.features[proposals_p2v_map.long()]
 
             # predict mask scores
-            # first linear than voxel to point,  more efficient  (because voxel num < point num)
+            # first linear than voxel to point, more efficient (because voxel num < point num)
             mask_scores = self.mask_branch(inst_score.features)[proposals_p2v_map.long()]
 
             # predict instance scores
@@ -126,7 +126,7 @@ class HAIS(GeneralModel):
             mask_loss = mask_scoring_criterion(mask_scores_sigmoid, mask_label.float())
             losses["mask_loss"] = mask_loss
 
-            gt_ious, _ = ious.max(1)  # gt_ious: (nProposal) float, long
+            gt_ious, _ = ious.max(1)  # gt_ious: (nProposal)
 
             gt_scores = get_segmented_scores(gt_ious, self.hparams.model.fg_thresh, self.hparams.model.bg_thresh)
             score_criterion = ScoreLoss()
@@ -208,10 +208,9 @@ class HAIS(GeneralModel):
         scores_pred = torch.sigmoid(scores.view(-1))
 
         N = semantic_scores.shape[0]
-        # proposals_idx: (sumNPoint, 2), int, cpu, [:, 0] for cluster_id, [:, 1] for corresponding point idxs in N
-        # proposals_offset: (nProposal + 1), int, cpu
+        # proposals_idx: (sumNPoint, 2), [:, 0] for cluster_id, [:, 1] for corresponding point idxs in N
+        # proposals_offset: (nProposal + 1)
         proposals_pred = torch.zeros((num_proposals, N), dtype=torch.bool, device="cpu")
-        # (nProposal, N), int, cuda
 
         # outlier filtering
         _mask = mask_scores.squeeze(1) > self.hparams.model.test.test_mask_score_thre
@@ -221,7 +220,6 @@ class HAIS(GeneralModel):
         score_mask = (scores_pred > self.hparams.model.test.TEST_SCORE_THRESH)
         scores_pred = scores_pred[score_mask]
         proposals_pred = proposals_pred[score_mask]
-        # semantic_id = semantic_id[score_mask]
 
         # npoint threshold
         proposals_pointnum = torch.count_nonzero(proposals_pred, dim=1)
