@@ -29,10 +29,10 @@ trainer:
 
 # https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
 checkpoint_monitor:
-  monitor: null
+  monitor: "val_eval/AP"
   mode: max
   save_last: False
-  save_top_k: -1
+  save_top_k: 5
   every_n_epochs: 8
 
 
