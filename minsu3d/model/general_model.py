@@ -160,8 +160,8 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
     feats = feats[c_idxs]
     clusters_coords = coords[c_idxs]
     clusters_offset = clusters_offset.cuda()
-    clusters_coords_mean = common_ops.sec_mean(clusters_coords, clusters_offset)  # (nCluster, 3), float
-    clusters_coords_mean_all = torch.index_select(clusters_coords_mean, 0, batch_idx)  # (sumNPoint, 3), float
+    clusters_coords_mean = common_ops.sec_mean(clusters_coords, clusters_offset)  # (nCluster, 3)
+    clusters_coords_mean_all = torch.index_select(clusters_coords_mean, 0, batch_idx)  # (sumNPoint, 3)
     clusters_coords -= clusters_coords_mean_all
 
     clusters_coords_min = common_ops.sec_min(clusters_coords, clusters_offset)
@@ -199,11 +199,6 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
 
 
 def get_batch_offsets(batch_idxs, batch_size, device):
-    """
-    :param batch_idxs: (N), int
-    :param batch_size: int
-    :return: batch_offsets: (batch_size + 1)
-    """
     batch_offsets = torch.zeros(batch_size + 1, dtype=torch.int32, device=device)
     for i in range(batch_size):
         batch_offsets[i + 1] = batch_offsets[i] + torch.count_nonzero(batch_idxs == i)

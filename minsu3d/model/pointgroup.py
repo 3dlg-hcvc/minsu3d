@@ -34,7 +34,7 @@ class PointGroup(GeneralModel):
             semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
             for class_label in self.hparams.data.ignore_classes:
                 semantic_preds_mask = semantic_preds_mask & (semantic_preds != class_label)
-            object_idxs = torch.nonzero(semantic_preds_mask).view(-1)  # exclude predicted wall and floor
+            object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
             batch_idxs_ = batch_idxs[object_idxs].int()
             batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.data.batch_size, self.device)
@@ -53,8 +53,8 @@ class PointGroup(GeneralModel):
                                                                                         start_len_shift.cpu(),
                                                                                         self.hparams.model.cluster.cluster_npoint_thre)
             proposals_idx_shift[:, 1] = object_idxs_cpu[proposals_idx_shift[:, 1].long()].int()
-            # proposals_idx_shift: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset_shift: (nProposal + 1), int
+            # proposals_idx_shift: (sumNPoint, 2), dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+            # proposals_offset_shift: (nProposal + 1)
             # proposals_batchId_shift_all: (sumNPoint,) batch id
 
             idx, start_len = common_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_,
@@ -64,8 +64,8 @@ class PointGroup(GeneralModel):
                                                                             start_len.cpu(),
                                                                             self.hparams.model.cluster.cluster_npoint_thre)
             proposals_idx[:, 1] = object_idxs_cpu[proposals_idx[:, 1].long()].int()
-            # proposals_idx: (sumNPoint, 2), int, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset: (nProposal + 1), int
+            # proposals_idx: (sumNPoint, 2), dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+            # proposals_offset: (nProposal + 1)
 
             proposals_idx_shift[:, 0] += (proposals_offset.size(0) - 1)
             proposals_offset_shift += proposals_offset[-1]
@@ -106,13 +106,13 @@ class PointGroup(GeneralModel):
             """score loss"""
             scores, proposals_idx, proposals_offset = output_dict["proposal_scores"]
             instance_pointnum = data_dict["instance_num_point"]
-            # scores: (nProposal, 1), float32
-            # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset: (nProposal + 1), int, cpu
-            # instance_pointnum: (total_nInst), int
+            # scores: (nProposal, 1)
+            # proposals_idx: (sumNPoint, 2), dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+            # proposals_offset: (nProposal + 1)
+            # instance_pointnum: (total_nInst)
             ious = common_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset, data_dict["instance_ids"],
-                                      instance_pointnum)  # (nProposal, nInstance), float
-            gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal) float, long
+                                      instance_pointnum)  # (nProposal, nInstance)
+            gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal)
             gt_scores = get_segmented_scores(gt_ious, self.hparams.model.fg_thresh, self.hparams.model.bg_thresh)
             score_criterion = ScoreLoss()
             score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
@@ -215,13 +215,13 @@ class PointGroup(GeneralModel):
     def _get_pred_instances(self, scan_id, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores,
                             num_ignored_classes):
         semantic_pred_labels = semantic_scores.max(1)[1]
-        proposals_score = torch.sigmoid(proposals_scores.view(-1))  # (nProposal,) float
-        # proposals_idx: (sumNPoint, 2), int, cpu, dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-        # proposals_offset: (nProposal + 1), int, cpu
+        proposals_score = torch.sigmoid(proposals_scores.view(-1))  # (nProposal,)
+        # proposals_idx: (sumNPoint, 2), dim 0 for cluster_id, dim 1 for corresponding point idxs in N
+        # proposals_offset: (nProposal + 1)
 
         N = semantic_scores.shape[0]
 
-        proposals_mask = torch.zeros((num_proposals, N), dtype=torch.bool, device="cpu")  # (nProposal, N), int, cuda
+        proposals_mask = torch.zeros((num_proposals, N), dtype=torch.bool, device="cpu")  # (nProposal, N)
         proposals_mask[proposals_idx[:, 0].long(), proposals_idx[:, 1].long()] = True
 
         # score threshold & min_npoint mask
@@ -236,18 +236,18 @@ class PointGroup(GeneralModel):
         if proposals_score.shape[0] == 0:
             pick_idxs = np.empty(0)
         else:
-            proposals_mask_f = proposals_mask.float()  # (nProposal, N), float
-            intersection = torch.mm(proposals_mask_f, proposals_mask_f.t())  # (nProposal, nProposal), float
-            proposals_npoint = proposals_mask_f.sum(1)  # (nProposal), float, cuda
+            proposals_mask_f = proposals_mask.float()  # (nProposal, N)
+            intersection = torch.mm(proposals_mask_f, proposals_mask_f.t())  # (nProposal, nProposal)
+            proposals_npoint = proposals_mask_f.sum(1)  # (nProposal)
             proposals_np_repeat_h = proposals_npoint.unsqueeze(-1).repeat(1, proposals_npoint.shape[0])
             proposals_np_repeat_v = proposals_npoint.unsqueeze(0).repeat(proposals_npoint.shape[0], 1)
             cross_ious = intersection / (
-                    proposals_np_repeat_h + proposals_np_repeat_v - intersection)  # (nProposal, nProposal), float, cuda
+                    proposals_np_repeat_h + proposals_np_repeat_v - intersection)  # (nProposal, nProposal)
             pick_idxs = self._get_nms_instances(cross_ious.numpy(), proposals_score.numpy(),
-                                                self.hparams.model.test.TEST_NMS_THRESH)  # int, (nCluster,)
+                                                self.hparams.model.test.TEST_NMS_THRESH)  # (nCluster,)
 
-        clusters_mask = proposals_mask[pick_idxs].numpy()  # int, (nCluster, N)
-        score_pred = proposals_score[pick_idxs].numpy()  # float, (nCluster,)
+        clusters_mask = proposals_mask[pick_idxs].numpy()  # (nCluster, N)
+        score_pred = proposals_score[pick_idxs].numpy()  # (nCluster,)
         nclusters = clusters_mask.shape[0]
         instances = []
         for i in range(nclusters):
