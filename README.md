@@ -90,7 +90,7 @@ python download-scannet.py -o data/scannet --type _vh_clean_2.0.010000.segs.json
 2. Preprocess the data, it converts original meshes and annotations to `.pth` data:
 ```shell
 cd data/scannet
-python prepare_all_data.py data=scannetv2 +raw_scan_path={PATH_TO_SCANNET_V2}/scans
+python preprocess_all_data.py data=scannetv2 +raw_scan_path={PATH_TO_SCANNETV2}/scans
 ```
 
 ## Training, Inference and Evaluation
