@@ -46,11 +46,11 @@ def sparse_collate_fn(batch):
     feats = []
     sem_labels = []
     instance_ids = []
-    instance_info = []  # (N, 3)
-    instance_num_point = []  # (total_nInst), int
+    instance_info = []
+    instance_num_point = []
     instance_offsets = [0]
     total_num_inst = 0
-    instance_cls = []  # (total_nInst), long
+    instance_cls = []
 
     scan_ids = []
 
@@ -75,18 +75,18 @@ def sparse_collate_fn(batch):
 
         instance_cls.extend(b["instance_semantic_cls"])
 
-    tmp_locs_scaled = torch.cat(locs_scaled, dim=0)  # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
+    tmp_locs_scaled = torch.cat(locs_scaled, dim=0)
     data['scan_ids'] = scan_ids
-    data["locs"] = torch.cat(locs, dim=0)  # float (N, 3)
+    data["locs"] = torch.cat(locs, dim=0)
     data["vert_batch_ids"] = torch.cat(vert_batch_ids, dim=0)
     data["feats"] = torch.cat(feats, dim=0)
 
-    data["sem_labels"] = torch.cat(sem_labels, dim=0)  # int (N,)
-    data["instance_ids"] = torch.cat(instance_ids, dim=0)  # int, (N,)
-    data["instance_info"] = torch.cat(instance_info, dim=0)  # float (total_nInst, 3)
-    data["instance_num_point"] = torch.cat(instance_num_point, dim=0)  # (total_nInst)
-    data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int32)  # int (B+1)
-    data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.int32)  # long (total_nInst)
+    data["sem_labels"] = torch.cat(sem_labels, dim=0)
+    data["instance_ids"] = torch.cat(instance_ids, dim=0)
+    data["instance_info"] = torch.cat(instance_info, dim=0)
+    data["instance_num_point"] = torch.cat(instance_num_point, dim=0)
+    data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int32)
+    data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.int32)
 
     # voxelize
     data["voxel_locs"], data["v2p_map"], data["p2v_map"] = common_ops.voxelization_idx(tmp_locs_scaled,

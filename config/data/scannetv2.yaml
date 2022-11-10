@@ -3,8 +3,8 @@
 defaults:
   - base
 
-dataset: ScanNet
-dataset_path: ${data.dataset_root_path}/scannet
+dataset: ScanNetv2
+dataset_path: ${data.dataset_root_path}/scannetv2
 
 metadata:
   metadata_path: ${data.dataset_path}/metadata
@@ -12,7 +12,7 @@ metadata:
   val_list: ${data.metadata.metadata_path}/scannetv2_val.txt
   test_list: ${data.metadata.metadata_path}/scannetv2_test.txt
   combine_file: ${data.metadata.metadata_path}/scannetv2-labels.combined.tsv
-  multiview_file: ${data.dataset_path}/enet_feats_maxpool.hdf5
+  multiview_file: ${data.dataset_68453path}/enet_feats_maxpool.hdf5
 
 classes: 20
 ignore_classes: [0, 1]
