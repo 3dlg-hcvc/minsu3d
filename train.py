@@ -1,16 +1,16 @@
 import os
 import hydra
-from importlib import import_module
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from minsu3d.callback import *
+from importlib import import_module
 from minsu3d.data.data_module import DataModule
+from pytorch_lightning.callbacks import LearningRateMonitor
 
 
 def init_callbacks(cfg, output_path):
-    checkpoint_monitor = ModelCheckpoint(dirpath=output_path,
-                                         filename=f"{cfg.model.model.module}-{cfg.data.dataset}" + "-{epoch}",
-                                         **cfg.model.checkpoint_monitor)
+    checkpoint_monitor = CustomModelCheckpoint(start_epoch=cfg.model.model.prepare_epochs, dirpath=output_path,
+                                               filename=f"{cfg.model.model.module}-{cfg.data.dataset}-" + "{epoch}",
+                                               **cfg.model.checkpoint_monitor)
     gpu_cache_clean_monitor = GPUCacheCleanCallback()
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
     time_logging_callback = TimeLoggingCallback()

@@ -109,10 +109,8 @@ class GeneralModel(pl.LightningModule):
             self.log("val_eval/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
             self.log("val_eval/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
             self.log("val_eval/AP 25%", inst_seg_eval_result["all_ap_25%"], sync_dist=True)
-            self.log("val_eval/BBox AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"]["avg"],
-                     sync_dist=True)
-            self.log("val_eval/BBox AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"]["avg"],
-                     sync_dist=True)
+            self.log("val_eval/BBox AP 25%", obj_detect_eval_result["all_bbox_ap_0.25"]["avg"], sync_dist=True)
+            self.log("val_eval/BBox AP 50%", obj_detect_eval_result["all_bbox_ap_0.5"]["avg"], sync_dist=True)
 
     def test_step(self, data_dict, idx):
         pass

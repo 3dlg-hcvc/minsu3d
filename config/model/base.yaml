@@ -31,9 +31,9 @@ trainer:
 checkpoint_monitor:
   monitor: "val_eval/AP"
   mode: max
-  save_last: False
-  save_top_k: 5
-  every_n_epochs: 8
+  save_last: True
+  save_top_k: 3
+  every_n_epochs: ${model.trainer.check_val_every_n_epoch}
 
 
 # https://pytorch-lightning.readthedocs.io/en/stable/common/optimization.html
