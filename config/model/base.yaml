@@ -24,6 +24,7 @@ trainer:
   max_epochs: 496
   num_sanity_val_steps: 20
   check_val_every_n_epoch: 8
+  log_every_n_steps: 30
 
 
 # https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
@@ -49,5 +50,5 @@ lr_decay:
 inference:
   split: val
   evaluate: True
-  save_predictions: False
-  output_dir: prediction
+  save_predictions: True
+  output_dir: predictions

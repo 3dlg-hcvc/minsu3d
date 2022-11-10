@@ -13,6 +13,8 @@ def main(cfg):
                                cfg.model.model.module, cfg.model.model.experiment_name,
                                "inference", cfg.model.inference.split, "predictions", "instance")
 
+    # pred_file_path = "/project/3dlg-hcvc/multiscan/benchmark_result/MultiScanObj_New/SSTNet/seed-789-obj/inference/val/predictions/instance"
+
     if not os.path.exists(pred_file_path):
         print("Error: prediction files do not exist.")
         exit(-1)
@@ -20,7 +22,7 @@ def main(cfg):
     print(f"==> start evaluating {split} set ...")
 
     print("==> Evaluating instance segmentation ...")
-    inst_seg_evaluator = GeneralDatasetEvaluator(cfg.data.class_names, cfg.data.ignore_label)
+    inst_seg_evaluator = GeneralDatasetEvaluator(cfg.data.class_names, cfg.data.ignore_label, cfg.data.ignore_classes)
 
     all_pred_insts = []
     all_gt_insts = []
@@ -45,7 +47,7 @@ def main(cfg):
         all_gt_insts.append(gt_instances)
 
         # read prediction files
-        pred_instances = read_pred_files_from_disk(pred_path, gt_xyz, cfg.data.mapping_classes_ids)
+        pred_instances = read_pred_files_from_disk(pred_path, gt_xyz, cfg.data.mapping_classes_ids, cfg.data.ignore_classes)
         all_pred_insts.append(pred_instances)
 
         # parse gt bounding boxes
@@ -55,7 +57,8 @@ def main(cfg):
 
 
     inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
-    obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, cfg.data.class_names, print_result=True)
+    obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, cfg.data.class_names,
+                                               cfg.data.ignore_classes, print_result=True)
 
 
 if __name__ == "__main__":

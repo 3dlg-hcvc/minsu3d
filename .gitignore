@@ -1,11 +1,13 @@
 # data
-data/scannet/train
-data/scannet/val
+data/*/train
+data/*/val
+data/*/test
 
 # log
 log/
 logs/
 wandb
+*.log
 
 # output
 output/

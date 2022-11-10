@@ -30,7 +30,7 @@ __global__ void get_iou_cuda_(int nInstance, int nProposal, int *proposals_idx, 
 
 //input: proposals_idx (sumNPoint), int
 //input: proposals_offset (nProposal + 1), int
-//input: instance_labels (N), long, 0~total_nInst-1, -100
+//input: instance_labels (N), long, 0~total_nInst-1, -1
 //input: instance_pointnum (total_nInst), int
 //output: proposals_iou (nProposal, total_nInst), float
 void get_iou_cuda(int nInstance, int nProposal, int *proposals_idx, int *proposals_offset, int *instance_labels, int *instance_pointnum, float *proposals_iou){

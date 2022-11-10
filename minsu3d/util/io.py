@@ -5,12 +5,15 @@ from minsu3d.evaluation.semantic_segmentation import *
 from minsu3d.evaluation.instance_segmentation import rle_decode, rle_encode
 
 
-def save_prediction(save_path, all_pred_insts, mapping_ids):
+def save_prediction(save_path, all_pred_insts, mapping_ids, ignored_classes_indices):
     inst_pred_path = os.path.join(save_path, "instance")
     inst_pred_masks_path = os.path.join(inst_pred_path, "predicted_masks")
     os.makedirs(inst_pred_masks_path, exist_ok=True)
     scan_instance_count = {}
-    mapping_ids = list(mapping_ids)
+    filtered_mapping_ids = [elem for i, elem in enumerate(mapping_ids) if i not in ignored_classes_indices]
+    id_mappings = {}
+    for i, label in enumerate(filtered_mapping_ids):
+        id_mappings[i] = label
     for preds in tqdm(all_pred_insts, desc="==> Saving predictions ..."):
         tmp_info = []
         scan_id = preds[0]["scan_id"]
@@ -18,7 +21,7 @@ def save_prediction(save_path, all_pred_insts, mapping_ids):
             if scan_id not in scan_instance_count:
 
                 scan_instance_count[scan_id] = 0
-            mapped_label_id = mapping_ids[pred['label_id'] - 1]
+            mapped_label_id = id_mappings[pred['label_id'] - 1]
             tmp_info.append(
                 f"predicted_masks/{scan_id}_{scan_instance_count[scan_id]:03d}.txt {mapped_label_id} {pred['conf']:.4f}\n")
             np.savetxt(
@@ -36,11 +39,13 @@ def read_gt_files_from_disk(data_path):
     return pth_file["xyz"], pth_file["sem_labels"], pth_file["instance_ids"]
 
 
-def read_pred_files_from_disk(data_path, gt_xyz, mapping_ids):
+def read_pred_files_from_disk(data_path, gt_xyz, mapping_ids, ignored_classes_indices):
 
     sem_label_mapping = {}
 
-    for i, item in enumerate(mapping_ids, 1):
+    filtered_mapping_ids = [elem for i, elem in enumerate(mapping_ids) if i not in ignored_classes_indices]
+
+    for i, item in enumerate(filtered_mapping_ids, 1):
         sem_label_mapping[item] = i
     pred_instances = []
 
@@ -49,8 +54,8 @@ def read_pred_files_from_disk(data_path, gt_xyz, mapping_ids):
             mask_relative_path, sem_label, confidence = line.strip().split()
             mask_path = os.path.join(os.path.dirname(data_path), mask_relative_path)
             pred_mask = np.loadtxt(mask_path, dtype=bool)
-            pred = {"scan_id": os.path.basename(data_path), "label_id": sem_label_mapping[int(sem_label)], "conf": float(confidence),
-                    "pred_mask": rle_encode(pred_mask)}
+            pred = {"scan_id": os.path.basename(data_path), "label_id": sem_label_mapping[int(sem_label)],
+                    "conf": float(confidence), "pred_mask": rle_encode(pred_mask)}
             pred_xyz = gt_xyz[pred_mask]
             pred["pred_bbox"] = np.concatenate((pred_xyz.min(0), pred_xyz.max(0)))
             pred_instances.append(pred)
