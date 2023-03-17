@@ -5,6 +5,7 @@ defaults:
 
 dataset: ScanNetv2
 dataset_path: ${data.dataset_root_path}/scannetv2
+raw_scene_path: ${data.dataset_path}/scans
 
 metadata:
   metadata_path: ${data.dataset_path}/metadata
@@ -15,7 +16,7 @@ metadata:
   multiview_file: ${data.dataset_path}/enet_feats_maxpool.hdf5
 
 classes: 20
-ignore_classes: [0, 1]
+ignore_classes: [1, 2]
 class_names: ['floor', 'wall', 'cabinet', 'bed', 'chair', 'sofa', 'table', 'door', 'window', 'bookshelf', 'picture',
               'counter', 'desk', 'curtain', 'refrigerator', 'shower curtain', 'toilet', 'sink',
               'bathtub', 'otherfurniture']

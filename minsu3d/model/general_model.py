@@ -28,8 +28,6 @@ class GeneralModel(pl.LightningModule):
             for param in self.backbone.parameters():
                 param.requires_grad = False
 
-        self.custom_logger = logging.getLogger("pytorch_lightning")
-
     def configure_optimizers(self):
         return init_optimizer(parameters=self.parameters(), **self.hparams.optimizer)
 
@@ -135,14 +133,13 @@ class GeneralModel(pl.LightningModule):
             if self.hparams.inference.save_predictions:
                 save_prediction(self.hparams.inference.output_dir, all_pred_insts,
                                 self.hparams.data.mapping_classes_ids, self.hparams.data.ignore_classes)
-                self.custom_logger.info(
-                    f"\nPredictions saved at {os.path.join(self.hparams.inference.output_dir, 'instance')}\n")
+                self.print(f"\nPredictions saved at {os.path.join(self.hparams.inference.output_dir, 'instance')}")
 
             if self.hparams.inference.evaluate:
                 inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.data.class_names,
                                                              self.hparams.data.ignore_label,
                                                              self.hparams.data.ignore_classes)
-                self.custom_logger.info("Evaluating instance segmentation ...")
+                self.print("Evaluating instance segmentation ...")
                 inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=True)
                 obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox,
                                                            self.hparams.data.class_names,
@@ -150,8 +147,8 @@ class GeneralModel(pl.LightningModule):
 
                 sem_miou_avg = np.mean(np.array(all_sem_miou))
                 sem_acc_avg = np.mean(np.array(all_sem_acc))
-                self.custom_logger.info(f"Semantic Accuracy: {sem_acc_avg}")
-                self.custom_logger.info(f"Semantic mean IoU: {sem_miou_avg}")
+                self.print(f"Semantic Accuracy: {sem_acc_avg}")
+                self.print(f"Semantic mean IoU: {sem_miou_avg}")
 
 
 def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, mode, device):

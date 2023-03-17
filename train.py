@@ -13,8 +13,7 @@ def init_callbacks(cfg, output_path):
                                                **cfg.model.checkpoint_monitor)
     gpu_cache_clean_monitor = GPUCacheCleanCallback()
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
-    time_logging_callback = TimeLoggingCallback()
-    return [checkpoint_monitor, gpu_cache_clean_monitor, lr_monitor, time_logging_callback]
+    return [checkpoint_monitor, gpu_cache_clean_monitor, lr_monitor]
 
 
 def init_model(cfg):
