@@ -98,7 +98,9 @@ class PointGroup(GeneralModel):
             ious = common_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset, data_dict["instance_ids"],
                                       instance_pointnum)
             gt_ious, gt_instance_idxs = ious.max(1)
-            gt_scores = get_segmented_scores(gt_ious, self.hparams.cfg.model.network.fg_thresh, self.hparams.cfg.model.network.bg_thresh)
+            gt_scores = get_segmented_scores(
+                gt_ious, self.hparams.cfg.model.network.fg_thresh, self.hparams.cfg.model.network.bg_thresh
+            )
             score_criterion = ScoreLoss()
             score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
             losses["score_loss"] = score_loss

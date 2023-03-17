@@ -15,19 +15,17 @@ trainer:
   strategy: ddp
   num_nodes: 1
   max_epochs: 496
-  num_sanity_val_steps: 20
+  num_sanity_val_steps: 10
   check_val_every_n_epoch: 8
   profiler: simple
-  log_every_n_steps: 30
-
 
 # https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
 checkpoint_monitor:
-  monitor: "val_eval/AP"
-  mode: max
-  save_last: True
-  save_top_k: 3
+  _target_: pytorch_lightning.callbacks.ModelCheckpoint
+  save_top_k: -1
   every_n_epochs: ${model.trainer.check_val_every_n_epoch}
+  filename: "{epoch}"
+  dirpath: ${exp_output_root_path}/training
 
 
 lr_decay:

@@ -38,7 +38,7 @@ network:
   score_scale: 50  # the minimal voxel size is 2cm
   score_fullscale: 14
 
-  prepare_epochs: 10
+  prepare_epochs: 128
 
   cluster:
     # point grouping

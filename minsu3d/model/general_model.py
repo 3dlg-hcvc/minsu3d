@@ -173,7 +173,7 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
                                                                                                     -1, 0]) + 1, mode)
     clusters_voxel_feats = common_ops.voxelization(feats, clusters_v2p_map.cuda(), mode)
     clusters_voxel_feats = ME.SparseTensor(features=clusters_voxel_feats,
-                                           coordinates=clusters_voxel_coords.int().cuda())
+                                           coordinates=clusters_voxel_coords.int().to(device), device=device)
     return clusters_voxel_feats, clusters_p2v_map
 
 
