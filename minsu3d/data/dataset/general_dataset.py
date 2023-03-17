@@ -1,37 +1,25 @@
 import os
-from tqdm import tqdm
-import numpy as np
-import h5py
 import torch
+import numpy as np
+from tqdm import tqdm
+import MinkowskiEngine as ME
 from torch.utils.data import Dataset
-from minsu3d.util.pc import crop
-from minsu3d.util.transform import jitter, flip, rotz, elastic
+from minsu3d.util.transform import jitter, flip, rotz, elastic, crop
 
 
 class GeneralDataset(Dataset):
     def __init__(self, cfg, split):
         self.cfg = cfg
         self.split = split
-        self.dataset_root_path = cfg.data.dataset_path
-        self.file_suffix = cfg.data.file_suffix
-        self.full_scale = cfg.data.full_scale
-        self.scale = cfg.data.scale
         self.max_num_point = cfg.data.max_num_point
-        self.data_map = {
-            "train": cfg.data.metadata.train_list,
-            "val": cfg.data.metadata.val_list,
-            "test": cfg.data.metadata.test_list
-        }
         self._load_from_disk()
-        if cfg.model.model.use_multiview:
-            self.multiview_hdf5_file = h5py.File(self.cfg.data.metadata.multiview_file, "r", libver="latest")
 
     def _load_from_disk(self):
-        with open(self.data_map[self.split]) as f:
+        with open(getattr(self.cfg.data.metadata, f"{self.split}_list")) as f:
             self.scene_names = [line.strip() for line in f]
         self.scenes = []
         for scene_name in tqdm(self.scene_names, desc=f"Loading {self.split} data from disk"):
-            scene_path = os.path.join(self.dataset_root_path, self.split, scene_name + self.file_suffix)
+            scene_path = os.path.join(self.cfg.data.dataset_path, self.split, f"{scene_name}.pth")
             scene = torch.load(scene_path)
             scene["xyz"] -= scene["xyz"].mean(axis=0)
             scene["rgb"] = scene["rgb"].astype(np.float32) / 127.5 - 1
@@ -73,11 +61,11 @@ class GeneralDataset(Dataset):
         """
         instance_num_point = []  # (nInst), int
         unique_instance_ids = np.unique(instance_ids)
-        unique_instance_ids = unique_instance_ids[unique_instance_ids != self.cfg.data.ignore_label]
+        unique_instance_ids = unique_instance_ids[unique_instance_ids != -1]
         num_instance = unique_instance_ids.shape[0]
         # (n, 3), float, (meanx, meany, meanz)
         instance_info = np.empty(shape=(xyz.shape[0], 3), dtype=np.float32)
-        instance_cls = np.full(shape=unique_instance_ids.shape[0], fill_value=self.cfg.data.ignore_label, dtype=np.int8)
+        instance_cls = np.full(shape=unique_instance_ids.shape[0], fill_value=-1, dtype=np.int8)
         for index, i in enumerate(unique_instance_ids):
             inst_i_idx = np.where(instance_ids == i)[0]
 
@@ -94,7 +82,7 @@ class GeneralDataset(Dataset):
 
             # semantic label
             cls_idx = inst_i_idx[0]
-            instance_cls[index] = sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[cls_idx] != self.cfg.data.ignore_label else sem_labels[cls_idx]
+            instance_cls[index] = sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[cls_idx] != -1 else sem_labels[cls_idx]
             # bounding boxes
 
         return num_instance, instance_info, instance_num_point, instance_cls
@@ -103,11 +91,10 @@ class GeneralDataset(Dataset):
         scene_id = self.scene_names[idx]
         scene = self.scenes[idx]
 
-        points = scene["xyz"]  # (N, 3)
+        point_xyz = scene["xyz"]  # (N, 3)
         colors = scene["rgb"]  # (N, 3)
         normals = scene["normal"]
-        if self.cfg.model.model.use_multiview:
-            multiviews = self.multiview_hdf5_file[scene_id]
+
         instance_ids = scene["instance_ids"]
         sem_labels = scene["sem_labels"]
         data = {"scan_id": scene_id}
@@ -115,67 +102,74 @@ class GeneralDataset(Dataset):
         # augment
         if self.split == "train":
             aug_matrix = self._get_augmentation_matrix()
-            points = np.matmul(points, aug_matrix)
+            point_xyz = np.matmul(point_xyz, aug_matrix)
             normals = np.matmul(normals, np.transpose(np.linalg.inv(aug_matrix)))
             if self.cfg.data.augmentation.jitter_rgb:
                 # jitter rgb
                 colors += np.random.randn(3) * 0.1
 
-        # scale
-        scaled_points = points * self.scale
-
         # elastic
+        scale = (1 / self.cfg.data.voxel_size)
         if self.split == "train" and self.cfg.data.augmentation.elastic:
-            scaled_points = elastic(scaled_points, 6 * self.scale // 50, 40 * self.scale / 50)
-            scaled_points = elastic(scaled_points, 20 * self.scale // 50, 160 * self.scale / 50)
+            point_xyz_elastic = elastic(point_xyz * scale, 6 * scale // 50, 40 * scale / 50)
+            point_xyz_elastic = elastic(point_xyz_elastic, 20 * scale // 50, 160 * scale / 50)
+        else:
+            point_xyz_elastic = point_xyz * scale
 
         # offset
-        scaled_points -= scaled_points.min(axis=0)
+        point_xyz_elastic -= point_xyz_elastic.min(axis=0)
 
         # crop
         if self.split == "train":
             # HACK, in case there are few points left
             max_tries = 20
             valid_idxs_count = 0
-            valid_idxs = np.ones(shape=scaled_points.shape[0], dtype=np.bool)
+            valid_idxs = np.ones(shape=point_xyz.shape[0], dtype=np.bool)
             if valid_idxs.shape[0] > self.max_num_point:
                 while max_tries > 0:
-                    points_tmp, valid_idxs = crop(scaled_points, self.max_num_point, self.full_scale[1])
+                    points_tmp, valid_idxs = crop(point_xyz_elastic, self.max_num_point, self.cfg.data.full_scale[1])
                     valid_idxs_count = np.count_nonzero(valid_idxs)
-                    if valid_idxs_count >= (self.max_num_point // 2) and np.any(sem_labels[valid_idxs] != self.cfg.data.ignore_label) and np.any(instance_ids[valid_idxs] != self.cfg.data.ignore_label):
-                        scaled_points = points_tmp
+                    if valid_idxs_count >= (self.max_num_point // 2) and np.any(sem_labels[valid_idxs] != -1) and np.any(instance_ids[valid_idxs] != -1):
+                        point_xyz_elastic = points_tmp
                         break
                     max_tries -= 1
-                if valid_idxs_count < (self.max_num_point // 2) or np.all(sem_labels[valid_idxs] == self.cfg.data.ignore_label) and np.all(instance_ids[valid_idxs] == self.cfg.data.ignore_label):
+                if valid_idxs_count < (self.max_num_point // 2) or np.all(sem_labels[valid_idxs] == -1) and np.all(instance_ids[valid_idxs] == -1):
                     raise Exception("Over-cropped!")
 
-            scaled_points = scaled_points[valid_idxs]
-            points = points[valid_idxs]
+            point_xyz_elastic = point_xyz_elastic[valid_idxs]
+            point_xyz = point_xyz[valid_idxs]
             normals = normals[valid_idxs]
             colors = colors[valid_idxs]
-            if self.cfg.model.model.use_multiview:
-                multiviews = np.asarray(multiviews)[valid_idxs]
             sem_labels = sem_labels[valid_idxs]
             instance_ids = self._get_cropped_inst_ids(instance_ids, valid_idxs)
 
+        point_xyz_elastic /= (1 / self.cfg.data.voxel_size)  # TODO
+
         num_instance, instance_info, instance_num_point, instance_semantic_cls = self._get_inst_info(
-            points, instance_ids, sem_labels)
+            point_xyz, instance_ids, sem_labels)
 
-        feats = np.zeros(shape=(len(scaled_points), 0), dtype=np.float32)
+        point_features = np.zeros(shape=(len(point_xyz), 0), dtype=np.float32)
         if self.cfg.model.model.use_color:
-            feats = np.concatenate((feats, colors), axis=1)
+            point_features = np.concatenate((point_features, colors), axis=1)
         if self.cfg.model.model.use_normal:
-            feats = np.concatenate((feats, normals), axis=1)
-        if self.cfg.model.model.use_multiview:
-            feats = np.concatenate((feats, multiviews), axis=1)
+            point_features = np.concatenate((point_features, normals), axis=1)
 
-        data["locs"] = points  # (N, 3)
-        data["locs_scaled"] = scaled_points  # (N, 3)
-        data["feats"] = feats  # (N, 3)
-        data["sem_labels"] = sem_labels  # (N,)
-        data["instance_ids"] = instance_ids  # (N,) 0~total_nInst, -1
-        data["num_instance"] = np.array(num_instance, dtype=np.int32)  # int
-        data["instance_info"] = instance_info  # (N, 12)
-        data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)  # (num_instance,)
+        point_features = np.concatenate((point_features, point_xyz), axis=1)  # add xyz to point features
+
+        data["point_xyz"] = point_xyz  # (N, 3)
+        data["sem_labels"] = sem_labels  # (N, )
+        data["instance_ids"] = instance_ids  # (N, )
+        data["num_instance"] = np.array(num_instance, dtype=np.int32)
+        data["instance_info"] = instance_info
+        data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)
         data["instance_semantic_cls"] = instance_semantic_cls
+
+        data["voxel_xyz"], data["voxel_features"], _, data["voxel_point_map"] = ME.utils.sparse_quantize(
+            coordinates=point_xyz_elastic, features=point_features,
+            return_index=True,
+            return_inverse=True, quantization_size=self.cfg.data.voxel_size
+        )
+
         return data
+
+

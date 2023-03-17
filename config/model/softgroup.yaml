@@ -18,6 +18,7 @@ lr_decay:
   decay_stop_epoch: 256
 
 optimizer:
+    name: Adam
     lr: 0.004
 
 model:
@@ -29,12 +30,9 @@ model:
   cluster_blocks: [1, 2]
   block_reps: 2
 
-  use_coord: True
   use_color: True
-  use_multiview: False
   use_normal: False
 
-  freeze_backbone: False
   prepare_epochs: 100
 
   grouping_cfg:

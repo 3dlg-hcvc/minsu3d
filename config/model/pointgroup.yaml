@@ -14,6 +14,7 @@ trainer:
   max_epochs: 496
 
 optimizer:
+    name: Adam
     lr: 0.002
 
 lr_decay:
@@ -29,9 +30,7 @@ model:
   cluster_blocks: [1, 2]
   block_reps: 2
 
-  use_coord: True
   use_color: True
-  use_multiview: False
   use_normal: False
 
   fg_thresh: 0.75
@@ -40,7 +39,6 @@ model:
   score_scale: 50  # the minimal voxel size is 2cm
   score_fullscale: 14
 
-  freeze_backbone: False
   prepare_epochs: 128
 
   loss_weight: [1, 1, 1, 1, 1, 1]

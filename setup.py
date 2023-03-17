@@ -5,7 +5,7 @@ setup(
     version="1.0",
     author="3dlg-hcvc",
     url="https://github.com/3dlg-hcvc/minsu3d.git",
-    description="",
+    description="MinkowskiEngine-powered Scene Understanding in 3D",
     packages=find_packages(include=("data", "model")),
-    install_requires=["plyfile", "tqdm", "trimesh", "pytorch-lightning==1.6.5", "scipy", "open3d", "wandb", "hydra-core", "h5py", "ninja"]
+    install_requires=["plyfile", "tqdm", "trimesh", "pytorch-lightning", "scipy", "open3d", "wandb", "hydra-core", "ninja"]
 )

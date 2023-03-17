@@ -22,7 +22,7 @@ def main(cfg):
     print(f"==> start evaluating {split} set ...")
 
     print("==> Evaluating instance segmentation ...")
-    inst_seg_evaluator = GeneralDatasetEvaluator(cfg.data.class_names, cfg.data.ignore_label, cfg.data.ignore_classes)
+    inst_seg_evaluator = GeneralDatasetEvaluator(cfg.data.class_names, -1, cfg.data.ignore_classes)
 
     all_pred_insts = []
     all_gt_insts = []
@@ -38,7 +38,7 @@ def main(cfg):
         scene_names = [line.strip() for line in f]
 
     for scan_id in tqdm(scene_names):
-        scan_path = os.path.join(cfg.data.dataset_path, split, scan_id + cfg.data.file_suffix)
+        scan_path = os.path.join(cfg.data.dataset_path, split, f"{scan_id}.pth")
         pred_path = os.path.join(pred_file_path, scan_id + ".txt")
 
         # read ground truth files
@@ -52,7 +52,7 @@ def main(cfg):
 
         # parse gt bounding boxes
         gt_instances_bbox = get_gt_bbox(gt_xyz, gt_instance_ids, gt_sem_labels,
-                                        cfg.data.ignore_label, cfg.data.ignore_classes)
+                                        -1, cfg.data.ignore_classes)
         all_gt_insts_bbox.append(gt_instances_bbox)
 
 

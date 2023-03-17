@@ -45,7 +45,7 @@ class SoftGroup(GeneralModel):
             proposals_idx_list = []
 
             for class_id in range(self.hparams.data.classes):
-                if class_id in self.hparams.data.ignore_classes:
+                if class_id + 1 in self.hparams.data.ignore_classes:
                     continue
                 scores = semantic_scores[:, class_id].contiguous()
                 object_idxs = (scores > self.hparams.model.grouping_cfg.score_thr).nonzero().view(-1)
@@ -53,7 +53,7 @@ class SoftGroup(GeneralModel):
                     continue
                 batch_idxs_ = batch_idxs[object_idxs].int()
                 batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.data.batch_size, self.device)
-                coords_ = data_dict["locs"][object_idxs]
+                coords_ = data_dict["point_xyz"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
                 idx, start_len = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
                                                               self.hparams.model.grouping_cfg.radius,
@@ -89,7 +89,7 @@ class SoftGroup(GeneralModel):
                 clusters_idx=proposals_idx,
                 clusters_offset=proposals_offset,
                 feats=output_dict["point_features"],
-                coords=data_dict["locs"],
+                coords=data_dict["point_xyz"],
                 mode=4,
                 device=self.device,
                 **self.hparams.model.instance_voxel_cfg
@@ -140,7 +140,7 @@ class SoftGroup(GeneralModel):
                                                                  data_dict["instance_num_point"])
 
             # filter out background instances
-            fg_inds = (data_dict["instance_semantic_cls"] != self.hparams.data.ignore_label)
+            fg_inds = (data_dict["instance_semantic_cls"] != -1)
             fg_instance_cls = data_dict["instance_semantic_cls"][fg_inds]
             fg_ious_on_cluster = ious_on_cluster[:, fg_inds]
 
@@ -172,7 +172,7 @@ class SoftGroup(GeneralModel):
                                                                     data_dict["instance_ids"],
                                                                     data_dict["instance_semantic_cls"],
                                                                     data_dict["instance_num_point"], ious_on_cluster,
-                                                                    self.hparams.data.ignore_label,
+                                                                    -1,
                                                                     self.hparams.model.train_cfg.pos_iou_thr)
 
             mask_scoring_criterion = MaskScoringLoss(weight=mask_label_mask, reduction='sum')
@@ -200,7 +200,7 @@ class SoftGroup(GeneralModel):
 
     def validation_step(self, data_dict, idx):
         # prepare input and forward
-        output_dict = self._feed(data_dict)
+        output_dict = self(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
 
         # log losses
@@ -212,9 +212,9 @@ class SoftGroup(GeneralModel):
         # log semantic prediction accuracy
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
         semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                       ignore_label=self.hparams.data.ignore_label)
+                                                       ignore_label=-1)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                   ignore_label=self.hparams.data.ignore_label)
+                                                   ignore_label=-1)
         self.log("val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True,
                  sync_dist=True, batch_size=1)
         self.log("val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True,
@@ -222,7 +222,7 @@ class SoftGroup(GeneralModel):
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
-                                                      data_dict["locs"].cpu().numpy(),
+                                                      data_dict["point_xyz"].cpu().numpy(),
                                                       output_dict["proposals_idx"].cpu(),
                                                       output_dict["semantic_scores"].size(0),
                                                       output_dict["cls_scores"].cpu(),
@@ -231,9 +231,9 @@ class SoftGroup(GeneralModel):
                                                       len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
-            gt_instances_bbox = get_gt_bbox(data_dict["locs"].cpu().numpy(),
+            gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
                                             data_dict["instance_ids"].cpu().numpy(),
-                                            data_dict["sem_labels"].cpu().numpy(), self.hparams.data.ignore_label,
+                                            data_dict["sem_labels"].cpu().numpy(), -1,
                                             self.hparams.data.ignore_classes)
 
             return pred_instances, gt_instances, gt_instances_bbox
@@ -242,20 +242,20 @@ class SoftGroup(GeneralModel):
         # prepare input and forward
 
         start_time = time.time()
-        output_dict = self._feed(data_dict)
+        output_dict = self(data_dict)
         end_time = time.time() - start_time
 
         sem_labels_cpu = data_dict["sem_labels"].cpu()
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
         semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions,
                                                        sem_labels_cpu.numpy(),
-                                                       ignore_label=self.hparams.data.ignore_label)
+                                                       ignore_label=-1)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, sem_labels_cpu.numpy(),
-                                                   ignore_label=self.hparams.data.ignore_label)
+                                                   ignore_label=-1)
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
-                                                      data_dict["locs"].cpu().numpy(),
+                                                      data_dict["point_xyz"].cpu().numpy(),
                                                       output_dict["proposals_idx"].cpu(),
                                                       output_dict["semantic_scores"].size(0),
                                                       output_dict["cls_scores"].cpu(),
@@ -265,10 +265,10 @@ class SoftGroup(GeneralModel):
             gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
 
-            gt_instances_bbox = get_gt_bbox(data_dict["locs"].cpu().numpy(),
+            gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
                                             data_dict["instance_ids"].cpu().numpy(),
                                             data_dict["sem_labels"].cpu().numpy(),
-                                            self.hparams.data.ignore_label,
+                                            -1,
                                             self.hparams.data.ignore_classes)
 
             return semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox, end_time

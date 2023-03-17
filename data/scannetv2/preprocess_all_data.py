@@ -31,12 +31,12 @@ def read_mesh_file(mesh_file):
            np.asarray(mesh.vertex_normals, dtype=np.float32)
 
 
-def get_semantic_labels(obj_name_to_segs, seg_to_verts, num_verts, label_map, valid_semantic_mapping, ignore_label):
+def get_semantic_labels(obj_name_to_segs, seg_to_verts, num_verts, label_map, valid_semantic_mapping):
     # create a map, skip invalid labels to make the final semantic labels consecutive
     filtered_label_map = {}
     for i, valid_id in enumerate(valid_semantic_mapping):
         filtered_label_map[valid_id] = i
-    semantic_labels = np.full(shape=num_verts, fill_value=ignore_label, dtype=np.int8)  # max value: 127
+    semantic_labels = np.full(shape=num_verts, fill_value=-1, dtype=np.int8)  # max value: 127
     for label, segs in obj_name_to_segs.items():
         for seg in segs:
             verts = seg_to_verts[seg]
@@ -78,9 +78,9 @@ def read_seg_file(seg_file):
     return seg2verts
 
 
-def get_instance_ids(object_id2segs, seg2verts, sem_labels, ignore_label):
+def get_instance_ids(object_id2segs, seg2verts, sem_labels):
     object_id2label_id = {}
-    instance_ids = np.full(shape=len(sem_labels), fill_value=ignore_label, dtype=np.int16)
+    instance_ids = np.full(shape=len(sem_labels), fill_value=-1, dtype=np.int16)
     for objectId, segs in object_id2segs.items():
         for seg in segs:
             verts = seg2verts[seg]
@@ -106,16 +106,15 @@ def process_one_scan(scan, cfg, split, label_map):
         object_id2segs, label2segs = read_agg_file(agg_file_path, label_map, cfg.data.ignore_classes)
         # get semantic labels
         sem_labels = get_semantic_labels(label2segs, seg2verts, num_verts, label_map,
-                                         cfg.data.mapping_classes_ids, cfg.data.ignore_label)
+                                         cfg.data.mapping_classes_ids)
         # get instance labels
-        instance_ids, object_id2label_id = get_instance_ids(object_id2segs, seg2verts, sem_labels,
-                                                            cfg.data.ignore_label)
+        instance_ids, object_id2label_id = get_instance_ids(object_id2segs, seg2verts, sem_labels)
     else:
         # use zero as placeholders for the test scene
-        sem_labels = np.full(shape=num_verts, fill_value=cfg.data.ignore_label, dtype=np.int8)
-        instance_ids = np.full(shape=num_verts, fill_value=cfg.data.ignore_label, dtype=np.int16)
+        sem_labels = np.full(shape=num_verts, fill_value=-1, dtype=np.int8)
+        instance_ids = np.full(shape=num_verts, fill_value=-1, dtype=np.int16)
     torch.save({'xyz': xyz, 'rgb': rgb, 'normal': normal, 'sem_labels': sem_labels, 'instance_ids': instance_ids},
-               os.path.join(cfg.data.dataset_path, split, f"{scan}{cfg.data.file_suffix}"))
+               os.path.join(cfg.data.dataset_path, split, f"{scan}.pth"))
 
 
 @hydra.main(version_base=None, config_path="../../config", config_name="config")

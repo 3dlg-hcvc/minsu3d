@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import time
-import numpy as np
 from minsu3d.evaluation.instance_segmentation import get_gt_instances, rle_encode
 from minsu3d.evaluation.object_detection import get_gt_bbox
 from minsu3d.common_ops.functions import pointgroup_ops, common_ops
@@ -25,20 +24,20 @@ class PointGroup(GeneralModel):
 
     def forward(self, data_dict):
         output_dict = super().forward(data_dict)
-        if self.current_epoch > self.hparams.model.prepare_epochs or self.hparams.model.freeze_backbone:
-            # get prooposal clusters
+        if self.current_epoch > self.hparams.model.prepare_epochs:
+            # get proposal clusters
             batch_idxs = data_dict["vert_batch_ids"]
             semantic_preds = output_dict["semantic_scores"].max(1)[1]
 
             # set mask
             semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
             for class_label in self.hparams.data.ignore_classes:
-                semantic_preds_mask = semantic_preds_mask & (semantic_preds != class_label)
+                semantic_preds_mask = semantic_preds_mask & (semantic_preds != (class_label - 1))
             object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
             batch_idxs_ = batch_idxs[object_idxs].int()
             batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.data.batch_size, self.device)
-            coords_ = data_dict["locs"][object_idxs]
+            coords_ = data_dict["point_xyz"][object_idxs]
             pt_offsets_ = output_dict["point_offsets"][object_idxs]
 
             semantic_preds_cpu = semantic_preds[object_idxs].cpu().int()
@@ -78,7 +77,7 @@ class PointGroup(GeneralModel):
                 clusters_idx=proposals_idx,
                 clusters_offset=proposals_offset,
                 feats=output_dict["point_features"],
-                coords=data_dict["locs"],
+                coords=data_dict["point_xyz"],
                 scale=self.hparams.model.score_scale,
                 spatial_shape=self.hparams.model.score_fullscale,
                 mode=4,
@@ -106,13 +105,10 @@ class PointGroup(GeneralModel):
             """score loss"""
             scores, proposals_idx, proposals_offset = output_dict["proposal_scores"]
             instance_pointnum = data_dict["instance_num_point"]
-            # scores: (nProposal, 1)
-            # proposals_idx: (sumNPoint, 2), dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-            # proposals_offset: (nProposal + 1)
-            # instance_pointnum: (total_nInst)
+
             ious = common_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset, data_dict["instance_ids"],
-                                      instance_pointnum)  # (nProposal, nInstance)
-            gt_ious, gt_instance_idxs = ious.max(1)  # (nProposal)
+                                      instance_pointnum)
+            gt_ious, gt_instance_idxs = ious.max(1)
             gt_scores = get_segmented_scores(gt_ious, self.hparams.model.fg_thresh, self.hparams.model.bg_thresh)
             score_criterion = ScoreLoss()
             score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
@@ -122,7 +118,7 @@ class PointGroup(GeneralModel):
 
     def validation_step(self, data_dict, idx):
         # prepare input and forward
-        output_dict = self._feed(data_dict)
+        output_dict = self(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
 
         # log losses
@@ -134,9 +130,9 @@ class PointGroup(GeneralModel):
         # log semantic prediction accuracy
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
         semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                       ignore_label=self.hparams.data.ignore_label)
+                                                       ignore_label=-1)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                   ignore_label=self.hparams.data.ignore_label)
+                                                   ignore_label=-1)
         self.log("val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True,
                  batch_size=1)
         self.log("val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True,
@@ -144,7 +140,7 @@ class PointGroup(GeneralModel):
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
-                                                      data_dict["locs"].cpu().numpy(),
+                                                      data_dict["point_xyz"].cpu().numpy(),
                                                       output_dict["proposal_scores"][0].cpu(),
                                                       output_dict["proposal_scores"][1].cpu(),
                                                       output_dict["proposal_scores"][2].size(0) - 1,
@@ -152,9 +148,9 @@ class PointGroup(GeneralModel):
                                                       len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
-            gt_instances_bbox = get_gt_bbox(data_dict["locs"].cpu().numpy(),
+            gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
                                             data_dict["instance_ids"].cpu().numpy(),
-                                            data_dict["sem_labels"].cpu().numpy(), self.hparams.data.ignore_label,
+                                            data_dict["sem_labels"].cpu().numpy(), -1,
                                             self.hparams.data.ignore_classes)
 
             return pred_instances, gt_instances, gt_instances_bbox
@@ -162,20 +158,20 @@ class PointGroup(GeneralModel):
     def test_step(self, data_dict, idx):
         # prepare input and forward
         start_time = time.time()
-        output_dict = self._feed(data_dict)
+        output_dict = self(data_dict)
         end_time = time.time() - start_time
 
         sem_labels_cpu = data_dict["sem_labels"].cpu()
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
         semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions,
                                                        sem_labels_cpu.numpy(),
-                                                       ignore_label=self.hparams.data.ignore_label)
+                                                       ignore_label=-1)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, sem_labels_cpu.numpy(),
-                                                   ignore_label=self.hparams.data.ignore_label)
+                                                   ignore_label=-1)
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
-                                                      data_dict["locs"].cpu().numpy(),
+                                                      data_dict["point_xyz"].cpu().numpy(),
                                                       output_dict["proposal_scores"][0].cpu(),
                                                       output_dict["proposal_scores"][1].cpu(),
                                                       output_dict["proposal_scores"][2].size(0) - 1,
@@ -183,9 +179,9 @@ class PointGroup(GeneralModel):
                                                       len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
-            gt_instances_bbox = get_gt_bbox(data_dict["locs"].cpu().numpy(),
+            gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
                                             data_dict["instance_ids"].cpu().numpy(),
-                                            data_dict["sem_labels"].cpu().numpy(), self.hparams.data.ignore_label,
+                                            data_dict["sem_labels"].cpu().numpy(), -1,
                                             self.hparams.data.ignore_classes)
             return semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox, end_time
 
@@ -215,13 +211,11 @@ class PointGroup(GeneralModel):
     def _get_pred_instances(self, scan_id, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores,
                             num_ignored_classes):
         semantic_pred_labels = semantic_scores.max(1)[1]
-        proposals_score = torch.sigmoid(proposals_scores.view(-1))  # (nProposal,)
-        # proposals_idx: (sumNPoint, 2), dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-        # proposals_offset: (nProposal + 1)
+        proposals_score = torch.sigmoid(proposals_scores.view(-1))
 
         N = semantic_scores.shape[0]
 
-        proposals_mask = torch.zeros((num_proposals, N), dtype=torch.bool, device="cpu")  # (nProposal, N)
+        proposals_mask = torch.zeros((num_proposals, N), dtype=torch.bool, device="cpu")
         proposals_mask[proposals_idx[:, 0].long(), proposals_idx[:, 1].long()] = True
 
         # score threshold & min_npoint mask

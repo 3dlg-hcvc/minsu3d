@@ -13,6 +13,10 @@ log:
 trainer:
   max_epochs: 512
 
+optimizer:
+    name: Adam # Adam, AdamW or SGD
+    lr: 0.0015
+
 model:
   module: HAIS
   experiment_name: run_1
@@ -22,9 +26,7 @@ model:
   cluster_blocks: [1, 2]
   block_reps: 2
 
-  use_coord: True
   use_color: True
-  use_multiview: False
   use_normal: False
 
   fg_thresh: 1
@@ -33,7 +35,6 @@ model:
   score_scale: 50  # the minimal voxel size is 2cm
   score_fullscale: 20
 
-  freeze_backbone: False
   prepare_epochs: 100
 
   loss_weight: [1, 1, 1, 1, 1, 1]

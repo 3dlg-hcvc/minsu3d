@@ -35,8 +35,7 @@ def main(cfg):
     data_module = DataModule(cfg)
 
     print("==> initializing logger ...")
-    logger = getattr(import_module("pytorch_lightning.loggers"), cfg.model.log.module) \
-        (save_dir=output_path, **cfg.model.log[cfg.model.log.module])
+    logger = hydra.utils.instantiate(cfg.model.logger, save_dir=output_path)
 
     print("==> initializing monitor ...")
     callbacks = init_callbacks(cfg, output_path)

@@ -37,12 +37,12 @@ class HAIS(GeneralModel):
             # set mask
             semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
             for class_label in self.hparams.data.ignore_classes:
-                semantic_preds_mask = semantic_preds_mask & (semantic_preds != class_label)
+                semantic_preds_mask = semantic_preds_mask & (semantic_preds != (class_label - 1))
             object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
             batch_idxs_ = batch_idxs[object_idxs].int()
             batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.data.batch_size, self.device)
-            coords_ = data_dict["locs"][object_idxs]
+            coords_ = data_dict["point_xyz"][object_idxs]
             pt_offsets_ = output_dict["point_offsets"][object_idxs]
 
             semantic_preds_cpu = semantic_preds[object_idxs].cpu().int()
@@ -56,7 +56,7 @@ class HAIS(GeneralModel):
             proposals_idx, proposals_offset = hais_ops.hierarchical_aggregation(
                 semantic_preds_cpu, (coords_ + pt_offsets_).cpu(), idx_shift.cpu(), start_len_shift.cpu(),
                 batch_idxs_.cpu(), using_set_aggr, self.hparams.data.point_num_avg, self.hparams.data.radius_avg,
-                self.hparams.data.ignore_label)
+               -1)
 
             proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
 
@@ -65,7 +65,7 @@ class HAIS(GeneralModel):
                 clusters_idx=proposals_idx,
                 clusters_offset=proposals_offset,
                 feats=output_dict["point_features"],
-                coords=data_dict["locs"],
+                coords=data_dict["point_xyz"],
                 scale=self.hparams.model.score_scale,
                 spatial_shape=self.hparams.model.score_fullscale,
                 mode=4,
@@ -119,7 +119,7 @@ class HAIS(GeneralModel):
                                                                     data_dict["instance_ids"],
                                                                     data_dict["instance_semantic_cls"],
                                                                     data_dict["instance_num_point"], ious,
-                                                                    self.hparams.data.ignore_label, 0.5)
+                                                                    -1, 0.5)
             mask_label = mask_label.unsqueeze(1)
             mask_label_mask = mask_label_mask.unsqueeze(1)
             mask_scoring_criterion = MaskScoringLoss(weight=mask_label_mask, reduction='mean')
@@ -137,7 +137,7 @@ class HAIS(GeneralModel):
 
     def validation_step(self, data_dict, idx):
         # prepare input and forward
-        output_dict = self._feed(data_dict)
+        output_dict = self(data_dict)
         losses, total_loss = self._loss(data_dict, output_dict)
 
         # log losses
@@ -148,15 +148,15 @@ class HAIS(GeneralModel):
         # log semantic prediction accuracy
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
         semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                       ignore_label=self.hparams.data.ignore_label)
+                                                       ignore_label=-1)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                   ignore_label=self.hparams.data.ignore_label)
+                                                   ignore_label=-1)
         self.log("val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
         self.log("val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
         
         if self.current_epoch > self.hparams.model.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
-                                                      data_dict["locs"].cpu().numpy(),
+                                                      data_dict["point_xyz"].cpu().numpy(),
                                                       output_dict["proposal_scores"][0].cpu(),
                                                       output_dict["proposal_scores"][1].cpu(),
                                                       output_dict["proposal_scores"][2].size(0) - 1,
@@ -164,10 +164,10 @@ class HAIS(GeneralModel):
                                                       output_dict["semantic_scores"].cpu(), len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
-            gt_instances_bbox = get_gt_bbox(data_dict["locs"].cpu().numpy(),
+            gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
                                             data_dict["instance_ids"].cpu().numpy(),
                                             data_dict["sem_labels"].cpu().numpy(),
-                                            self.hparams.data.ignore_label,
+                                            -1,
                                             self.hparams.data.ignore_classes)
 
             return pred_instances, gt_instances, gt_instances_bbox
@@ -175,19 +175,19 @@ class HAIS(GeneralModel):
     def test_step(self, data_dict, idx):
         # prepare input and forward
         start_time = time.time()
-        output_dict = self._feed(data_dict)
+        output_dict = self(data_dict)
         end_time = time.time() - start_time
         sem_labels_cpu = data_dict["sem_labels"].cpu()
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
         semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions,
                                                        sem_labels_cpu.numpy(),
-                                                       ignore_label=self.hparams.data.ignore_label)
+                                                       ignore_label=-1)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, sem_labels_cpu.numpy(),
-                                                   ignore_label=self.hparams.data.ignore_label)
+                                                   ignore_label=-1)
 
         if self.current_epoch > self.hparams.model.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
-                                                      data_dict["locs"].cpu().numpy(),
+                                                      data_dict["point_xyz"].cpu().numpy(),
                                                       output_dict["proposal_scores"][0].cpu(),
                                                       output_dict["proposal_scores"][1].cpu(),
                                                       output_dict["proposal_scores"][2].size(0) - 1,
@@ -195,10 +195,10 @@ class HAIS(GeneralModel):
                                                       output_dict["semantic_scores"].cpu(), len(self.hparams.data.ignore_classes))
             gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
                                             self.hparams.data.ignore_classes)
-            gt_instances_bbox = get_gt_bbox(data_dict["locs"].cpu().numpy(),
+            gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
                                             data_dict["instance_ids"].cpu().numpy(),
                                             data_dict["sem_labels"].cpu().numpy(),
-                                            self.hparams.data.ignore_label,
+                                            -1,
                                             self.hparams.data.ignore_classes)
 
             return semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox, end_time
