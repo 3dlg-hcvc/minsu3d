@@ -54,28 +54,17 @@ class GeneralDataset(Dataset):
         return instance_ids
 
     def _get_inst_info(self, xyz, instance_ids, sem_labels):
-        """
-        :param xyz: (n, 3)
-        :param instance_ids: (n), int, (0~nInst-1, -1)
-        :return: num_instance, dict
-        """
-        instance_num_point = []  # (nInst), int
+        instance_num_point = []
         unique_instance_ids = np.unique(instance_ids)
         unique_instance_ids = unique_instance_ids[unique_instance_ids != -1]
         num_instance = unique_instance_ids.shape[0]
-        # (n, 3), float, (meanx, meany, meanz)
-        instance_info = np.empty(shape=(xyz.shape[0], 3), dtype=np.float32)
+        instance_center_xyz = np.empty(shape=(xyz.shape[0], 3), dtype=np.float32)
         instance_cls = np.full(shape=unique_instance_ids.shape[0], fill_value=-1, dtype=np.int8)
         for index, i in enumerate(unique_instance_ids):
             inst_i_idx = np.where(instance_ids == i)[0]
 
-            # instance_info
-            xyz_i = xyz[inst_i_idx]
-
-            mean_xyz_i = xyz_i.mean(0)
-
-            # offset
-            instance_info[inst_i_idx] = mean_xyz_i
+            # instance center
+            instance_center_xyz[inst_i_idx] = xyz[inst_i_idx].mean(0)
 
             # instance_num_point
             instance_num_point.append(inst_i_idx.size)
@@ -85,18 +74,18 @@ class GeneralDataset(Dataset):
             instance_cls[index] = sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[cls_idx] != -1 else sem_labels[cls_idx]
             # bounding boxes
 
-        return num_instance, instance_info, instance_num_point, instance_cls
+        return num_instance, instance_center_xyz, instance_num_point, instance_cls
 
     def __getitem__(self, idx):
         scene_id = self.scene_names[idx]
         scene = self.scenes[idx]
 
-        point_xyz = scene["xyz"]  # (N, 3)
-        colors = scene["rgb"]  # (N, 3)
-        normals = scene["normal"]
+        point_xyz = scene["xyz"].astype(np.float32)  # (N, 3)
+        colors = scene["rgb"].astype(np.float32)  # (N, 3)
+        normals = scene["normal"].astype(np.float32)  # (N, 3)
 
-        instance_ids = scene["instance_ids"]
-        sem_labels = scene["sem_labels"]
+        instance_ids = scene["instance_ids"].astype(np.int32)  # (N, )
+        sem_labels = scene["sem_labels"].astype(np.int32)  # (N, )
         data = {"scan_id": scene_id}
 
         # augment
@@ -116,7 +105,6 @@ class GeneralDataset(Dataset):
         else:
             point_xyz_elastic = point_xyz * scale
 
-        # offset
         point_xyz_elastic -= point_xyz_elastic.min(axis=0)
 
         # crop
@@ -145,13 +133,13 @@ class GeneralDataset(Dataset):
 
         point_xyz_elastic /= (1 / self.cfg.data.voxel_size)  # TODO
 
-        num_instance, instance_info, instance_num_point, instance_semantic_cls = self._get_inst_info(
+        num_instance, instance_center_xyz, instance_num_point, instance_semantic_cls = self._get_inst_info(
             point_xyz, instance_ids, sem_labels)
 
         point_features = np.zeros(shape=(len(point_xyz), 0), dtype=np.float32)
-        if self.cfg.model.model.use_color:
+        if self.cfg.model.network.use_color:
             point_features = np.concatenate((point_features, colors), axis=1)
-        if self.cfg.model.model.use_normal:
+        if self.cfg.model.network.use_normal:
             point_features = np.concatenate((point_features, normals), axis=1)
 
         point_features = np.concatenate((point_features, point_xyz), axis=1)  # add xyz to point features
@@ -160,7 +148,7 @@ class GeneralDataset(Dataset):
         data["sem_labels"] = sem_labels  # (N, )
         data["instance_ids"] = instance_ids  # (N, )
         data["num_instance"] = np.array(num_instance, dtype=np.int32)
-        data["instance_info"] = instance_info
+        data["instance_center_xyz"] = instance_center_xyz
         data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)
         data["instance_semantic_cls"] = instance_semantic_cls
 

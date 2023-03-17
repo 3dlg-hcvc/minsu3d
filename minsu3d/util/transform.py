@@ -3,10 +3,6 @@ import scipy.ndimage
 import scipy.interpolate
 
 
-##############################
-#           Rotation         #
-##############################
-
 def jitter(intensity=0.1):
     """
     params:
@@ -63,9 +59,9 @@ def elastic(x, gran, mag):
 
 
 def crop(pc, max_num_point, scale):
-    '''
+    """
     Crop the points such that there are at most max_num_points points
-    '''
+    """
     pc_offset = pc.copy()
     valid_idxs = pc_offset.min(1) >= 0
     max_pc_range = np.full(shape=3, fill_value=scale, dtype=np.uint16)

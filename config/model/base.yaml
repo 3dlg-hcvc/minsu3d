@@ -5,14 +5,8 @@ ckpt_path: null
 logger:
   # https://pytorch-lightning.readthedocs.io/en/stable/extensions/generated/pytorch_lightning.loggers.WandbLogger.html
   _target_: pytorch_lightning.loggers.WandbLogger
-  project: General
-  name: run_1
-
-  # https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.loggers.tensorboard.html
-  #  _target_: pytorch_lightning.loggers.TensorBoardLogger
-  #  default_hp_metric: False
-  #  name: run_1
-
+  project: ${model.network.module}
+  name: ${experiment_name}
 
 # https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
 trainer:
@@ -45,4 +39,3 @@ inference:
   split: val
   evaluate: True
   save_predictions: True
-  output_dir: predictions

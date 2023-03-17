@@ -9,11 +9,7 @@ from minsu3d.util.io import read_gt_files_from_disk, read_pred_files_from_disk
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg):
     split = cfg.model.inference.split
-    pred_file_path = os.path.join(cfg.exp_output_root_path, cfg.data.dataset,
-                               cfg.model.model.module, cfg.model.model.experiment_name,
-                               "inference", cfg.model.inference.split, "predictions", "instance")
-
-    # pred_file_path = "/project/3dlg-hcvc/multiscan/benchmark_result/MultiScanObj_New/SSTNet/seed-789-obj/inference/val/predictions/instance"
+    pred_file_path = os.path.join(cfg.exp_output_root_path, "inference", cfg.model.inference.split, "predictions", "instance")
 
     if not os.path.exists(pred_file_path):
         print("Error: prediction files do not exist.")

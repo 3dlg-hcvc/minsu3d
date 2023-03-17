@@ -17,20 +17,16 @@ We also provide bounding boxes predictions based on instance segmentation for 3D
 
 ## Setup
 
-**Environment requirements**
-- CUDA 11.X
-- Python 3.8
-
 ### Conda (recommended)
 We recommend the use of [miniconda](https://docs.conda.io/en/latest/miniconda.html) to manage system dependencies.
 
 ```shell
 # create and activate the conda environment
-conda create -n minsu3d python=3.8
+conda create -n minsu3d python=3.10
 conda activate minsu3d
 
-# install PyTorch 1.8.2
-conda install pytorch cudatoolkit=11.1 -c pytorch-lts -c nvidia
+# install PyTorch 2.0.0
+conda install pytorch torchvision pytorch-cuda=11.7 -c pytorch -c nvidia
 
 # install Python libraries
 pip install -e .
@@ -59,7 +55,7 @@ virtualenv --no-download env
 source env/bin/activate
 
 # install PyTorch 1.8.2
-pip install torch==1.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cu111
+pip install torch torchvision
 
 # install Python libraries
 pip install -e .
@@ -78,8 +74,7 @@ python setup.py develop
 ## Data Preparation
 
 ### ScanNet v2 dataset
-1. Download the [ScanNet v2](http://www.scan-net.org/) dataset. To acquire the access to the dataset, please refer to their [instructions](https://github.com/ScanNet/ScanNet#scannet-data). You will get a `download-scannet.py` script after your request is approved:
-
+1. Download the [ScanNet v2](http://www.scan-net.org/) dataset and put it under `minsu3d/data/scannetv2`. To acquire the access to the dataset, please refer to their [instructions](https://github.com/ScanNet/ScanNet#scannet-data). You will get a `download-scannet.py` script after your request is approved:
 ```shell
 # about 10.7GB in total
 python download-scannet.py -o data/scannet --type _vh_clean_2.ply
@@ -90,7 +85,7 @@ python download-scannet.py -o data/scannet --type _vh_clean_2.0.010000.segs.json
 2. Preprocess the data, it converts original meshes and annotations to `.pth` data:
 ```shell
 cd data/scannet
-python preprocess_all_data.py data=scannetv2 +raw_scan_path={PATH_TO_SCANNETV2}/scans
+python preprocess_all_data.py data=scannetv2 data.raw_scene_path={PATH_TO_SCANNETV2}/scans
 ```
 
 ## Training, Inference and Evaluation
@@ -100,7 +95,9 @@ Note: Configuration files are managed by [Hydra](https://hydra.cc/), you can eas
 wandb login
 
 # train a model from scratch
-python train.py model={model_name} data={dataset_name}
+# available model_name: pointgroup, hais, softgroup
+# available dataset_name: scannetv2
+python train.py model={model_name} data={dataset_name} experiment_name={experiment_name}
 
 # train a model from scratch with 2 GPUs
 python train.py model={model_name} data={dataset_name} model.trainer.devices=2
@@ -112,12 +109,12 @@ python train.py model={model_name} data={dataset_name} model.ckpt_path={checkpoi
 python test.py model={model_name} data={dataset_name} model.ckpt_path={pretrained_model_path}
 
 # evaluate inference results
-python eval.py model={model_name} data={dataset_name} model.model.experiment_name={experiment_name}
+python eval.py model={model_name} data={dataset_name} experiment_name={experiment_name}
 
 # examples:
 # python train.py model=pointgroup data=scannetv2 model.trainer.max_epochs=480
 # python test.py model=pointgroup data=scannetv2 model.ckpt_path=PointGroup_best.ckpt
-# python eval.py model=hais data=scannetv2 model.model.experiment_name=run_1
+# python eval.py model=hais data=scannetv2 experiment_name=run_1
 ```
 
 ## Pretrained Models

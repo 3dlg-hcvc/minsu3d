@@ -6,7 +6,7 @@ defaults:
 log:
   WandbLogger:
     project: PointGroup
-    name: ${model.model.experiment_name}
+    name: ${experiment_name}
   TensorBoardLogger:
     name: PointGroup
 
@@ -14,16 +14,15 @@ trainer:
   max_epochs: 496
 
 optimizer:
-    name: Adam
+    _target_: torch.optim.Adam
     lr: 0.002
 
 lr_decay:
   decay_start_epoch: 250
   decay_stop_epoch: 496
 
-model:
+network:
   module: PointGroup
-  experiment_name: run_1
 
   m: 16 # 16 or 32
   blocks: [1, 2, 3, 4, 5, 6, 7]
@@ -39,9 +38,7 @@ model:
   score_scale: 50  # the minimal voxel size is 2cm
   score_fullscale: 14
 
-  prepare_epochs: 128
-
-  loss_weight: [1, 1, 1, 1, 1, 1]
+  prepare_epochs: 10
 
   cluster:
     # point grouping

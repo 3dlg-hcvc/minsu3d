@@ -43,7 +43,7 @@ def sparse_collate_fn(batch):
     vert_batch_ids = []
     sem_labels = []
     instance_ids = []
-    instance_info = []
+    instance_center_xyz = []
     instance_num_point = []
     instance_offsets = [0]
     total_num_inst = 0
@@ -73,7 +73,7 @@ def sparse_collate_fn(batch):
 
         sem_labels.append(torch.from_numpy(b["sem_labels"]))
 
-        instance_info.append(torch.from_numpy(b["instance_info"]))
+        instance_center_xyz.append(torch.from_numpy(b["instance_center_xyz"]))
         instance_num_point.append(torch.from_numpy(b["instance_num_point"]))
         instance_offsets.append(instance_offsets[-1] + b["num_instance"].item())
 
@@ -86,7 +86,7 @@ def sparse_collate_fn(batch):
 
     data["sem_labels"] = torch.cat(sem_labels, dim=0)
     data["instance_ids"] = torch.cat(instance_ids, dim=0)
-    data["instance_info"] = torch.cat(instance_info, dim=0)
+    data["instance_center_xyz"] = torch.cat(instance_center_xyz, dim=0)
     data["instance_num_point"] = torch.cat(instance_num_point, dim=0)
     data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int32)
     data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.int32)
