@@ -312,7 +312,7 @@ def print_results(bbox_aps, class_names, ignored_classes_indices):
     print(line)
     print('#' * lineLen)
 
-    filtered_class_names = [elem for i, elem in enumerate(class_names) if i not in ignored_classes_indices]
+    filtered_class_names = [elem for i, elem in enumerate(class_names) if i + 1 not in ignored_classes_indices]
 
     for (li, label_name) in enumerate(filtered_class_names):
         ap_50o = bbox_aps['all_bbox_ap_0.5'][li]

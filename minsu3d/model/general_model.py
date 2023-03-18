@@ -110,13 +110,6 @@ class GeneralModel(pl.LightningModule):
                 all_gt_insts.append(gt_instances)
                 all_pred_insts.append(pred_instances)
 
-            if self.hparams.cfg.model.inference.save_predictions:
-                save_prediction(self.hparams.cfg.model.inference.output_dir, all_pred_insts,
-                                self.hparams.cfg.data.mapping_classes_ids, self.hparams.cfg.data.ignore_classes)
-                self.print(
-                    f"\nPredictions saved at {os.path.join(self.hparams.cfg.exp_output_root_path, 'inference', self.hparams.cfg.model.inference.split, 'predictions', 'instance')}"
-                )
-
             if self.hparams.cfg.model.inference.evaluate:
                 inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.cfg.data.class_names,
                                                              -1,
@@ -132,6 +125,14 @@ class GeneralModel(pl.LightningModule):
                 self.print(f"Semantic Accuracy: {sem_acc_avg}")
                 self.print(f"Semantic mean IoU: {sem_miou_avg}")
 
+            if self.hparams.cfg.model.inference.save_predictions:
+                save_dir = os.path.join(
+                    self.hparams.cfg.exp_output_root_path, 'inference', self.hparams.cfg.model.inference.split, 'predictions', 'instance'
+                )
+                save_prediction(save_dir, all_pred_insts, self.hparams.cfg.data.mapping_classes_ids, self.hparams.cfg.data.ignore_classes)
+                self.print(
+                    f"\nPredictions saved at {os.path.abspath(save_dir)}"
+                )
 
 def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, mode, device):
     batch_idx = clusters_idx[:, 0].long().cuda()

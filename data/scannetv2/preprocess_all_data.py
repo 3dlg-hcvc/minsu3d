@@ -31,33 +31,26 @@ def read_mesh_file(mesh_file):
            np.asarray(mesh.vertex_normals, dtype=np.float32)
 
 
-def get_semantic_labels(obj_name_to_segs, seg_to_verts, num_verts, label_map, valid_semantic_mapping):
-    # create a map, skip invalid labels to make the final semantic labels consecutive
-    filtered_label_map = {}
-    for i, valid_id in enumerate(valid_semantic_mapping):
-        filtered_label_map[valid_id] = i
+def get_semantic_labels(obj_name_to_segs, seg_to_verts, num_verts, label_map, filtered_label_map):
     semantic_labels = np.full(shape=num_verts, fill_value=-1, dtype=np.int8)  # max value: 127
     for label, segs in obj_name_to_segs.items():
         for seg in segs:
             verts = seg_to_verts[seg]
             if label not in label_map or label_map[label] not in filtered_label_map:
-                label_id = 39
+                semantic_label = -1
             else:
-                label_id = label_map[label]
-            semantic_labels[verts] = filtered_label_map[label_id]
+                semantic_label = filtered_label_map[label_map[label]]
+            semantic_labels[verts] = semantic_label
     return semantic_labels
 
 
-def read_agg_file(file_path, label_map, invalid_ids):
+def read_agg_file(file_path):
     object_id_to_segs = {}
     obj_name_to_segs = {}
     with open(file_path, "r") as f:
         data = json.load(f)
     for group in data['segGroups']:
         object_name = group['label']
-        if label_map[object_name] in invalid_ids:
-            # skip room architecture
-            continue
         segments = group['segments']
         object_id_to_segs[group["objectId"]] = segments
         if object_name in obj_name_to_segs:
@@ -78,16 +71,20 @@ def read_seg_file(seg_file):
     return seg2verts
 
 
-def get_instance_ids(object_id2segs, seg2verts, sem_labels):
+def get_instance_ids(object_id2segs, seg2verts, sem_labels, invalid_ids):
     object_id2label_id = {}
     instance_ids = np.full(shape=len(sem_labels), fill_value=-1, dtype=np.int16)
-    for objectId, segs in object_id2segs.items():
+    new_object_id = 0
+    for _, segs in object_id2segs.items():
         for seg in segs:
             verts = seg2verts[seg]
-            instance_ids[verts] = objectId
-        if objectId not in object_id2label_id:
-            object_id2label_id[objectId] = sem_labels[verts][0]
-    return instance_ids, object_id2label_id
+            if sem_labels[verts][0] in invalid_ids:
+                # skip room architecture and point with invalid semantic labels
+                new_object_id -= 1
+                break
+            instance_ids[verts] = new_object_id
+        new_object_id += 1
+    return instance_ids
 
 
 def process_one_scan(scan, cfg, split, label_map):
@@ -103,12 +100,19 @@ def process_one_scan(scan, cfg, split, label_map):
         # read seg_file
         seg2verts = read_seg_file(seg_file_path)
         # read agg_file
-        object_id2segs, label2segs = read_agg_file(agg_file_path, label_map, cfg.data.ignore_classes)
+        object_id2segs, label2segs = read_agg_file(agg_file_path)
+
         # get semantic labels
-        sem_labels = get_semantic_labels(label2segs, seg2verts, num_verts, label_map,
-                                         cfg.data.mapping_classes_ids)
+        # create a map, skip invalid labels to make the final semantic labels consecutive
+        filtered_label_map = {}
+        invalid_ids = []
+        for i, sem_id in enumerate(cfg.data.mapping_classes_ids):
+            filtered_label_map[sem_id] = i
+            if sem_id in cfg.data.ignore_classes:
+                invalid_ids.append(filtered_label_map[sem_id])
+        sem_labels = get_semantic_labels(label2segs, seg2verts, num_verts, label_map, filtered_label_map)
         # get instance labels
-        instance_ids, object_id2label_id = get_instance_ids(object_id2segs, seg2verts, sem_labels)
+        instance_ids = get_instance_ids(object_id2segs, seg2verts, sem_labels, invalid_ids)
     else:
         # use zero as placeholders for the test scene
         sem_labels = np.full(shape=num_verts, fill_value=-1, dtype=np.int8)

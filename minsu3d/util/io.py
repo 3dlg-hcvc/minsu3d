@@ -10,7 +10,7 @@ def save_prediction(save_path, all_pred_insts, mapping_ids, ignored_classes_indi
     inst_pred_masks_path = os.path.join(inst_pred_path, "predicted_masks")
     os.makedirs(inst_pred_masks_path, exist_ok=True)
     scan_instance_count = {}
-    filtered_mapping_ids = [elem for i, elem in enumerate(mapping_ids) if i not in ignored_classes_indices]
+    filtered_mapping_ids = [elem for i, elem in enumerate(mapping_ids) if i + 1 not in ignored_classes_indices]
     id_mappings = {}
     for i, label in enumerate(filtered_mapping_ids):
         id_mappings[i] = label

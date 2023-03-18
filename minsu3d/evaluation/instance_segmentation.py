@@ -103,7 +103,7 @@ class Instance(object):
 class GeneralDatasetEvaluator(object):
 
     def __init__(self, class_labels, ignored_label, ignored_classes_indices, iou_type=None, use_label=True):
-        self.valid_class_labels = [elem for i, elem in enumerate(class_labels) if i not in ignored_classes_indices]
+        self.valid_class_labels = [elem for i, elem in enumerate(class_labels) if i + 1 not in ignored_classes_indices]
         self.ignored_label = ignored_label
         self.valid_class_ids = np.arange(len(self.valid_class_labels)) + 1
         self.id2label = {}
