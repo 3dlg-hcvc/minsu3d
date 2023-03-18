@@ -127,7 +127,7 @@ class GeneralModel(pl.LightningModule):
 
             if self.hparams.cfg.model.inference.save_predictions:
                 save_dir = os.path.join(
-                    self.hparams.cfg.exp_output_root_path, 'inference', self.hparams.cfg.model.inference.split, 'predictions', 'instance'
+                    self.hparams.cfg.exp_output_root_path, 'inference', self.hparams.cfg.model.inference.split, 'predictions'
                 )
                 save_prediction(save_dir, all_pred_insts, self.hparams.cfg.data.mapping_classes_ids, self.hparams.cfg.data.ignore_classes)
                 self.print(

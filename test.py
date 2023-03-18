@@ -14,7 +14,7 @@ def main(cfg):
     print("=> initializing trainer...")
     trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=1, logger=False)
 
-    output_path = os.path.join(cfg.exp_output_root_path, "inference", "predictions")
+    output_path = os.path.join(cfg.exp_output_root_path, "inference", cfg.model.inference.split, "predictions")
     os.makedirs(output_path, exist_ok=True)
 
     print("==> initializing data ...")
