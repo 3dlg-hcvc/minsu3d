@@ -83,7 +83,7 @@ class HAIS(GeneralModel):
                 mask_index_select = torch.ones_like(mask_scores)
                 mask_index_select[torch.sigmoid(mask_scores) < self.hparams.cfg.model.network.mask_filter_score_feature_thre] = 0.
                 score_feats = score_feats * mask_index_select
-            score_feats = common_ops.roipool(score_feats, proposals_offset.cuda())  # (nProposal, C)
+            score_feats = common_ops.roipool(score_feats, proposals_offset.to(self.device))  # (nProposal, C)
             scores = self.score_branch(score_feats)  # (nProposal, 1)
             output_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset, mask_scores)
         return output_dict
@@ -98,8 +98,8 @@ class HAIS(GeneralModel):
             # get iou and calculate mask label and mask loss
             mask_scores_sigmoid = torch.sigmoid(mask_scores)
 
-            proposals_idx = proposals_idx[:, 1].cuda()
-            proposals_offset = proposals_offset.cuda()
+            proposals_idx = proposals_idx[:, 1].to(self.device)
+            proposals_offset = proposals_offset.to(self.device)
 
             if self.current_epoch > self.hparams.cfg.model.network.cal_iou_based_on_mask_start_epoch:
                 ious = common_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],

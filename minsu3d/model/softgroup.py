@@ -79,7 +79,7 @@ class SoftGroup(GeneralModel):
                 proposals_idx = proposals_idx[:proposals_offset[-1]]
                 assert proposals_idx.shape[0] == proposals_offset[-1]
 
-            proposals_offset = proposals_offset.cuda()
+            proposals_offset = proposals_offset.to(self.device)
             output_dict["proposals_idx"] = proposals_idx
             output_dict["proposals_offset"] = proposals_offset
 
@@ -93,7 +93,7 @@ class SoftGroup(GeneralModel):
                 **self.hparams.cfg.model.network.instance_voxel_cfg
             )
 
-            inst_map = inst_map.long().cuda()
+            inst_map = inst_map.long().to(self.device)
 
             feats = self.tiny_unet(inst_feats)
 
@@ -126,7 +126,7 @@ class SoftGroup(GeneralModel):
         losses = super()._loss(data_dict, output_dict)
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
-            proposals_idx = output_dict["proposals_idx"][:, 1].cuda()
+            proposals_idx = output_dict["proposals_idx"][:, 1].to(self.device)
             proposals_offset = output_dict["proposals_offset"]
 
             # calculate iou of clustered instance

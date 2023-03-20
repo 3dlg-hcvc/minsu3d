@@ -64,7 +64,7 @@ class PointGroup(GeneralModel):
             proposals_offset_shift += proposals_offset[-1]
             proposals_idx = torch.cat((proposals_idx, proposals_idx_shift), dim=0)
             proposals_offset = torch.cat((proposals_offset, proposals_offset_shift[1:]))
-            proposals_offset = proposals_offset.cuda()
+            proposals_offset = proposals_offset.to(self.device)
 
             # proposals voxelization again
             proposals_voxel_feats, proposals_p2v_map = clusters_voxelization(
@@ -80,7 +80,7 @@ class PointGroup(GeneralModel):
 
             # score
             score_feats = self.score_net(proposals_voxel_feats)
-            pt_score_feats = score_feats.features[proposals_p2v_map.long().cuda()]  # (sumNPoint, C)
+            pt_score_feats = score_feats.features[proposals_p2v_map.long().to(self.device)]  # (sumNPoint, C)
             proposals_score_feats = common_ops.roipool(pt_score_feats, proposals_offset)  # (nProposal, C)
             scores = self.score_branch(proposals_score_feats)  # (nProposal, 1)
             output_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
@@ -95,7 +95,7 @@ class PointGroup(GeneralModel):
             scores, proposals_idx, proposals_offset = output_dict["proposal_scores"]
             instance_pointnum = data_dict["instance_num_point"]
 
-            ious = common_ops.get_iou(proposals_idx[:, 1].cuda(), proposals_offset, data_dict["instance_ids"],
+            ious = common_ops.get_iou(proposals_idx[:, 1].to(self.device), proposals_offset, data_dict["instance_ids"],
                                       instance_pointnum)
             gt_ious, gt_instance_idxs = ious.max(1)
             gt_scores = get_segmented_scores(

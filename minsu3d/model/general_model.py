@@ -140,11 +140,11 @@ class GeneralModel(pl.LightningModule):
 
 
 def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, mode, device):
-    batch_idx = clusters_idx[:, 0].long().cuda()
-    c_idxs = clusters_idx[:, 1].long().cuda()
+    batch_idx = clusters_idx[:, 0].long().to(device)
+    c_idxs = clusters_idx[:, 1].long().to(device)
     feats = feats[c_idxs]
     clusters_coords = coords[c_idxs]
-    clusters_offset = clusters_offset.cuda()
+    clusters_offset = clusters_offset.to(device)
     clusters_coords_mean = common_ops.sec_mean(clusters_coords, clusters_offset)  # (nCluster, 3)
     clusters_coords_mean_all = torch.index_select(clusters_coords_mean, 0, batch_idx)  # (sumNPoint, 3)
     clusters_coords -= clusters_coords_mean_all
@@ -177,7 +177,7 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
                                                                                                 torch.int16),
                                                                                             int(clusters_idx[
                                                                                                     -1, 0]) + 1, mode)
-    clusters_voxel_feats = common_ops.voxelization(feats, clusters_v2p_map.cuda(), mode)
+    clusters_voxel_feats = common_ops.voxelization(feats, clusters_v2p_map.to(device), mode)
     clusters_voxel_feats = ME.SparseTensor(features=clusters_voxel_feats,
                                            coordinates=clusters_voxel_coords.int().to(device), device=device)
     return clusters_voxel_feats, clusters_p2v_map
