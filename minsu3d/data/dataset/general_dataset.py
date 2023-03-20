@@ -112,7 +112,7 @@ class GeneralDataset(Dataset):
             # HACK, in case there are few points left
             max_tries = 20
             valid_idxs_count = 0
-            valid_idxs = np.ones(shape=point_xyz.shape[0], dtype=np.bool)
+            valid_idxs = np.ones(shape=point_xyz.shape[0], dtype=bool)
             if valid_idxs.shape[0] > self.max_num_point:
                 while max_tries > 0:
                     points_tmp, valid_idxs = crop(point_xyz_elastic, self.max_num_point, self.cfg.data.full_scale[1])

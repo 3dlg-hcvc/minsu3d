@@ -23,6 +23,7 @@ class GeneralModel(pl.LightningModule):
                                  block_channels=cfg.model.network.blocks,
                                  block_reps=cfg.model.network.block_reps,
                                  sem_classes=cfg.data.classes)
+        self.val_test_step_outputs = []
 
     def configure_optimizers(self):
         return hydra.utils.instantiate(self.hparams.cfg.model.optimizer, params=self.parameters())
@@ -61,23 +62,24 @@ class GeneralModel(pl.LightningModule):
                  sync_dist=True, batch_size=self.hparams.cfg.data.batch_size)
         return total_loss
 
-    def training_epoch_end(self, training_step_outputs):
+    def on_training_epoch_end(self):
         cosine_lr_decay(self.trainer.optimizers[0], self.hparams.cfg.model.optimizer.lr, self.current_epoch,
                         self.hparams.cfg.model.lr_decay.decay_start_epoch, self.hparams.cfg.model.lr_decay.decay_stop_epoch, 1e-6)
 
     def validation_step(self, data_dict, idx):
         pass
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         # evaluate instance predictions
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
             all_pred_insts = []
             all_gt_insts = []
             all_gt_insts_bbox = []
-            for pred_instances, gt_instances, gt_instances_bbox in outputs:
+            for pred_instances, gt_instances, gt_instances_bbox in self.val_test_step_outputs:
                 all_gt_insts_bbox.append(gt_instances_bbox)
                 all_pred_insts.append(pred_instances)
                 all_gt_insts.append(gt_instances)
+            self.val_test_step_outputs.clear()
             inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.cfg.data.class_names,
                                                          -1,
                                                          self.hparams.cfg.data.ignore_classes)
@@ -95,7 +97,7 @@ class GeneralModel(pl.LightningModule):
     def test_step(self, data_dict, idx):
         pass
 
-    def test_epoch_end(self, results):
+    def on_test_epoch_end(self):
         # evaluate instance predictions
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
             all_pred_insts = []
@@ -103,12 +105,14 @@ class GeneralModel(pl.LightningModule):
             all_gt_insts_bbox = []
             all_sem_acc = []
             all_sem_miou = []
-            for semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox in results:
+            for semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox in self.val_test_step_outputs:
                 all_sem_acc.append(semantic_accuracy)
                 all_sem_miou.append(semantic_mean_iou)
                 all_gt_insts_bbox.append(gt_instances_bbox)
                 all_gt_insts.append(gt_instances)
                 all_pred_insts.append(pred_instances)
+
+            self.val_test_step_outputs.clear()
 
             if self.hparams.cfg.model.inference.evaluate:
                 inst_seg_evaluator = GeneralDatasetEvaluator(self.hparams.cfg.data.class_names,
@@ -133,6 +137,7 @@ class GeneralModel(pl.LightningModule):
                 self.print(
                     f"\nPredictions saved at {os.path.abspath(save_dir)}"
                 )
+
 
 def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, mode, device):
     batch_idx = clusters_idx[:, 0].long().cuda()

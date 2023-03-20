@@ -25,11 +25,11 @@ We recommend the use of [miniconda](https://docs.conda.io/en/latest/miniconda.ht
 conda create -n minsu3d python=3.10
 conda activate minsu3d
 
-# install PyTorch 2.0.0
-conda install pytorch torchvision pytorch-cuda=11.7 -c pytorch -c nvidia
+# install PyTorch 1.13.1
+conda install pytorch==1.13.1 pytorch-cuda=11.6 -c pytorch -c nvidia
 
 # install Python libraries
-pip install -e .
+pip install .
 
 # install OpenBLAS and SparseHash via conda
 conda install openblas-devel -c anaconda
@@ -54,11 +54,11 @@ Note: Setting up with pip (no conda) requires [OpenBLAS](https://github.com/xian
 virtualenv --no-download env
 source env/bin/activate
 
-# install PyTorch 1.8.2
-pip install torch torchvision
+# install PyTorch 1.13.1
+pip install torch==1.13.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
 
 # install Python libraries
-pip install -e .
+pip install .
 
 # install OpenBLAS and SparseHash via APT
 sudo apt install libopenblas-dev libsparsehash-dev

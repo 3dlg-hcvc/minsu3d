@@ -230,7 +230,7 @@ class SoftGroup(GeneralModel):
                                             data_dict["sem_labels"].cpu().numpy(), -1,
                                             self.hparams.cfg.data.ignore_classes)
 
-            return pred_instances, gt_instances, gt_instances_bbox
+            self.val_test_step_outputs.append(pred_instances, gt_instances, gt_instances_bbox)
 
     def test_step(self, data_dict, idx):
         # prepare input and forward
@@ -269,7 +269,7 @@ class SoftGroup(GeneralModel):
                                                 -1,
                                                 self.hparams.cfg.data.ignore_classes)
 
-            return semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox
+            self.val_test_step_outputs.append(semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox)
 
     def _get_pred_instances(self, scan_id, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores,
                             num_ignored_classes):

@@ -165,7 +165,7 @@ class GeneralDatasetEvaluator(object):
 
                         cur_true = np.ones(len(gt_instances))
                         cur_score = np.ones(len(gt_instances)) * (-float('inf'))
-                        cur_match = np.zeros(len(gt_instances), dtype=np.bool)
+                        cur_match = np.zeros(len(gt_instances), dtype=bool)
                         # collect matches
                         for (gti, gt) in enumerate(gt_instances):
                             found_match = False
