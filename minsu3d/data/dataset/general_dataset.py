@@ -71,7 +71,8 @@ class GeneralDataset(Dataset):
 
             # semantic label
             cls_idx = inst_i_idx[0]
-            instance_cls[index] = sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) if sem_labels[cls_idx] != -1 else sem_labels[cls_idx]
+            instance_cls[index] = sem_labels[cls_idx] - len(self.cfg.data.ignore_classes) \
+                if sem_labels[cls_idx] != -1 else sem_labels[cls_idx]
             # bounding boxes
 
         return num_instance, instance_center_xyz, instance_num_point, instance_cls
@@ -117,11 +118,13 @@ class GeneralDataset(Dataset):
                 while max_tries > 0:
                     points_tmp, valid_idxs = crop(point_xyz_elastic, self.max_num_point, self.cfg.data.full_scale[1])
                     valid_idxs_count = np.count_nonzero(valid_idxs)
-                    if valid_idxs_count >= (self.max_num_point // 2) and np.any(sem_labels[valid_idxs] != -1) and np.any(instance_ids[valid_idxs] != -1):
+                    if valid_idxs_count >= (self.max_num_point // 2) and np.any(sem_labels[valid_idxs] != -1) \
+                            and np.any(instance_ids[valid_idxs] != -1):
                         point_xyz_elastic = points_tmp
                         break
                     max_tries -= 1
-                if valid_idxs_count < (self.max_num_point // 2) or np.all(sem_labels[valid_idxs] == -1) and np.all(instance_ids[valid_idxs] == -1):
+                if valid_idxs_count < (self.max_num_point // 2) or np.all(sem_labels[valid_idxs] == -1) \
+                        and np.all(instance_ids[valid_idxs] == -1):
                     raise Exception("Over-cropped!")
 
             point_xyz_elastic = point_xyz_elastic[valid_idxs]
@@ -134,7 +137,8 @@ class GeneralDataset(Dataset):
         point_xyz_elastic /= (1 / self.cfg.data.voxel_size)  # TODO
 
         num_instance, instance_center_xyz, instance_num_point, instance_semantic_cls = self._get_inst_info(
-            point_xyz, instance_ids, sem_labels)
+            point_xyz, instance_ids, sem_labels
+        )
 
         point_features = np.zeros(shape=(len(point_xyz), 0), dtype=np.float32)
         if self.cfg.model.network.use_color:
@@ -159,5 +163,3 @@ class GeneralDataset(Dataset):
         )
 
         return data
-
-

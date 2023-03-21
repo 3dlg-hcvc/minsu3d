@@ -21,23 +21,25 @@ class DataModule(pl.LightningDataModule):
             self.test_set = self.dataset(self.data_cfg, "test")
 
     def train_dataloader(self):
-        return DataLoader(self.train_set, batch_size=self.data_cfg.data.batch_size, shuffle=True, pin_memory=True,
-                          collate_fn=sparse_collate_fn, num_workers=self.data_cfg.data.num_workers)
+        return DataLoader(
+            self.train_set, batch_size=self.data_cfg.data.batch_size, shuffle=True,
+            pin_memory=True, collate_fn=_sparse_collate_fn, num_workers=self.data_cfg.data.num_workers
+        )
 
     def val_dataloader(self):
-        return DataLoader(self.val_set, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
-                          num_workers=self.data_cfg.data.num_workers)
+        return DataLoader(
+            self.val_set, batch_size=1, pin_memory=True,
+            collate_fn=_sparse_collate_fn, num_workers=self.data_cfg.data.num_workers
+        )
 
     def test_dataloader(self):
-        return DataLoader(self.val_set, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
-                          num_workers=self.data_cfg.data.num_workers)
-
-    def predict_dataloader(self):
-        return DataLoader(self.test_set, batch_size=1, pin_memory=True, collate_fn=sparse_collate_fn,
-                          num_workers=self.data_cfg.data.num_workers)
+        return DataLoader(
+            self.val_set, batch_size=1, pin_memory=True,
+            collate_fn=_sparse_collate_fn, num_workers=self.data_cfg.data.num_workers
+        )
 
 
-def sparse_collate_fn(batch):
+def _sparse_collate_fn(batch):
     data = {}
     point_xyz = []
     vert_batch_ids = []
@@ -63,7 +65,6 @@ def sparse_collate_fn(batch):
         voxel_point_map_list.append(b["voxel_point_map"] + num_voxel_batch)
         num_voxel_batch += b["voxel_xyz"].shape[0]
 
-        # locs_scaled.append(torch.from_numpy(b["locs_scaled"]).int())
         vert_batch_ids.append(torch.full((b["point_xyz"].shape[0],), fill_value=i, dtype=torch.int16))
 
         instance_ids_i = b["instance_ids"]
@@ -79,7 +80,6 @@ def sparse_collate_fn(batch):
 
         instance_cls.extend(b["instance_semantic_cls"])
 
-    # tmp_locs_scaled = torch.cat(locs_scaled, dim=0)
     data['scan_ids'] = scan_ids
     data["point_xyz"] = torch.cat(point_xyz, dim=0)
     data["vert_batch_ids"] = torch.cat(vert_batch_ids, dim=0)

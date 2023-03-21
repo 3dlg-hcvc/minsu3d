@@ -1,4 +1,3 @@
-import functools
 import torch.nn as nn
 import pytorch_lightning as pl
 import MinkowskiEngine as ME
@@ -9,12 +8,10 @@ class TinyUnet(pl.LightningModule):
     def __init__(self, channel):
         super().__init__()
 
-        sp_norm = functools.partial(ME.MinkowskiBatchNorm)
-
         # 1. U-Net
         self.unet = nn.Sequential(
-            UBlock([channel, 2 * channel], sp_norm, 2, ResidualBlock),
-            sp_norm(channel),
+            UBlock([channel, 2 * channel], ME.MinkowskiBatchNorm, 2, ResidualBlock),
+            ME.MinkowskiBatchNorm(channel),
             ME.MinkowskiReLU(inplace=True)
         )
 

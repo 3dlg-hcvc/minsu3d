@@ -3,7 +3,6 @@ import torch.nn as nn
 from minsu3d.evaluation.instance_segmentation import get_gt_instances, rle_encode
 from minsu3d.evaluation.object_detection import get_gt_bbox
 from minsu3d.common_ops.functions import softgroup_ops, common_ops
-from minsu3d.loss import ClassificationLoss, MaskScoringLoss, IouScoringLoss
 from minsu3d.evaluation.semantic_segmentation import *
 from minsu3d.model.module import TinyUnet
 from minsu3d.model.general_model import GeneralModel, clusters_voxelization, get_batch_offsets
@@ -152,10 +151,8 @@ class SoftGroup(GeneralModel):
             labels = fg_instance_cls.new_full((num_proposals,), self.instance_classes)
             pos_inds = assigned_gt_inds >= 0
             labels[pos_inds] = fg_instance_cls[assigned_gt_inds[pos_inds]]
-            classification_criterion = ClassificationLoss()
             labels = labels.long()
-            classification_loss = classification_criterion(output_dict["cls_scores"], labels)
-            losses["classification_loss"] = classification_loss
+            losses["classification_loss"] = nn.functional.cross_entropy(output_dict["cls_scores"], labels)
 
             """mask scoring loss"""
             mask_cls_label = labels[output_dict["instance_batch_idxs"].long()]
@@ -169,8 +166,8 @@ class SoftGroup(GeneralModel):
                                                                     -1,
                                                                     self.hparams.cfg.model.network.train_cfg.pos_iou_thr)
 
-            mask_scoring_criterion = MaskScoringLoss(weight=mask_label_mask, reduction='sum')
-            mask_scoring_loss = mask_scoring_criterion(mask_scores_sigmoid_slice, mask_label.float())
+            mask_scoring_loss = nn.functional.binary_cross_entropy(mask_scores_sigmoid_slice, mask_label.float(),
+                                                                   weight=mask_label_mask, reduction="sum")
             mask_scoring_loss /= (torch.count_nonzero(mask_label_mask) + 1)
             losses["mask_scoring_loss"] = mask_scoring_loss
             """iou scoring loss"""
@@ -182,8 +179,7 @@ class SoftGroup(GeneralModel):
             slice_inds = torch.arange(0, labels.size(0), dtype=torch.long, device=labels.device)
             iou_score_weight = labels < self.instance_classes
             iou_score_slice = output_dict["iou_scores"][slice_inds, labels]
-            iou_scoring_criterion = IouScoringLoss(reduction="none")
-            iou_scoring_loss = iou_scoring_criterion(iou_score_slice, gt_ious)
+            iou_scoring_loss = nn.functional.mse_loss(iou_score_slice, gt_ious, reduction="none")
             iou_scoring_loss = iou_scoring_loss[iou_score_weight].sum() / (iou_score_weight.count_nonzero() + 1)
             losses["iou_scoring_loss"] = iou_scoring_loss
 

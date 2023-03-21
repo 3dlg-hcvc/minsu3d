@@ -3,8 +3,7 @@ import torch.nn as nn
 from minsu3d.evaluation.instance_segmentation import get_gt_instances, rle_encode
 from minsu3d.evaluation.object_detection import get_gt_bbox
 from minsu3d.common_ops.functions import pointgroup_ops, common_ops
-from minsu3d.loss import ScoreLoss
-from minsu3d.loss.utils import get_segmented_scores
+from minsu3d.model.general_model import get_segmented_scores
 from minsu3d.model.module import TinyUnet
 from minsu3d.evaluation.semantic_segmentation import *
 from minsu3d.model.general_model import GeneralModel, clusters_voxelization, get_batch_offsets
@@ -100,8 +99,7 @@ class PointGroup(GeneralModel):
             gt_scores = get_segmented_scores(
                 gt_ious, self.hparams.cfg.model.network.fg_thresh, self.hparams.cfg.model.network.bg_thresh
             )
-            score_criterion = ScoreLoss()
-            score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
+            score_loss = nn.functional.binary_cross_entropy(torch.sigmoid(scores.view(-1)), gt_scores)
             losses["score_loss"] = score_loss
         return losses
 

@@ -11,7 +11,8 @@ class BasicConvolutionBlock(pl.LightningModule):
         self.net = nn.Sequential(
             ME.MinkowskiConvolution(in_channels, out_channels, kernel_size=kernel_size, stride=stride, dimension=3),
             ME.MinkowskiBatchNorm(out_channels),
-            ME.MinkowskiReLU(inplace=True))
+            ME.MinkowskiReLU(inplace=True)
+        )
 
     def forward(self, x):
         return self.net(x)
@@ -46,23 +47,6 @@ class ResidualBlock(pl.LightningModule):
             identity = self.downsample(identity)
         x += identity
         return x
-
-
-class VGGBlock(pl.LightningModule):
-
-    def __init__(self, in_channels, out_channels, dimension, norm_fn=None):
-        super().__init__()
-        if norm_fn is None:
-            norm_fn = ME.MinkowskiBatchNorm
-
-        self.conv_layers = nn.Sequential(
-            norm_fn(in_channels),
-            ME.MinkowskiReLU(inplace=True),
-            ME.MinkowskiConvolution(in_channels, out_channels, kernel_size=3, dimension=dimension)
-        )
-
-    def forward(self, x):
-        return self.conv_layers(x)
 
 
 class UBlock(pl.LightningModule):
@@ -109,40 +93,3 @@ class UBlock(pl.LightningModule):
             out = ME.cat(identity, out)
             out = self.blocks_tail(out)
         return out
-
-
-class SparseConvEncoder(pl.LightningModule):
-    def __init__(self, input_dim):
-        super().__init__()
-
-        self.stem = nn.Sequential(
-            BasicConvolutionBlock(input_dim, 32, 3)
-        )
-
-        self.stage1 = nn.Sequential(
-            BasicConvolutionBlock(32, 64, kernel_size=2, stride=2),
-            ResidualBlock(64, 64, 3),
-        )
-
-        self.stage2 = nn.Sequential(
-            BasicConvolutionBlock(64, 128, kernel_size=2, stride=2),
-            ResidualBlock(128, 128, 3),
-        )
-
-        self.stage3 = nn.Sequential(
-            BasicConvolutionBlock(128, 128, kernel_size=2, stride=2),
-            ResidualBlock(128, 128, 3),
-        )
-
-        self.stage4 = nn.Sequential(
-            BasicConvolutionBlock(128, 128, kernel_size=2, stride=2),
-            ResidualBlock(128, 128, 3),
-        )
-
-    def forward(self, x):
-        x = self.stem(x)
-        x = self.stage1(x)
-        x = self.stage2(x)
-        x = self.stage3(x)
-        x = self.stage4(x)
-        return x

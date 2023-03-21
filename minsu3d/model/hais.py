@@ -3,8 +3,7 @@ import torch.nn as nn
 from minsu3d.evaluation.instance_segmentation import get_gt_instances, rle_encode
 from minsu3d.evaluation.object_detection import get_gt_bbox
 from minsu3d.common_ops.functions import hais_ops, common_ops
-from minsu3d.loss import MaskScoringLoss, ScoreLoss
-from minsu3d.loss.utils import get_segmented_scores
+from minsu3d.model.general_model import get_segmented_scores
 from minsu3d.model.module import TinyUnet
 from minsu3d.evaluation.semantic_segmentation import *
 from minsu3d.model.general_model import GeneralModel, clusters_voxelization, get_batch_offsets
@@ -116,16 +115,12 @@ class HAIS(GeneralModel):
                                                                     -1, 0.5)
             mask_label = mask_label.unsqueeze(1)
             mask_label_mask = mask_label_mask.unsqueeze(1)
-            mask_scoring_criterion = MaskScoringLoss(weight=mask_label_mask, reduction='mean')
-            mask_loss = mask_scoring_criterion(mask_scores_sigmoid, mask_label.float())
-            losses["mask_loss"] = mask_loss
-
+            losses["mask_loss"] = nn.functional.binary_cross_entropy(
+                mask_scores_sigmoid, mask_label.float(), weight=mask_label_mask, reduction="mean"
+            )
             gt_ious, _ = ious.max(1)  # gt_ious: (nProposal)
-
             gt_scores = get_segmented_scores(gt_ious, self.hparams.cfg.model.network.fg_thresh, self.hparams.cfg.model.network.bg_thresh)
-            score_criterion = ScoreLoss()
-            score_loss = score_criterion(torch.sigmoid(scores.view(-1)), gt_scores)
-            losses["score_loss"] = score_loss
+            losses["score_loss"] = nn.functional.binary_cross_entropy(torch.sigmoid(scores.view(-1)), gt_scores)
         return losses
 
     def validation_step(self, data_dict, idx):
