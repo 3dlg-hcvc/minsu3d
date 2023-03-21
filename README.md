@@ -17,23 +17,19 @@ We also provide bounding boxes predictions based on instance segmentation for 3D
 
 ## Setup
 
-**Environment requirements**
-- CUDA 11.X
-- Python 3.8
-
 ### Conda (recommended)
 We recommend the use of [miniconda](https://docs.conda.io/en/latest/miniconda.html) to manage system dependencies.
 
 ```shell
 # create and activate the conda environment
-conda create -n minsu3d python=3.8
+conda create -n minsu3d python=3.10
 conda activate minsu3d
 
-# install PyTorch 1.8.2
-conda install pytorch cudatoolkit=11.1 -c pytorch-lts -c nvidia
+# install PyTorch 1.13.1
+conda install pytorch==1.13.1 pytorch-cuda=11.6 -c pytorch -c nvidia
 
 # install Python libraries
-pip install -e .
+pip install .
 
 # install OpenBLAS and SparseHash via conda
 conda install openblas-devel -c anaconda
@@ -58,11 +54,11 @@ Note: Setting up with pip (no conda) requires [OpenBLAS](https://github.com/xian
 virtualenv --no-download env
 source env/bin/activate
 
-# install PyTorch 1.8.2
-pip install torch==1.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cu111
+# install PyTorch 1.13.1
+pip install torch==1.13.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
 
 # install Python libraries
-pip install -e .
+pip install .
 
 # install OpenBLAS and SparseHash via APT
 sudo apt install libopenblas-dev libsparsehash-dev
@@ -78,8 +74,7 @@ python setup.py develop
 ## Data Preparation
 
 ### ScanNet v2 dataset
-1. Download the [ScanNet v2](http://www.scan-net.org/) dataset. To acquire the access to the dataset, please refer to their [instructions](https://github.com/ScanNet/ScanNet#scannet-data). You will get a `download-scannet.py` script after your request is approved:
-
+1. Download the [ScanNet v2](http://www.scan-net.org/) dataset and put it under `minsu3d/data/scannetv2`. To acquire the access to the dataset, please refer to their [instructions](https://github.com/ScanNet/ScanNet#scannet-data). You will get a `download-scannet.py` script after your request is approved:
 ```shell
 # about 10.7GB in total
 python download-scannet.py -o data/scannet --type _vh_clean_2.ply
@@ -87,10 +82,24 @@ python download-scannet.py -o data/scannet --type _vh_clean.aggregation.json
 python download-scannet.py -o data/scannet --type _vh_clean_2.0.010000.segs.json
 ```
 
+The raw dataset files should be organized as follows:
+
+```shell
+minsu3d
+├── data
+│   ├── scannetv2
+│   │   ├── scans
+│   │   │   ├── [scene_id]
+│   │   │   │   ├── [scene_id]_vh_clean_2.ply
+│   │   │   │   ├── [scene_id]_vh_clean_2.0.010000.segs.json
+│   │   │   │   ├── [scene_id].aggregation.json
+│   │   │   │   ├── [scene_id].txt
+```
+
 2. Preprocess the data, it converts original meshes and annotations to `.pth` data:
 ```shell
 cd data/scannet
-python preprocess_all_data.py data=scannetv2 +raw_scan_path={PATH_TO_SCANNETV2}/scans
+python preprocess_all_data.py data=scannetv2
 ```
 
 ## Training, Inference and Evaluation
@@ -100,7 +109,9 @@ Note: Configuration files are managed by [Hydra](https://hydra.cc/), you can eas
 wandb login
 
 # train a model from scratch
-python train.py model={model_name} data={dataset_name}
+# available model_name: pointgroup, hais, softgroup
+# available dataset_name: scannetv2
+python train.py model={model_name} data={dataset_name} experiment_name={experiment_name}
 
 # train a model from scratch with 2 GPUs
 python train.py model={model_name} data={dataset_name} model.trainer.devices=2
@@ -112,12 +123,12 @@ python train.py model={model_name} data={dataset_name} model.ckpt_path={checkpoi
 python test.py model={model_name} data={dataset_name} model.ckpt_path={pretrained_model_path}
 
 # evaluate inference results
-python eval.py model={model_name} data={dataset_name} model.model.experiment_name={experiment_name}
+python eval.py model={model_name} data={dataset_name} experiment_name={experiment_name}
 
 # examples:
 # python train.py model=pointgroup data=scannetv2 model.trainer.max_epochs=480
 # python test.py model=pointgroup data=scannetv2 model.ckpt_path=PointGroup_best.ckpt
-# python eval.py model=hais data=scannetv2 model.model.experiment_name=run_1
+# python eval.py model=hais data=scannetv2 experiment_name=run_1
 ```
 
 ## Pretrained Models
@@ -127,12 +138,12 @@ We provide pretrained models for ScanNet v2. The pretrained model, corresponding
 ### ScanNet v2 val set
 | Model      | Code | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% | Download |
 |:-----------|:--------|:--------|:-------|:-------|:------------|:------------|:---------|
-| MINSU3D PointGroup | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/pointgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/pointgroup.py) | 36.1 | 57.8 | 71.4 | 50.4 | 61.2 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
-| [Official PointGroup](https://github.com/dvlab-research/PointGroup) | - | 35.2 | 57.1 | 71.4 | - | - | - |
-| MINSU3D HAIS | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/hais.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/hais.py)  | 42.1 | 62.0 | 73.8 | 52.8 | 62.6 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/HAIS_best.ckpt) |
+| MINSU3D PointGroup | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/pointgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/pointgroup.py) | 36.1 | 57.9 | 71.9 | 50.1 | 61.6 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
+| [Official PointGroup](https://github.com/dvlab-research/PointGroup) | - | 35.2 | 57.1 | 71.4   | - | - | - |
+| MINSU3D HAIS | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/hais.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/hais.py)  | 41.8 | 61.5 | 73.1 | 53.2 | 62.7 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/HAIS_best.ckpt) |
 | [Official HAIS (retrained)](https://github.com/hustvl/HAIS)  | - | 42.2 | 61.0 | 72.9 | - | - | - |
-| [Official HAIS](https://github.com/hustvl/HAIS)  | - | 44.1 | 64.4 | 75.7 | - | - | - |
-| MINSU3D SoftGroup | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/softgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/softgroup.py)  | 42.2 | 65.5 | 78.0 | 56.0 | 69.5 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/SoftGroup_best.ckpt) |
+| [Official HAIS](https://github.com/hustvl/HAIS)  | - | 44.1 | 64.4 | 75.7   | - | - | - |
+| MINSU3D SoftGroup | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/softgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/softgroup.py)  | 42.3 | 65.1 | 77.8 | 55.8 | 69.3 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/SoftGroup_best.ckpt) |
 | [Official SoftGroup](https://github.com/thangvubk/SoftGroup<sup>1</sup>) | - | 46.0 | 67.6 | 78.9 | 59.4 | 71.6 | - |
 
 <sup>1</sup> The official pretrained SoftGroup model was trained with HAIS checkpoint as pretrained backbone.

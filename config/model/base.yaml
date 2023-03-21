@@ -2,44 +2,30 @@
 
 ckpt_path: null
 
-
-log:
-  module: WandbLogger  # WandbLogger or TensorBoardLogger
+logger:
   # https://pytorch-lightning.readthedocs.io/en/stable/extensions/generated/pytorch_lightning.loggers.WandbLogger.html
-  WandbLogger:
-    project: General
-    name: run_1
-  # https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.loggers.tensorboard.html
-  TensorBoardLogger:
-    name: General
-    default_hp_metric: False
-
+  _target_: pytorch_lightning.loggers.WandbLogger
+  project: ${model.network.module}
+  name: ${experiment_name}
 
 # https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
 trainer:
   accelerator: gpu
   devices: auto
-  strategy: ddp
+  strategy: ddp_find_unused_parameters_true
   num_nodes: 1
   max_epochs: 496
-  num_sanity_val_steps: 20
+  num_sanity_val_steps: 10
   check_val_every_n_epoch: 8
-  log_every_n_steps: 30
-
+  profiler: simple
 
 # https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html
 checkpoint_monitor:
-  monitor: "val_eval/AP"
-  mode: max
-  save_last: True
-  save_top_k: 3
+  _target_: pytorch_lightning.callbacks.ModelCheckpoint
+  save_top_k: -1
   every_n_epochs: ${model.trainer.check_val_every_n_epoch}
-
-
-# https://pytorch-lightning.readthedocs.io/en/stable/common/optimization.html
-optimizer:
-    name: Adam # Adam, AdamW or SGD
-    lr: 0.0015
+  filename: "{epoch}"
+  dirpath: ${exp_output_root_path}/training
 
 
 lr_decay:
@@ -51,4 +37,3 @@ inference:
   split: val
   evaluate: True
   save_predictions: True
-  output_dir: predictions

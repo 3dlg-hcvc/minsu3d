@@ -103,7 +103,7 @@ class Instance(object):
 class GeneralDatasetEvaluator(object):
 
     def __init__(self, class_labels, ignored_label, ignored_classes_indices, iou_type=None, use_label=True):
-        self.valid_class_labels = [elem for i, elem in enumerate(class_labels) if i not in ignored_classes_indices]
+        self.valid_class_labels = [elem for i, elem in enumerate(class_labels) if i + 1 not in ignored_classes_indices]
         self.ignored_label = ignored_label
         self.valid_class_ids = np.arange(len(self.valid_class_labels)) + 1
         self.id2label = {}
@@ -131,8 +131,8 @@ class GeneralDatasetEvaluator(object):
         dist_confs = [self.distance_confs[0]]
 
         # results: class x iou
-        ap = np.zeros((len(dist_threshes), len(self.eval_class_labels), len(ious)), np.float)
-        rc = np.zeros((len(dist_threshes), len(self.eval_class_labels), len(ious)), np.float)
+        ap = np.zeros((len(dist_threshes), len(self.eval_class_labels), len(ious)), np.float32)
+        rc = np.zeros((len(dist_threshes), len(self.eval_class_labels), len(ious)), np.float32)
         for di, (min_region_size, distance_thresh,
                  distance_conf) in enumerate(zip(min_region_sizes, dist_threshes, dist_confs)):
             for oi, iou_th in enumerate(ious):
@@ -165,7 +165,7 @@ class GeneralDatasetEvaluator(object):
 
                         cur_true = np.ones(len(gt_instances))
                         cur_score = np.ones(len(gt_instances)) * (-float('inf'))
-                        cur_match = np.zeros(len(gt_instances), dtype=np.bool)
+                        cur_match = np.zeros(len(gt_instances), dtype=bool)
                         # collect matches
                         for (gti, gt) in enumerate(gt_instances):
                             found_match = False

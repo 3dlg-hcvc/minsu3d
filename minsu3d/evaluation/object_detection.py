@@ -144,7 +144,7 @@ def eval_det_cls(pred, gt, ovthresh=0.25, use_07_metric=False, get_iou_func=get_
     # print('NPOS: ', npos)
     # avoid divide by zero in case the first detection matches a difficult
     # ground truth
-    prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
+    prec = tp / np.maximum(tp + fp, np.finfo(np.float32).eps)
     ap = voc_ap(rec, prec, use_07_metric)
 
     return rec, prec, ap
@@ -265,7 +265,7 @@ def get_gt_bbox(xyz, instance_ids, sem_labels, ignored_label, ignore_classes):
             continue
         idx = instance_ids == instance_id
         sem_label = sem_labels[idx][0]
-        if sem_label in ignore_classes or sem_label == ignored_label:
+        if sem_label + 1 in ignore_classes or sem_label == ignored_label:
             continue
         sem_label = sem_label - len(ignore_classes)
 
@@ -312,7 +312,7 @@ def print_results(bbox_aps, class_names, ignored_classes_indices):
     print(line)
     print('#' * lineLen)
 
-    filtered_class_names = [elem for i, elem in enumerate(class_names) if i not in ignored_classes_indices]
+    filtered_class_names = [elem for i, elem in enumerate(class_names) if i + 1 not in ignored_classes_indices]
 
     for (li, label_name) in enumerate(filtered_class_names):
         ap_50o = bbox_aps['all_bbox_ap_0.5'][li]

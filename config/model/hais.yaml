@@ -6,25 +6,26 @@ defaults:
 log:
   WandbLogger:
     project: HAIS
-    name: ${model.model.experiment_name}
+    name: ${experiment_name}
   TensorBoardLogger:
     name: HAIS
 
 trainer:
   max_epochs: 512
 
-model:
+optimizer:
+    _target_: torch.optim.Adam
+    lr: 0.0015
+
+network:
   module: HAIS
-  experiment_name: run_1
 
   m: 32 # 16 or 32
   blocks: [1, 2, 3, 4, 5, 6, 7]
   cluster_blocks: [1, 2]
   block_reps: 2
 
-  use_coord: True
   use_color: True
-  use_multiview: False
   use_normal: False
 
   fg_thresh: 1
@@ -33,10 +34,7 @@ model:
   score_scale: 50  # the minimal voxel size is 2cm
   score_fullscale: 20
 
-  freeze_backbone: False
   prepare_epochs: 100
-
-  loss_weight: [1, 1, 1, 1, 1, 1]
 
   point_aggr_radius: 0.03
   cluster_shift_meanActive: 300

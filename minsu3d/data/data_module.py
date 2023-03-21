@@ -1,9 +1,8 @@
-from importlib import import_module
-import numpy as np
 import torch
-from torch.utils.data import DataLoader
+import MinkowskiEngine as ME
 import pytorch_lightning as pl
-from minsu3d.common_ops.functions import common_ops
+from importlib import import_module
+from torch.utils.data import DataLoader
 
 
 class DataModule(pl.LightningDataModule):
@@ -40,27 +39,32 @@ class DataModule(pl.LightningDataModule):
 
 def sparse_collate_fn(batch):
     data = {}
-    locs = []
-    locs_scaled = []
+    point_xyz = []
     vert_batch_ids = []
-    feats = []
     sem_labels = []
     instance_ids = []
-    instance_info = []
+    instance_center_xyz = []
     instance_num_point = []
     instance_offsets = [0]
     total_num_inst = 0
     instance_cls = []
-
+    voxel_xyz_list = []
+    voxel_features_list = []
+    voxel_point_map_list = []
+    num_voxel_batch = 0
     scan_ids = []
 
     for i, b in enumerate(batch):
         scan_ids.append(b["scan_id"])
-        locs.append(torch.from_numpy(b["locs"]))
+        point_xyz.append(torch.from_numpy(b["point_xyz"]))
 
-        locs_scaled.append(torch.from_numpy(b["locs_scaled"]).int())
-        vert_batch_ids.append(torch.full((b["locs_scaled"].shape[0],), fill_value=i, dtype=torch.int16))
-        feats.append(torch.from_numpy(b["feats"]))
+        voxel_xyz_list.append(b["voxel_xyz"])
+        voxel_features_list.append(b["voxel_features"])
+        voxel_point_map_list.append(b["voxel_point_map"] + num_voxel_batch)
+        num_voxel_batch += b["voxel_xyz"].shape[0]
+
+        # locs_scaled.append(torch.from_numpy(b["locs_scaled"]).int())
+        vert_batch_ids.append(torch.full((b["point_xyz"].shape[0],), fill_value=i, dtype=torch.int16))
 
         instance_ids_i = b["instance_ids"]
         instance_ids_i[instance_ids_i != -1] += total_num_inst
@@ -69,28 +73,26 @@ def sparse_collate_fn(batch):
 
         sem_labels.append(torch.from_numpy(b["sem_labels"]))
 
-        instance_info.append(torch.from_numpy(b["instance_info"]))
+        instance_center_xyz.append(torch.from_numpy(b["instance_center_xyz"]))
         instance_num_point.append(torch.from_numpy(b["instance_num_point"]))
         instance_offsets.append(instance_offsets[-1] + b["num_instance"].item())
 
         instance_cls.extend(b["instance_semantic_cls"])
 
-    tmp_locs_scaled = torch.cat(locs_scaled, dim=0)
+    # tmp_locs_scaled = torch.cat(locs_scaled, dim=0)
     data['scan_ids'] = scan_ids
-    data["locs"] = torch.cat(locs, dim=0)
+    data["point_xyz"] = torch.cat(point_xyz, dim=0)
     data["vert_batch_ids"] = torch.cat(vert_batch_ids, dim=0)
-    data["feats"] = torch.cat(feats, dim=0)
 
     data["sem_labels"] = torch.cat(sem_labels, dim=0)
     data["instance_ids"] = torch.cat(instance_ids, dim=0)
-    data["instance_info"] = torch.cat(instance_info, dim=0)
+    data["instance_center_xyz"] = torch.cat(instance_center_xyz, dim=0)
     data["instance_num_point"] = torch.cat(instance_num_point, dim=0)
     data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int32)
     data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.int32)
 
-    # voxelize
-    data["voxel_locs"], data["v2p_map"], data["p2v_map"] = common_ops.voxelization_idx(tmp_locs_scaled,
-                                                                                       data["vert_batch_ids"],
-                                                                                       len(batch),
-                                                                                       4)
+    data["voxel_xyz"], data["voxel_features"] = ME.utils.sparse_collate(
+        coords=voxel_xyz_list, feats=voxel_features_list
+    )
+    data["voxel_point_map"] = torch.cat(voxel_point_map_list, dim=0)
     return data

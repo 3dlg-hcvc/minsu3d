@@ -13,7 +13,7 @@ metadata:
   test_list: ${data.metadata.metadata_path}/multiscan_obj_test.txt
 
 classes: 20
-ignore_classes: [0, 1, 2]
+ignore_classes: [1, 2, 3]
 class_names: ['floor', 'ceiling', 'wall', 'door', 'table', 'chair', 'cabinet', 'window', 'sofa', 'microwave', 'pillow',
               'tv_monitor', 'curtain', 'trash_can', 'suitcase', 'sink', 'backpack', 'bed', 'refrigerator', 'toilet']
 
