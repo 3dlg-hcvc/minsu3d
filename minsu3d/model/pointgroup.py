@@ -74,7 +74,6 @@ class PointGroup(GeneralModel):
                 coords=data_dict["point_xyz"],
                 scale=self.hparams.cfg.model.network.score_scale,
                 spatial_shape=self.hparams.cfg.model.network.score_fullscale,
-                mode=4,
                 device=self.device
             )
 

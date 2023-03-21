@@ -64,7 +64,8 @@ class GeneralModel(pl.LightningModule):
 
     def on_training_epoch_end(self):
         cosine_lr_decay(self.trainer.optimizers[0], self.hparams.cfg.model.optimizer.lr, self.current_epoch,
-                        self.hparams.cfg.model.lr_decay.decay_start_epoch, self.hparams.cfg.model.lr_decay.decay_stop_epoch, 1e-6)
+                        self.hparams.cfg.model.lr_decay.decay_start_epoch,
+                        self.hparams.cfg.model.lr_decay.decay_stop_epoch, 1e-6)
 
     def validation_step(self, data_dict, idx):
         pass
@@ -85,8 +86,10 @@ class GeneralModel(pl.LightningModule):
                                                          self.hparams.cfg.data.ignore_classes)
             inst_seg_eval_result = inst_seg_evaluator.evaluate(all_pred_insts, all_gt_insts, print_result=False)
 
-            obj_detect_eval_result = evaluate_bbox_acc(all_pred_insts, all_gt_insts_bbox, self.hparams.cfg.data.class_names,
-                                                       self.hparams.cfg.data.ignore_classes, print_result=False)
+            obj_detect_eval_result = evaluate_bbox_acc(
+                all_pred_insts, all_gt_insts_bbox, self.hparams.cfg.data.class_names,
+                self.hparams.cfg.data.ignore_classes, print_result=False
+            )
 
             self.log("val_eval/AP", inst_seg_eval_result["all_ap"], sync_dist=True)
             self.log("val_eval/AP 50%", inst_seg_eval_result['all_ap_50%'], sync_dist=True)
@@ -141,7 +144,7 @@ class GeneralModel(pl.LightningModule):
                 )
 
 
-def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, mode, device):
+def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, device):
     batch_idx = clusters_idx[:, 0].long().to(device)
     c_idxs = clusters_idx[:, 1].long().to(device)
     feats = feats[c_idxs]
@@ -178,8 +181,8 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
                                                                                             clusters_idx[:, 0].to(
                                                                                                 torch.int16),
                                                                                             int(clusters_idx[
-                                                                                                    -1, 0]) + 1, mode)
-    clusters_voxel_feats = common_ops.voxelization(feats, clusters_v2p_map.to(device), mode)
+                                                                                                    -1, 0]) + 1, 4)
+    clusters_voxel_feats = common_ops.voxelization(feats, clusters_v2p_map.to(device))
     clusters_voxel_feats = ME.SparseTensor(features=clusters_voxel_feats,
                                            coordinates=clusters_voxel_coords.int().to(device), device=device)
     return clusters_voxel_feats, clusters_p2v_map

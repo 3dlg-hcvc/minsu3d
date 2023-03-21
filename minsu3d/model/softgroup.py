@@ -88,7 +88,6 @@ class SoftGroup(GeneralModel):
                 clusters_offset=proposals_offset,
                 feats=output_dict["point_features"],
                 coords=data_dict["point_xyz"],
-                mode=4,
                 device=self.device,
                 **self.hparams.cfg.model.network.instance_voxel_cfg
             )
