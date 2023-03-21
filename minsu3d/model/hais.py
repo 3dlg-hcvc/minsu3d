@@ -166,7 +166,7 @@ class HAIS(GeneralModel):
                                             -1,
                                             self.hparams.cfg.data.ignore_classes)
 
-            self.val_test_step_outputs.append(pred_instances, gt_instances, gt_instances_bbox)
+            self.val_test_step_outputs.append((pred_instances, gt_instances, gt_instances_bbox))
 
     def test_step(self, data_dict, idx):
         # prepare input and forward
@@ -191,7 +191,6 @@ class HAIS(GeneralModel):
                                                       output_dict["proposal_scores"][2].size(0) - 1,
                                                       output_dict["proposal_scores"][3].cpu(),
                                                       output_dict["semantic_scores"].cpu(), len(self.hparams.cfg.data.ignore_classes))
-
             gt_instances = None
             gt_instances_bbox = None
             if self.hparams.cfg.model.inference.evaluate:
@@ -202,8 +201,9 @@ class HAIS(GeneralModel):
                                                 data_dict["sem_labels"].cpu().numpy(),
                                                 -1,
                                                 self.hparams.cfg.data.ignore_classes)
-
-            self.val_test_step_outputs.append(semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox)
+            self.val_test_step_outputs.append(
+                (semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox)
+            )
 
     def _get_pred_instances(self, scan_id, gt_xyz, scores, proposals_idx, num_proposals, mask_scores, semantic_scores, num_ignored_classes):
         semantic_pred_labels = semantic_scores.max(1)[1]

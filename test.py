@@ -1,4 +1,5 @@
 import os
+import torch
 import hydra
 from importlib import import_module
 import pytorch_lightning as pl
@@ -12,7 +13,7 @@ def main(cfg):
     pl.seed_everything(cfg.global_test_seed, workers=True)
 
     print("=> initializing trainer...")
-    trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=1, logger=False)
+    trainer = pl.Trainer(accelerator="gpu", devices=1, logger=False)
 
     output_path = os.path.join(cfg.exp_output_root_path, "inference", cfg.model.inference.split, "predictions")
     os.makedirs(output_path, exist_ok=True)
@@ -28,6 +29,8 @@ def main(cfg):
         cfg.model.inference.evaluate = False
 
     print("=> start inference...")
+    checkpoint = torch.load(cfg.model.ckpt_path)
+    trainer.fit_loop.epoch_progress.current.completed = checkpoint["epoch"]  # TODO
     trainer.test(model=model, datamodule=data_module, ckpt_path=cfg.model.ckpt_path)
 
 

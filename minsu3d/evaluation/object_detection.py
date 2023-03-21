@@ -144,7 +144,7 @@ def eval_det_cls(pred, gt, ovthresh=0.25, use_07_metric=False, get_iou_func=get_
     # print('NPOS: ', npos)
     # avoid divide by zero in case the first detection matches a difficult
     # ground truth
-    prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
+    prec = tp / np.maximum(tp + fp, np.finfo(np.float32).eps)
     ap = voc_ap(rec, prec, use_07_metric)
 
     return rec, prec, ap

@@ -230,7 +230,7 @@ class SoftGroup(GeneralModel):
                                             data_dict["sem_labels"].cpu().numpy(), -1,
                                             self.hparams.cfg.data.ignore_classes)
 
-            self.val_test_step_outputs.append(pred_instances, gt_instances, gt_instances_bbox)
+            self.val_test_step_outputs.append((pred_instances, gt_instances, gt_instances_bbox))
 
     def test_step(self, data_dict, idx):
         # prepare input and forward
@@ -248,28 +248,30 @@ class SoftGroup(GeneralModel):
             semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, sem_labels_cpu.numpy(),
                                                        ignore_label=-1)
 
-        if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
-            pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
-                                                      data_dict["point_xyz"].cpu().numpy(),
-                                                      output_dict["proposals_idx"].cpu(),
-                                                      output_dict["semantic_scores"].size(0),
-                                                      output_dict["cls_scores"].cpu(),
-                                                      output_dict["iou_scores"].cpu(),
-                                                      output_dict["mask_scores"].cpu(),
-                                                      len(self.hparams.cfg.data.ignore_classes))
-            gt_instances = None
-            gt_instances_bbox = None
-            if self.hparams.cfg.model.inference.evaluate:
-                gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
-                                                self.hparams.cfg.data.ignore_classes)
 
-                gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
-                                                data_dict["instance_ids"].cpu().numpy(),
-                                                data_dict["sem_labels"].cpu().numpy(),
-                                                -1,
-                                                self.hparams.cfg.data.ignore_classes)
+        pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
+                                                  data_dict["point_xyz"].cpu().numpy(),
+                                                  output_dict["proposals_idx"].cpu(),
+                                                  output_dict["semantic_scores"].size(0),
+                                                  output_dict["cls_scores"].cpu(),
+                                                  output_dict["iou_scores"].cpu(),
+                                                  output_dict["mask_scores"].cpu(),
+                                                  len(self.hparams.cfg.data.ignore_classes))
+        gt_instances = None
+        gt_instances_bbox = None
+        if self.hparams.cfg.model.inference.evaluate:
+            gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
+                                            self.hparams.cfg.data.ignore_classes)
 
-            self.val_test_step_outputs.append(semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox)
+            gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
+                                            data_dict["instance_ids"].cpu().numpy(),
+                                            data_dict["sem_labels"].cpu().numpy(),
+                                            -1,
+                                            self.hparams.cfg.data.ignore_classes)
+
+        self.val_test_step_outputs.append(
+            (semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox)
+        )
 
     def _get_pred_instances(self, scan_id, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores,
                             num_ignored_classes):
