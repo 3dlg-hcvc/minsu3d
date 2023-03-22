@@ -8,66 +8,6 @@ from torch.autograd import Function
 import COMMON_OPS
 
 
-class Voxelization_Idx(Function):
-    @staticmethod
-    def forward(ctx, coords, vert_batch_idxs, batchsize, mode=4):
-        '''
-        :param ctx:
-        :param coords:  long (N, dimension + 1) or (N, dimension) dimension = 3
-        :param batchsize
-        :param mode: int 4=mean
-        :param dimension: int
-        :return: output_coords:  long (M, dimension + 1) (M <= N)
-        :return: output_map: int (M, (maxActive + 1))
-        :return: input_map: int (N,)
-        '''
-        assert coords.is_contiguous()
-        N = coords.size(0)
-        output_coords = coords.new()
-        input_map = torch.zeros(N, dtype=torch.int32, device="cpu")
-        output_map = input_map.new()
-        COMMON_OPS.voxelize_idx(coords, output_coords, vert_batch_idxs, input_map, output_map, batchsize, mode)
-        return output_coords, input_map, output_map
-
-    @staticmethod
-    def backward(ctx, a=None, b=None, c=None):
-        return None
-
-
-voxelization_idx = Voxelization_Idx.apply
-
-
-class Voxelization(Function):
-    @staticmethod
-    def forward(ctx, feats, map_rule, mode=4):
-        '''
-        :param ctx:
-        :param map_rule: cuda int (M, (maxActive + 1))
-        :param feats: cuda float (N, C)
-        :return: output_feats: cuda float (M, C)
-        '''
-        assert map_rule.is_contiguous()
-        assert feats.is_contiguous()
-        N, C = feats.size()
-        M = map_rule.size(0)
-        maxActive = map_rule.size(1) - 1
-        output_feats = torch.zeros((M, C), dtype=torch.float32, device="cuda")
-        ctx.for_backwards = (map_rule, mode, maxActive, N)
-        COMMON_OPS.voxelize_fp(feats, output_feats, map_rule, mode, M, maxActive, C)
-        return output_feats
-
-    @staticmethod
-    def backward(ctx, d_output_feats):
-        map_rule, mode, maxActive, N = ctx.for_backwards
-        M, C = d_output_feats.size()
-        d_feats = torch.zeros((N, C), dtype=torch.float32, device="cuda")
-        COMMON_OPS.voxelize_bp(d_output_feats.contiguous(), d_feats, map_rule, mode, M, maxActive, C)
-        return d_feats, None, None
-
-
-voxelization = Voxelization.apply
-
-
 class BallQueryBatchP(Function):
     @staticmethod
     def forward(ctx, coords, batch_idxs, batch_offsets, radius, meanActive):
