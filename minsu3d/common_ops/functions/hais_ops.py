@@ -13,7 +13,7 @@ class HierarchicalAggregation(Function):
         :param coord_shift: (N_fg, 3), float
         :param ball_query_idxs: (nActive), int
         :param start_len: (N_fg, 2), int
-        :param batch_idxs: (N_fg), int
+        :param batch_idxs: (N_fg), int16
 
         :return: cluster_idxs:  int (sumNPoint, 2), [:, 0] for cluster_id, [:, 1] for corresponding point idxs in N
         :return: cluster_offsets: int (nCluster + 1)

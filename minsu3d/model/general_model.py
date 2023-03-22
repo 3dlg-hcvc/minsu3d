@@ -152,8 +152,6 @@ class GeneralModel(pl.LightningModule):
 
 
 def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, device):
-    clusters_idx = clusters_idx.to(device).long()
-    clusters_offset = clusters_offset.to(device)
 
     batch_idx = clusters_idx[:, 0]
     c_idxs = clusters_idx[:, 1]

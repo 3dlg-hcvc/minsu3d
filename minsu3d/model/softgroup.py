@@ -48,7 +48,7 @@ class SoftGroup(GeneralModel):
                 object_idxs = (scores > self.hparams.cfg.model.network.grouping_cfg.score_thr).nonzero().view(-1)
                 if object_idxs.size(0) < self.hparams.cfg.model.network.test_cfg.min_npoint:
                     continue
-                batch_idxs_ = batch_idxs[object_idxs].int()
+                batch_idxs_ = batch_idxs[object_idxs]
                 batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.cfg.data.batch_size, self.device)
                 coords_ = data_dict["point_xyz"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
@@ -60,7 +60,10 @@ class SoftGroup(GeneralModel):
                     self.hparams.cfg.data.point_num_avg, idx.cpu(),
                     start_len.cpu(),
                     self.hparams.cfg.model.network.grouping_cfg.npoint_thr, class_id)
-                proposals_idx[:, 1] = object_idxs.cpu()[proposals_idx[:, 1].long()].int()
+
+                proposals_idx = proposals_idx.long().to(self.device)
+                proposals_offset = proposals_offset.to(self.device)
+                proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1]]
 
                 # merge proposals
                 if len(proposals_offset_list) > 0:
@@ -78,7 +81,7 @@ class SoftGroup(GeneralModel):
                 proposals_idx = proposals_idx[:proposals_offset[-1]]
                 assert proposals_idx.shape[0] == proposals_offset[-1]
 
-            proposals_offset = proposals_offset.to(self.device)
+
             output_dict["proposals_idx"] = proposals_idx
             output_dict["proposals_offset"] = proposals_offset
 
@@ -90,8 +93,6 @@ class SoftGroup(GeneralModel):
                 device=self.device,
                 **self.hparams.cfg.model.network.instance_voxel_cfg
             )
-
-            inst_map = inst_map.long().to(self.device)
 
             feats = self.tiny_unet(inst_feats)
 
@@ -124,7 +125,7 @@ class SoftGroup(GeneralModel):
         losses = super()._loss(data_dict, output_dict)
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
-            proposals_idx = output_dict["proposals_idx"][:, 1].to(self.device)
+            proposals_idx = output_dict["proposals_idx"][:, 1]
             proposals_offset = output_dict["proposals_offset"]
 
             # calculate iou of clustered instance
@@ -174,14 +175,11 @@ class SoftGroup(GeneralModel):
             ious = common_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
                                                    data_dict["instance_num_point"],
                                                    mask_scores_sigmoid_slice.detach())
-            fg_ious = ious[:, fg_inds]
-            gt_ious, _ = fg_ious.max(1)
             slice_inds = torch.arange(0, labels.size(0), dtype=torch.long, device=labels.device)
             iou_score_weight = labels < self.instance_classes
             iou_score_slice = output_dict["iou_scores"][slice_inds, labels]
-            iou_scoring_loss = nn.functional.mse_loss(iou_score_slice, gt_ious, reduction="none")
-            iou_scoring_loss = iou_scoring_loss[iou_score_weight].sum() / (iou_score_weight.count_nonzero() + 1)
-            losses["iou_scoring_loss"] = iou_scoring_loss
+            iou_scoring_loss = nn.functional.mse_loss(iou_score_slice, ious[:, fg_inds].max(1)[0], reduction="none")
+            losses["iou_scoring_loss"] = iou_scoring_loss[iou_score_weight].sum() / (iou_score_weight.count_nonzero() + 1)
 
         return losses
 
