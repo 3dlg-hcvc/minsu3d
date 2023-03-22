@@ -32,7 +32,7 @@ def read_mesh_file(mesh_file):
 
 
 def get_semantic_labels(obj_name_to_segs, seg_to_verts, num_verts, label_map, filtered_label_map):
-    semantic_labels = np.full(shape=num_verts, fill_value=-1, dtype=np.int8)  # max value: 127
+    semantic_labels = np.full(shape=num_verts, fill_value=-1, dtype=np.int16)
     for label, segs in obj_name_to_segs.items():
         for seg in segs:
             verts = seg_to_verts[seg]
@@ -115,7 +115,7 @@ def process_one_scan(scan, cfg, split, label_map):
         instance_ids = get_instance_ids(object_id2segs, seg2verts, sem_labels, invalid_ids)
     else:
         # use zero as placeholders for the test scene
-        sem_labels = np.full(shape=num_verts, fill_value=-1, dtype=np.int8)
+        sem_labels = np.full(shape=num_verts, fill_value=-1, dtype=np.int16)
         instance_ids = np.full(shape=num_verts, fill_value=-1, dtype=np.int16)
     torch.save({'xyz': xyz, 'rgb': rgb, 'normal': normal, 'sem_labels': sem_labels, 'instance_ids': instance_ids},
                os.path.join(cfg.data.dataset_path, split, f"{scan}.pth"))

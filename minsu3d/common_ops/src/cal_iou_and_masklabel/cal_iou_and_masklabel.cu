@@ -13,7 +13,7 @@ Calculate the IoU between predictions and GTs and generate mask labels
 
 __global__ void
 get_mask_iou_on_cluster_cuda_(int nInstance, int nProposal, int *proposals_idx,
-                              int *proposals_offset, int *instance_labels,
+                              int *proposals_offset, int16_t *instance_labels,
                               int *instance_pointnum, float *proposals_iou) {
 
   for (int proposal_id = blockIdx.x; proposal_id < nProposal;
@@ -39,7 +39,7 @@ get_mask_iou_on_cluster_cuda_(int nInstance, int nProposal, int *proposals_idx,
 
 __global__ void
 get_mask_iou_on_pred_cuda_(int nInstance, int nProposal, int *proposals_idx,
-                           int *proposals_offset, int *instance_labels,
+                           int *proposals_offset, int16_t *instance_labels,
                            int *instance_pointnum, float *proposals_iou,
                            float *mask_scores_sigmoid) {
 
@@ -73,7 +73,7 @@ get_mask_iou_on_pred_cuda_(int nInstance, int nProposal, int *proposals_idx,
 __global__ void get_mask_label_cuda_(int nInstance, int nProposal, int ignored_label,
                                      float iou_thr, int *proposals_idx,
                                      int *proposals_offset,
-                                     int *instance_labels, int *instance_cls,
+                                     int16_t *instance_labels, int16_t *instance_cls,
                                      float *proposals_iou, bool *mask_label, bool *mask_label_mask) {
   for (int proposal_id = blockIdx.x; proposal_id < nProposal; proposal_id += gridDim.x) {
     int start = proposals_offset[proposal_id];
@@ -104,34 +104,9 @@ __global__ void get_mask_label_cuda_(int nInstance, int nProposal, int ignored_l
   }
 }
 
-// input: nInstance (1,), int
-// input: nProposal (1,), int
-// input: proposals_idx (sumNPoint), int
-// input: proposals_offset (nProposal + 1), int
-// input: instance_labels (N), long, 0~total_nInst-1, -1
-// input: instance_pointnum (total_nInst), int
-// input: mask_scores_sigmoid (sumNPoint, 1), float
-// output: proposals_iou (nProposal, total_nInst), float
-// output: mask_label (sumNPoint, 1), float
-// void cal_iou_and_masklabel_cuda(int nInstance, int nProposal, int
-// *proposals_idx, int *proposals_offset, long *instance_labels, long
-// *instance_cls, int *instance_pointnum, float *proposals_iou, float
-// *mask_scores_sigmoid, bool *mask_label, int mode){
-//     get_iou_mask_cuda_<<<std::min(nProposal, (int)MAX_BLOCKS_PER_GRID),
-//     std::min(nInstance, (int)MAX_THREADS_PER_BLOCK)>>>(nInstance, nProposal,
-//     proposals_idx, proposals_offset, instance_labels, instance_pointnum,
-//     proposals_iou, mask_scores_sigmoid, mask_label, mode);
-//     cudaDeviceSynchronize();
-//     get_mask_label_cuda_<<<std::min(nProposal, (int)MAX_BLOCKS_PER_GRID),
-//     (int)1>>>(nInstance, nProposal, proposals_idx, proposals_offset,
-//     instance_labels, instance_cls, instance_pointnum, proposals_iou,
-//     mask_scores_sigmoid, mask_label);
-//
-// }
-
 void get_mask_iou_on_cluster_cuda(int nInstance, int nProposal,
                                   int *proposals_idx, int *proposals_offset,
-                                  int *instance_labels, int *instance_pointnum,
+                                  int16_t *instance_labels, int *instance_pointnum,
                                   float *proposals_iou) {
   get_mask_iou_on_cluster_cuda_<<<std::min(nProposal, (int)MAX_BLOCKS_PER_GRID),
                                   std::min(nInstance,
@@ -142,7 +117,7 @@ void get_mask_iou_on_cluster_cuda(int nInstance, int nProposal,
 }
 
 void get_mask_iou_on_pred_cuda(int nInstance, int nProposal, int *proposals_idx,
-                               int *proposals_offset, int *instance_labels,
+                               int *proposals_offset, int16_t *instance_labels,
                                int *instance_pointnum, float *proposals_iou,
                                float *mask_scores_sigmoid) {
   get_mask_iou_on_pred_cuda_<<<std::min(nProposal, (int)MAX_BLOCKS_PER_GRID),
@@ -155,7 +130,7 @@ void get_mask_iou_on_pred_cuda(int nInstance, int nProposal, int *proposals_idx,
 
 void get_mask_label_cuda(int nInstance, int nProposal, int ignored_label, float iou_thr,
                          int *proposals_idx, int *proposals_offset,
-                         int *instance_labels, int *instance_cls,
+                         int16_t *instance_labels, int16_t *instance_cls,
                          float *proposals_iou, bool *mask_label, bool *mask_label_mask) {
   get_mask_label_cuda_<<<std::min(nProposal, (int)MAX_BLOCKS_PER_GRID),
                          (int)1>>>(nInstance, nProposal, ignored_label, iou_thr, proposals_idx,

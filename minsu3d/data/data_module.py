@@ -89,7 +89,7 @@ def _sparse_collate_fn(batch):
     data["instance_center_xyz"] = torch.cat(instance_center_xyz, dim=0)
     data["instance_num_point"] = torch.cat(instance_num_point, dim=0)
     data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int32)
-    data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.int32)
+    data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.int16)
 
     data["voxel_xyz"], data["voxel_features"] = ME.utils.sparse_collate(
         coords=voxel_xyz_list, feats=voxel_features_list

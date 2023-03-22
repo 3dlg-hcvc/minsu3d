@@ -12,7 +12,7 @@ void get_mask_iou_on_cluster(at::Tensor proposals_idx_tensor,
                              int nProposal) {
   int *proposals_idx = proposals_idx_tensor.data_ptr<int>();
   int *proposals_offset = proposals_offset_tensor.data_ptr<int>();
-  int *instance_labels = instance_labels_tensor.data_ptr<int>();
+  int16_t *instance_labels = instance_labels_tensor.data_ptr<int16_t>();
   int *instance_pointnum = instance_pointnum_tensor.data_ptr<int>();
   float *proposals_iou = proposals_iou_tensor.data_ptr<float>();
 
@@ -20,7 +20,7 @@ void get_mask_iou_on_cluster(at::Tensor proposals_idx_tensor,
   // input: nProposal (1,), int
   // input: proposals_idx (sumNPoint), int
   // input: proposals_offset (nProposal + 1), int
-  // input: instance_labels (N), long, 0~total_nInst-1, -1
+  // input: instance_labels (N), int16, 0~total_nInst-1, -1
   // input: instance_pointnum (total_nInst), int
   // input: mask_scores_sigmoid (sumNPoint, 1), float
   // output: proposals_iou (nProposal, total_nInst), float
@@ -39,7 +39,7 @@ void get_mask_iou_on_pred(at::Tensor proposals_idx_tensor,
                           at::Tensor mask_scores_sigmoid_tensor) {
   int *proposals_idx = proposals_idx_tensor.data_ptr<int>();
   int *proposals_offset = proposals_offset_tensor.data_ptr<int>();
-  int *instance_labels = instance_labels_tensor.data_ptr<int>();
+  int16_t *instance_labels = instance_labels_tensor.data_ptr<int16_t>();
   int *instance_pointnum = instance_pointnum_tensor.data_ptr<int>();
   float *proposals_iou = proposals_iou_tensor.data_ptr<float>();
   float *mask_scores_sigmoid = mask_scores_sigmoid_tensor.data_ptr<float>();
@@ -48,7 +48,7 @@ void get_mask_iou_on_pred(at::Tensor proposals_idx_tensor,
   // input: nProposal (1,), int
   // input: proposals_idx (sumNPoint), int
   // input: proposals_offset (nProposal + 1), int
-  // input: instance_labels (N), long, 0~total_nInst-1, -1
+  // input: instance_labels (N), int16, 0~total_nInst-1, -1
   // input: instance_pointnum (total_nInst), int
   // input: mask_scores_sigmoid (sumNPoint, 1), float
   // output: proposals_iou (nProposal, total_nInst), float
@@ -67,8 +67,8 @@ void get_mask_label(at::Tensor proposals_idx_tensor,
                     at::Tensor mask_labels_tensor, at::Tensor mask_labels_mask_tensor) {
   int *proposals_idx = proposals_idx_tensor.data_ptr<int>();
   int *proposals_offset = proposals_offset_tensor.data_ptr<int>();
-  int *instance_labels = instance_labels_tensor.data_ptr<int>();
-  int *instance_cls = instance_cls_tensor.data_ptr<int>();
+  int16_t *instance_labels = instance_labels_tensor.data_ptr<int16_t>();
+  int16_t *instance_cls = instance_cls_tensor.data_ptr<int16_t>();
   float *proposals_iou = proposals_iou_tensor.data_ptr<float>();
   bool *mask_label = mask_labels_tensor.data_ptr<bool>();
   bool *mask_label_mask = mask_labels_mask_tensor.data_ptr<bool>();
@@ -77,7 +77,7 @@ void get_mask_label(at::Tensor proposals_idx_tensor,
   // input: nProposal (1,), int
   // input: proposals_idx (sumNPoint), int
   // input: proposals_offset (nProposal + 1), int
-  // input: instance_labels (N), long, 0~total_nInst-1, -1
+  // input: instance_labels (N), int16, 0~total_nInst-1, -1
   // input: instance_pointnum (total_nInst), int
   // input: mask_scores_sigmoid (sumNPoint, 1), float
   // output: proposals_iou (nProposal, total_nInst), float

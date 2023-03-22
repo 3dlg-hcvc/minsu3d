@@ -59,7 +59,7 @@ class GeneralDataset(Dataset):
         unique_instance_ids = unique_instance_ids[unique_instance_ids != -1]
         num_instance = unique_instance_ids.shape[0]
         instance_center_xyz = np.empty(shape=(xyz.shape[0], 3), dtype=np.float32)
-        instance_cls = np.full(shape=unique_instance_ids.shape[0], fill_value=-1, dtype=np.int8)
+        instance_cls = np.full(shape=unique_instance_ids.shape[0], fill_value=-1, dtype=np.int16)
         for index, i in enumerate(unique_instance_ids):
             inst_i_idx = np.where(instance_ids == i)[0]
 
@@ -85,8 +85,8 @@ class GeneralDataset(Dataset):
         colors = scene["rgb"].astype(np.float32)  # (N, 3)
         normals = scene["normal"].astype(np.float32)  # (N, 3)
 
-        instance_ids = scene["instance_ids"].astype(np.int32)  # (N, )
-        sem_labels = scene["sem_labels"].astype(np.int32)  # (N, )
+        instance_ids = scene["instance_ids"].astype(np.int16)  # (N, )
+        sem_labels = scene["sem_labels"].astype(np.int16)  # (N, )
         data = {"scan_id": scene_id}
 
         # augment
