@@ -152,11 +152,12 @@ class GeneralModel(pl.LightningModule):
 
 
 def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, device):
-    batch_idx = clusters_idx[:, 0].long().to(device)
-    c_idxs = clusters_idx[:, 1].long().to(device)
+
+    batch_idx = clusters_idx[:, 0]
+    c_idxs = clusters_idx[:, 1]
     feats = feats[c_idxs]
     clusters_coords = coords[c_idxs]
-    clusters_offset = clusters_offset.to(device)
+
     clusters_coords_mean = common_ops.sec_mean(clusters_coords, clusters_offset)  # (nCluster, 3)
     clusters_coords_mean_all = torch.index_select(clusters_coords_mean, 0, batch_idx)  # (sumNPoint, 3)
     clusters_coords -= clusters_coords_mean_all
@@ -180,19 +181,21 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
     offset += torch.clamp(spatial_shape - range + 0.001, max=0) * torch.rand(3, device=device)
     offset = torch.index_select(offset, 0, batch_idx)
     clusters_coords += offset
-    assert clusters_coords.shape.numel() == ((clusters_coords >= 0) * (clusters_coords < spatial_shape)).sum()
+    # assert clusters_coords.shape.numel() == ((clusters_coords >= 0) * (clusters_coords < spatial_shape)).sum()
 
-    clusters_coords = clusters_coords.cpu().int()
+    clusters_coords = clusters_coords.int()
 
-    clusters_voxel_coords, clusters_p2v_map, clusters_v2p_map = common_ops.voxelization_idx(clusters_coords,
-                                                                                            clusters_idx[:, 0].to(
-                                                                                                torch.int16),
-                                                                                            int(clusters_idx[
-                                                                                                    -1, 0]) + 1, 4)
-    clusters_voxel_feats = common_ops.voxelization(feats, clusters_v2p_map.to(device))
-    clusters_voxel_feats = ME.SparseTensor(features=clusters_voxel_feats,
-                                           coordinates=clusters_voxel_coords.int().to(device), device=device)
-    return clusters_voxel_feats, clusters_p2v_map
+    # new
+    batched_xyz = torch.cat((clusters_idx[:, 0].unsqueeze(-1), clusters_coords), dim=1)
+
+    voxel_xyz, voxel_features, _, voxel_point_map = ME.utils.sparse_quantize(
+        batched_xyz, feats,
+        return_index=True, return_inverse=True, device=device.type
+    )
+
+    clusters_voxel_feats = ME.SparseTensor(features=voxel_features, coordinates=voxel_xyz, device=device)
+
+    return clusters_voxel_feats, voxel_point_map
 
 
 def get_batch_offsets(batch_idxs, batch_size, device):

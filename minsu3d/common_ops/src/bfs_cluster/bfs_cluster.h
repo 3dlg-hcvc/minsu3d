@@ -13,7 +13,7 @@ All Rights Reserved 2020.
 #include "../datatype/datatype.h"
 
 int ballquery_batch_p(at::Tensor xyz_tensor, at::Tensor batch_idxs_tensor, at::Tensor batch_offsets_tensor, at::Tensor idx_tensor, at::Tensor start_len_tensor, int n, int meanActive, float radius);
-int ballquery_batch_p_cuda(int n, int meanActive, float radius, const float *xyz, const int *batch_idxs, const int *batch_offsets, int *idx, int *start_len, cudaStream_t stream);
+int ballquery_batch_p_cuda(int n, int meanActive, float radius, const float *xyz, const int16_t *batch_idxs, const int *batch_offsets, int *idx, int *start_len, cudaStream_t stream);
 
 void pg_bfs_cluster(at::Tensor semantic_label_tensor, at::Tensor ball_query_idxs_tensor, at::Tensor start_len_tensor, at::Tensor cluster_idxs_tensor, at::Tensor cluster_offsets_tensor, const int N, int threshold);
 void sg_bfs_cluster(at::Tensor class_numpoint_mean_tensor, at::Tensor ball_query_idxs_tensor, at::Tensor start_len_tensor, at::Tensor cluster_idxs_tensor, at::Tensor cluster_offsets_tensor, const int N, float threshold, const int class_id);

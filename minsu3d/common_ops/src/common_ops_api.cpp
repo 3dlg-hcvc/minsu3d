@@ -11,9 +11,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
     m.def("global_avg_pool_bp", &global_avg_pool_bp, "global_avg_pool_bp");
 
     // Common
-    m.def("voxelize_idx", &voxelize_idx_3d, "voxelize_idx");
-    m.def("voxelize_fp", &voxelize_fp_feat, "voxelize_fp");
-    m.def("voxelize_bp", &voxelize_bp_feat, "voxelize_bp");
     m.def("ballquery_batch_p", &ballquery_batch_p, "ballquery_batch_p");
     m.def("sec_mean", &sec_mean, "sec_mean");
     m.def("sec_min", &sec_min, "sec_min");

@@ -30,14 +30,14 @@ class HAIS(GeneralModel):
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
             # get proposal clusters
             batch_idxs = data_dict["vert_batch_ids"]
-            semantic_preds = output_dict["semantic_scores"].max(1)[1]
+            semantic_preds = output_dict["semantic_scores"].argmax(1)
             # set mask
             semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
             for class_label in self.hparams.cfg.data.ignore_classes:
                 semantic_preds_mask = semantic_preds_mask & (semantic_preds != (class_label - 1))
             object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
-            batch_idxs_ = batch_idxs[object_idxs].int()
+            batch_idxs_ = batch_idxs[object_idxs]
             batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.cfg.data.batch_size, self.device)
             coords_ = data_dict["point_xyz"][object_idxs]
             pt_offsets_ = output_dict["point_offsets"][object_idxs]
@@ -55,7 +55,10 @@ class HAIS(GeneralModel):
                 batch_idxs_.cpu(), using_set_aggr, self.hparams.cfg.data.point_num_avg, self.hparams.cfg.data.radius_avg,
                -1)
 
-            proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
+            proposals_idx = proposals_idx.long().to(self.device)
+            proposals_offset = proposals_offset.to(self.device)
+            proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1]]
+
 
             # proposals voxelization again
             proposals_voxel_feats, proposals_p2v_map = clusters_voxelization(
@@ -70,18 +73,18 @@ class HAIS(GeneralModel):
 
             # predict instance scores
             inst_score = self.tiny_unet(proposals_voxel_feats)
-            score_feats = inst_score.features[proposals_p2v_map.long()]
+            score_feats = inst_score.features[proposals_p2v_map]
 
             # predict mask scores
             # first linear than voxel to point, more efficient (because voxel num < point num)
-            mask_scores = self.mask_branch(inst_score.features)[proposals_p2v_map.long()]
+            mask_scores = self.mask_branch(inst_score.features)[proposals_p2v_map]
 
             # predict instance scores
             if self.current_epoch > self.hparams.cfg.model.network.use_mask_filter_score_feature_start_epoch:
                 mask_index_select = torch.ones_like(mask_scores)
                 mask_index_select[torch.sigmoid(mask_scores) < self.hparams.cfg.model.network.mask_filter_score_feature_thre] = 0.
                 score_feats = score_feats * mask_index_select
-            score_feats = common_ops.roipool(score_feats, proposals_offset.to(self.device))  # (nProposal, C)
+            score_feats = common_ops.roipool(score_feats, proposals_offset)  # (nProposal, C)
             scores = self.score_branch(score_feats)  # (nProposal, 1)
             output_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset, mask_scores)
         return output_dict
@@ -96,8 +99,7 @@ class HAIS(GeneralModel):
             # get iou and calculate mask label and mask loss
             mask_scores_sigmoid = torch.sigmoid(mask_scores)
 
-            proposals_idx = proposals_idx[:, 1].to(self.device)
-            proposals_offset = proposals_offset.to(self.device)
+            proposals_idx = proposals_idx[:, 1]
 
             if self.current_epoch > self.hparams.cfg.model.network.cal_iou_based_on_mask_start_epoch:
                 ious = common_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
@@ -118,8 +120,9 @@ class HAIS(GeneralModel):
             losses["mask_loss"] = nn.functional.binary_cross_entropy(
                 mask_scores_sigmoid, mask_label.float(), weight=mask_label_mask, reduction="mean"
             )
-            gt_ious, _ = ious.max(1)  # gt_ious: (nProposal)
-            gt_scores = get_segmented_scores(gt_ious, self.hparams.cfg.model.network.fg_thresh, self.hparams.cfg.model.network.bg_thresh)
+            gt_scores = get_segmented_scores(
+                ious.max(1)[0], self.hparams.cfg.model.network.fg_thresh, self.hparams.cfg.model.network.bg_thresh
+            )
             losses["score_loss"] = nn.functional.binary_cross_entropy(torch.sigmoid(scores.view(-1)), gt_scores)
         return losses
 

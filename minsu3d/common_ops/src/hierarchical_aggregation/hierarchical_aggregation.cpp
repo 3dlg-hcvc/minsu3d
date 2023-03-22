@@ -5,7 +5,7 @@
 
 // instance point num for each class, statistical data from the training set
 
-ConnectedComponent find_cc(int idx, int *semantic_label, float *coord_shift, int *batch_idxs,
+ConnectedComponent find_cc(int idx, int *semantic_label, float *coord_shift, int16_t *batch_idxs,
         int *ball_query_idxs, int *start_len, int *visited, const int ignored_label){
     ConnectedComponent cc;
     cc.cls_label = ignored_label;
@@ -40,7 +40,7 @@ ConnectedComponent find_cc(int idx, int *semantic_label, float *coord_shift, int
 }
 
 // split clusters into fragment and primary based on point num
-void split_clusters(int *semantic_label, float *coord_shift, int *batch_idxs,
+void split_clusters(int *semantic_label, float *coord_shift, int16_t *batch_idxs,
     int *ball_query_idxs, int *start_len, const int nPoint,
     ConnectedComponents &CCs_fragment, ConnectedComponents &CCs_kept, ConnectedComponents &CCs_primary, 
     int *sumNPoint_fragment, int *sumNPoint_kept, int *sumNPoint_primary, const float *class_numpoint_mean_dict, const int ignored_label){
@@ -98,7 +98,7 @@ void fill_cluster_idxs_(ConnectedComponents &CCs, int *cluster_idxs, int *cluste
 
 //input: semantic_label, int, (N)
 //input: coord_shift, float, (N, 3)
-//input: batch_idxs, int, (N)
+//input: batch_idxs, int16, (N)
 //input: ball_query_idxs, int, (nActive)
 //input: start_len, int, (N, 2)
 //(fragment_idxs, fragment_offsets, fragment_centers) for fragment clusters
@@ -115,7 +115,7 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
         const int N, const int using_set_aggr_, const int ignored_label){
     int *semantic_label = semantic_label_tensor.data_ptr<int>();
     float *coord_shift = coord_shift_tensor.data_ptr<float>();
-    int *batch_idxs = batch_idxs_tensor.data_ptr<int>();
+    int16_t *batch_idxs = batch_idxs_tensor.data_ptr<int16_t>();
     int *ball_query_idxs = ball_query_idxs_tensor.data_ptr<int>();
     int *start_len = start_len_tensor.data_ptr<int>();
     float *point_num_avg = point_num_avg_tensor.data_ptr<float>();
