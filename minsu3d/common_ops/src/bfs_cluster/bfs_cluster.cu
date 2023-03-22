@@ -12,7 +12,7 @@ All Rights Reserved 2020.
 
 
 /* ================================== ballquery_batch_p ================================== */
-__global__ void ballquery_batch_p_cuda_(int n, int meanActive, float radius, const float *xyz, const int16_t *batch_idxs, const int *batch_offsets, int *idx, int *start_len, int *cumsum) {
+__global__ void ballquery_batch_p_cuda_(int n, int meanActive, float radius, const float *xyz, const uint8_t *batch_idxs, const int *batch_offsets, int *idx, int *start_len, int *cumsum) {
     int pt_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (pt_idx >= n) return;
 
@@ -24,7 +24,7 @@ __global__ void ballquery_batch_p_cuda_(int n, int meanActive, float radius, con
     float o_y = xyz[pt_idx * 3 + 1];
     float o_z = xyz[pt_idx * 3 + 2];
 
-    int16_t batch_idx = batch_idxs[pt_idx];
+    uint8_t batch_idx = batch_idxs[pt_idx];
     int start = batch_offsets[batch_idx];
     int end = batch_offsets[batch_idx + 1];
 
@@ -60,7 +60,7 @@ __global__ void ballquery_batch_p_cuda_(int n, int meanActive, float radius, con
 }
 
 
-int ballquery_batch_p_cuda(int n, int meanActive, float radius, const float *xyz, const int16_t *batch_idxs, const int *batch_offsets, int *idx, int *start_len, cudaStream_t stream) {
+int ballquery_batch_p_cuda(int n, int meanActive, float radius, const float *xyz, const uint8_t *batch_idxs, const int *batch_offsets, int *idx, int *start_len, cudaStream_t stream) {
     // param xyz: (n, 3)
     // param batch_idxs: (n)
     // param batch_offsets: (B + 1)

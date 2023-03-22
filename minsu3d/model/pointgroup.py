@@ -219,8 +219,10 @@ class PointGroup(GeneralModel):
 
         # score threshold & min_npoint mask
         proposals_npoint = torch.count_nonzero(proposals_mask, dim=1)
-        proposals_thres_mask = torch.logical_and(proposals_score > self.hparams.cfg.model.network.test.TEST_SCORE_THRESH,
-                                                 proposals_npoint > self.hparams.cfg.model.network.test.TEST_NPOINT_THRESH)
+        proposals_thres_mask = torch.logical_and(
+            proposals_score > self.hparams.cfg.model.network.test.TEST_SCORE_THRESH,
+            proposals_npoint > self.hparams.cfg.model.network.test.TEST_NPOINT_THRESH
+        )
 
         proposals_score = proposals_score[proposals_thres_mask]
         proposals_mask = proposals_mask[proposals_thres_mask]

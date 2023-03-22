@@ -36,7 +36,6 @@ class SoftGroup(GeneralModel):
                 Top-down Refinement Block
             """
             semantic_scores = output_dict["semantic_scores"].softmax(dim=-1)
-            batch_idxs = data_dict["vert_batch_ids"]
 
             proposals_offset_list = []
             proposals_idx_list = []
@@ -48,7 +47,7 @@ class SoftGroup(GeneralModel):
                 object_idxs = (scores > self.hparams.cfg.model.network.grouping_cfg.score_thr).nonzero().view(-1)
                 if object_idxs.size(0) < self.hparams.cfg.model.network.test_cfg.min_npoint:
                     continue
-                batch_idxs_ = batch_idxs[object_idxs]
+                batch_idxs_ = data_dict["vert_batch_ids"][object_idxs]
                 batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.cfg.data.batch_size, self.device)
                 coords_ = data_dict["point_xyz"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]

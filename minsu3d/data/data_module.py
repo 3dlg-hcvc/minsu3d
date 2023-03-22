@@ -65,7 +65,7 @@ def _sparse_collate_fn(batch):
         voxel_point_map_list.append(b["voxel_point_map"] + num_voxel_batch)
         num_voxel_batch += b["voxel_xyz"].shape[0]
 
-        vert_batch_ids.append(torch.full((b["point_xyz"].shape[0],), fill_value=i, dtype=torch.int16))
+        vert_batch_ids.append(torch.full((b["point_xyz"].shape[0],), fill_value=i, dtype=torch.uint8))
 
         instance_ids_i = b["instance_ids"]
         instance_ids_i[instance_ids_i != -1] += total_num_inst
