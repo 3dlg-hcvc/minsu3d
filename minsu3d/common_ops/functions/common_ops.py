@@ -274,9 +274,10 @@ class GetMaskIoUOnPred(Function):
         assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
         assert mask_scores_sigmoid.is_contiguous() and mask_scores_sigmoid.is_cuda
 
-        COMMON_OPS.get_mask_iou_on_pred(proposals_idx, proposals_offset, instance_labels,
-                                 instance_pointnum, proposals_iou, nInstance, nProposal,
-                                 mask_scores_sigmoid)
+        COMMON_OPS.get_mask_iou_on_pred(
+            proposals_idx, proposals_offset, instance_labels, instance_pointnum,
+            proposals_iou, nInstance, nProposal, mask_scores_sigmoid
+        )
 
         return proposals_iou
 

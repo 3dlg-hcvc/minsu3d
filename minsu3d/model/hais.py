@@ -99,7 +99,7 @@ class HAIS(GeneralModel):
             # get iou and calculate mask label and mask loss
             mask_scores_sigmoid = torch.sigmoid(mask_scores)
 
-            proposals_idx = proposals_idx[:, 1]
+            proposals_idx = proposals_idx[:, 1].int().contiguous()
 
             if self.current_epoch > self.hparams.cfg.model.network.cal_iou_based_on_mask_start_epoch:
                 ious = common_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
