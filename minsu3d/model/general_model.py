@@ -58,11 +58,11 @@ class GeneralModel(pl.LightningModule):
         for loss_name, loss_value in losses.items():
             total_loss += loss_value
             self.log(
-                f"train/{loss_name}", loss_value, on_step=False,
+                f"train/{loss_name}", loss_value, on_step=False, sync_dist=True,
                 on_epoch=True, batch_size=self.hparams.cfg.data.batch_size
             )
         self.log(
-            "train/total_loss", total_loss, prog_bar=True, on_step=False,
+            "train/total_loss", total_loss, on_step=False, sync_dist=True,
             on_epoch=True, batch_size=self.hparams.cfg.data.batch_size
         )
         return total_loss

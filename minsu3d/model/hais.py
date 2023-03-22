@@ -123,7 +123,7 @@ class HAIS(GeneralModel):
             gt_scores = get_segmented_scores(
                 ious.max(1)[0], self.hparams.cfg.model.network.fg_thresh, self.hparams.cfg.model.network.bg_thresh
             )
-            losses["score_loss"] = nn.functional.binary_cross_entropy(torch.sigmoid(scores.view(-1)), gt_scores)
+            losses["score_loss"] = nn.functional.binary_cross_entropy_with_logits(scores.view(-1), gt_scores)
         return losses
 
     def validation_step(self, data_dict, idx):
@@ -136,16 +136,19 @@ class HAIS(GeneralModel):
         for loss_name, loss_value in losses.items():
             total_loss += loss_value
             self.log(f"val/{loss_name}", loss_value, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
-        self.log("val/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True,
-                 batch_size=1)
+        self.log("val/total_loss", total_loss, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
         # log semantic prediction accuracy
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
         semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
                                                        ignore_label=-1)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
                                                    ignore_label=-1)
-        self.log("val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
-        self.log("val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
+        self.log(
+            "val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True, batch_size=1
+        )
+        self.log(
+            "val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True, batch_size=1
+        )
         
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
@@ -213,7 +216,7 @@ class HAIS(GeneralModel):
 
         # outlier filtering
         _mask = mask_scores.squeeze(1) > self.hparams.cfg.model.network.test.test_mask_score_thre
-        proposals_pred[proposals_idx[_mask][:, 0].long(), proposals_idx[_mask][:, 1].long()] = True
+        proposals_pred[proposals_idx[_mask][:, 0], proposals_idx[_mask][:, 1]] = True
 
         # score threshold
         score_mask = (scores_pred > self.hparams.cfg.model.network.test.TEST_SCORE_THRESH)

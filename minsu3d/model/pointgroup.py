@@ -96,12 +96,12 @@ class PointGroup(GeneralModel):
             scores, proposals_idx, proposals_offset = output_dict["proposal_scores"]
 
             ious = common_ops.get_iou(
-                proposals_idx[:, 1], proposals_offset, data_dict["instance_ids"], data_dict["instance_num_point"]
+                proposals_idx[:, 1].int().contiguous(), proposals_offset, data_dict["instance_ids"], data_dict["instance_num_point"]
             )
             gt_scores = get_segmented_scores(
                 ious.max(1)[0], self.hparams.cfg.model.network.fg_thresh, self.hparams.cfg.model.network.bg_thresh
             )
-            losses["score_loss"] = nn.functional.binary_cross_entropy(torch.sigmoid(scores.view(-1)), gt_scores)
+            losses["score_loss"] = nn.functional.binary_cross_entropy_with_logits(scores.view(-1), gt_scores)
         return losses
 
     def validation_step(self, data_dict, idx):
@@ -114,8 +114,7 @@ class PointGroup(GeneralModel):
         for loss_name, loss_value in losses.items():
             total_loss += loss_value
             self.log(f"val/{loss_name}", loss_value, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
-        self.log("val/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True,
-                 batch_size=1)
+        self.log("val/total_loss", total_loss, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
 
         # log semantic prediction accuracy
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
@@ -123,10 +122,12 @@ class PointGroup(GeneralModel):
                                                        ignore_label=-1)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
                                                    ignore_label=-1)
-        self.log("val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True,
-                 batch_size=1)
-        self.log("val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True,
-                 batch_size=1)
+        self.log(
+            "val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True, batch_size=1
+        )
+        self.log(
+            "val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True, batch_size=1
+        )
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
@@ -214,7 +215,7 @@ class PointGroup(GeneralModel):
         N = semantic_scores.shape[0]
 
         proposals_mask = torch.zeros((num_proposals, N), dtype=torch.bool, device="cpu")
-        proposals_mask[proposals_idx[:, 0].long(), proposals_idx[:, 1].long()] = True
+        proposals_mask[proposals_idx[:, 0], proposals_idx[:, 1]] = True
 
         # score threshold & min_npoint mask
         proposals_npoint = torch.count_nonzero(proposals_mask, dim=1)

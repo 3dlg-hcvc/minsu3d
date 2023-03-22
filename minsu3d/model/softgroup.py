@@ -125,7 +125,7 @@ class SoftGroup(GeneralModel):
         losses = super()._loss(data_dict, output_dict)
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
-            proposals_idx = output_dict["proposals_idx"][:, 1]
+            proposals_idx = output_dict["proposals_idx"][:, 1].int().contiguous()
             proposals_offset = output_dict["proposals_offset"]
 
             # calculate iou of clustered instance
@@ -193,8 +193,7 @@ class SoftGroup(GeneralModel):
         for loss_name, loss_value in losses.items():
             total_loss += loss_value
             self.log(f"val/{loss_name}", loss_value, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
-        self.log("val/total_loss", total_loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True,
-                 batch_size=1)
+        self.log("val/total_loss", total_loss, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
 
         # log semantic prediction accuracy
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
@@ -202,10 +201,12 @@ class SoftGroup(GeneralModel):
                                                        ignore_label=-1)
         semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
                                                    ignore_label=-1)
-        self.log("val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True,
-                 sync_dist=True, batch_size=1)
-        self.log("val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True,
-                 sync_dist=True, batch_size=1)
+        self.log(
+            "val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True, batch_size=1
+        )
+        self.log(
+            "val_eval/semantic_mean_iou", semantic_mean_iou, on_step=False, on_epoch=True, sync_dist=True, batch_size=1
+        )
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
@@ -279,7 +280,7 @@ class SoftGroup(GeneralModel):
             score_pred = cur_cls_scores * cur_iou_scores.clamp(0, 1)
             mask_pred = torch.zeros((num_instances, num_points), dtype=torch.bool, device="cpu")
             mask_inds = cur_mask_scores > self.hparams.cfg.model.network.test_cfg.mask_score_thr
-            cur_proposals_idx = proposals_idx[mask_inds].long()
+            cur_proposals_idx = proposals_idx[mask_inds]
             mask_pred[cur_proposals_idx[:, 0], cur_proposals_idx[:, 1]] = True
 
             # filter low score instance
