@@ -28,7 +28,6 @@ class HAIS(GeneralModel):
     def forward(self, data_dict):
         output_dict = super().forward(data_dict)
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
-            batch_size = len(data_dict["scan_ids"])
 
             # get proposal clusters
             semantic_preds = output_dict["semantic_scores"].argmax(1)
@@ -39,7 +38,7 @@ class HAIS(GeneralModel):
             object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
             batch_idxs_ = data_dict["vert_batch_ids"][object_idxs]
-            batch_offsets_ = get_batch_offsets(batch_idxs_, batch_size, self.device)
+            batch_offsets_ = get_batch_offsets(batch_idxs_, self.device)
 
             offset_coords_ = data_dict["point_xyz"][object_idxs] + output_dict["point_offsets"][object_idxs]
 
