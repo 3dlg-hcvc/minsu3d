@@ -6,7 +6,7 @@ from minsu3d.common_ops.functions import pointgroup_ops, common_ops
 from minsu3d.model.general_model import get_segmented_scores
 from minsu3d.model.module import TinyUnet
 from minsu3d.evaluation.semantic_segmentation import *
-from minsu3d.model.general_model import GeneralModel, clusters_voxelization, get_batch_offsets
+from minsu3d.model.general_model import GeneralModel, clusters_voxelization
 
 
 class PointGroup(GeneralModel):
@@ -34,7 +34,7 @@ class PointGroup(GeneralModel):
             object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
             batch_idxs_ = data_dict["vert_batch_ids"][object_idxs]
-            batch_offsets_ = get_batch_offsets(batch_idxs_, self.device)
+            batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0).int()
             coords_ = data_dict["point_xyz"][object_idxs]
             pt_offsets_ = output_dict["point_offsets"][object_idxs]
 

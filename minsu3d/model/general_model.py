@@ -193,13 +193,6 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
     return clusters_voxel_feats, voxel_point_map
 
 
-def get_batch_offsets(batch_idxs, device):
-    batch_size = torch.unique(batch_idxs).shape[0]
-    batch_offsets = torch.zeros(batch_size + 1, dtype=torch.int32, device=device)
-    batch_offsets[1:] = torch.cumsum(torch.bincount(batch_idxs), dim=0)
-    return batch_offsets
-
-
 def get_segmented_scores(scores, fg_thresh=1.0, bg_thresh=0.0):
     """
     Args:

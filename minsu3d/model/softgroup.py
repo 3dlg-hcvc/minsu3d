@@ -5,7 +5,7 @@ from minsu3d.evaluation.object_detection import get_gt_bbox
 from minsu3d.common_ops.functions import softgroup_ops, common_ops
 from minsu3d.evaluation.semantic_segmentation import *
 from minsu3d.model.module import TinyUnet
-from minsu3d.model.general_model import GeneralModel, clusters_voxelization, get_batch_offsets
+from minsu3d.model.general_model import GeneralModel, clusters_voxelization
 
 
 class SoftGroup(GeneralModel):
@@ -48,7 +48,7 @@ class SoftGroup(GeneralModel):
                 if object_idxs.size(0) < self.hparams.cfg.model.network.test_cfg.min_npoint:
                     continue
                 batch_idxs_ = data_dict["vert_batch_ids"][object_idxs]
-                batch_offsets_ = get_batch_offsets(batch_idxs_, self.device)
+                batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0).int()
                 coords_ = data_dict["point_xyz"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
                 idx, start_len = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
@@ -109,7 +109,7 @@ class SoftGroup(GeneralModel):
 
     def global_pool(self, x, expand=False):
         indices = x.coordinates[:, 0]
-        batch_offset = get_batch_offsets(indices, self.device)
+        batch_offset = torch.cumsum(torch.bincount(indices + 1), dim=0).int()
         x_pool = softgroup_ops.global_avg_pool(x.features, batch_offset)
         if not expand:
             return x_pool
