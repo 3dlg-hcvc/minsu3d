@@ -44,11 +44,9 @@ class GeneralModel(pl.LightningModule):
         gt_offsets = data_dict["instance_center_xyz"] - data_dict["point_xyz"]
         valid = data_dict["instance_ids"] != -1
         pt_offset_criterion = PTOffsetLoss()
-        offset_norm_loss, offset_dir_loss = pt_offset_criterion(
+        losses["offset_norm_loss"], losses["offset_dir_loss"] = pt_offset_criterion(
             output_dict["point_offsets"], gt_offsets, valid_mask=valid
         )
-        losses["offset_norm_loss"] = offset_norm_loss
-        losses["offset_dir_loss"] = offset_dir_loss
         return losses
 
     def training_step(self, data_dict, idx):
@@ -59,11 +57,11 @@ class GeneralModel(pl.LightningModule):
             total_loss += loss_value
             self.log(
                 f"train/{loss_name}", loss_value, on_step=False, sync_dist=True,
-                on_epoch=True, batch_size=self.hparams.cfg.data.batch_size
+                on_epoch=True, batch_size=len(data_dict["scan_ids"])
             )
         self.log(
             "train/total_loss", total_loss, on_step=False, sync_dist=True,
-            on_epoch=True, batch_size=self.hparams.cfg.data.batch_size
+            on_epoch=True, batch_size=len(data_dict["scan_ids"])
         )
         return total_loss
 
@@ -181,16 +179,13 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
     offset += torch.clamp(spatial_shape - range + 0.001, max=0) * torch.rand(3, device=device)
     offset = torch.index_select(offset, 0, batch_idx)
     clusters_coords += offset
-    # assert clusters_coords.shape.numel() == ((clusters_coords >= 0) * (clusters_coords < spatial_shape)).sum()
 
     clusters_coords = clusters_coords.int()
 
-    # new
     batched_xyz = torch.cat((clusters_idx[:, 0].unsqueeze(-1), clusters_coords), dim=1)
 
     voxel_xyz, voxel_features, _, voxel_point_map = ME.utils.sparse_quantize(
-        batched_xyz, feats,
-        return_index=True, return_inverse=True, device=device.type
+        batched_xyz, feats, return_index=True, return_inverse=True, device=device.type
     )
 
     clusters_voxel_feats = ME.SparseTensor(features=voxel_features, coordinates=voxel_xyz, device=device)
@@ -200,9 +195,7 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
 
 def get_batch_offsets(batch_idxs, batch_size, device):
     batch_offsets = torch.zeros(batch_size + 1, dtype=torch.int32, device=device)
-    for i in range(batch_size):
-        batch_offsets[i + 1] = batch_offsets[i] + torch.count_nonzero(batch_idxs == i)
-    assert batch_offsets[-1] == batch_idxs.shape[0]
+    batch_offsets[1:] = torch.cumsum(torch.bincount(batch_idxs), dim=0)
     return batch_offsets
 
 

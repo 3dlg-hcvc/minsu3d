@@ -5,7 +5,7 @@
 
 // instance point num for each class, statistical data from the training set
 
-ConnectedComponent find_cc(int idx, int *semantic_label, float *coord_shift, uint8_t *batch_idxs,
+ConnectedComponent find_cc(int idx, int16_t *semantic_label, float *coord_shift, uint8_t *batch_idxs,
         int *ball_query_idxs, int *start_len, int *visited, const int ignored_label){
     ConnectedComponent cc;
     cc.cls_label = ignored_label;
@@ -23,7 +23,7 @@ ConnectedComponent find_cc(int idx, int *semantic_label, float *coord_shift, uin
         int cur = Q.front(); Q.pop();
         int start = start_len[cur * 2];
         int len = start_len[cur * 2 + 1];
-        int label_cur = semantic_label[cur];
+        int16_t label_cur = semantic_label[cur];
         for(int i = start; i < start + len; i++){
             int idx_i = ball_query_idxs[i];
             if (semantic_label[idx_i] != label_cur) continue;
@@ -40,7 +40,7 @@ ConnectedComponent find_cc(int idx, int *semantic_label, float *coord_shift, uin
 }
 
 // split clusters into fragment and primary based on point num
-void split_clusters(int *semantic_label, float *coord_shift, uint8_t *batch_idxs,
+void split_clusters(int16_t *semantic_label, float *coord_shift, uint8_t *batch_idxs,
     int *ball_query_idxs, int *start_len, const int nPoint,
     ConnectedComponents &CCs_fragment, ConnectedComponents &CCs_kept, ConnectedComponents &CCs_primary, 
     int *sumNPoint_fragment, int *sumNPoint_kept, int *sumNPoint_primary, const float *class_numpoint_mean_dict, const int ignored_label){
@@ -96,7 +96,7 @@ void fill_cluster_idxs_(ConnectedComponents &CCs, int *cluster_idxs, int *cluste
     }
 }
 
-//input: semantic_label, int, (N)
+//input: semantic_label, int16, (N)
 //input: coord_shift, float, (N, 3)
 //input: batch_idxs, uint8, (N)
 //input: ball_query_idxs, int, (nActive)
@@ -113,7 +113,7 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
         at::Tensor primary_idxs_post_tensor, at::Tensor primary_offsets_post_tensor,
         at::Tensor point_num_avg_tensor, at::Tensor radius_avg_tensor,
         const int N, const int using_set_aggr_, const int ignored_label){
-    int *semantic_label = semantic_label_tensor.data_ptr<int>();
+    int16_t *semantic_label = semantic_label_tensor.data_ptr<int16_t>();
     float *coord_shift = coord_shift_tensor.data_ptr<float>();
     uint8_t *batch_idxs = batch_idxs_tensor.data_ptr<uint8_t>();
     int *ball_query_idxs = ball_query_idxs_tensor.data_ptr<int>();

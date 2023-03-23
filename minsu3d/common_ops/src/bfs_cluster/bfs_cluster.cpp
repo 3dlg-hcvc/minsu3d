@@ -25,7 +25,7 @@ int ballquery_batch_p(at::Tensor xyz_tensor, at::Tensor batch_idxs_tensor, at::T
 }
 
 /* ================================== bfs_cluster ================================== */
-ConnectedComponent pg_find_cc(Int idx, int *semantic_label, Int *ball_query_idxs, int *start_len, int *visited){
+ConnectedComponent pg_find_cc(Int idx, int16_t *semantic_label, Int *ball_query_idxs, int *start_len, int *visited){
     ConnectedComponent cc;
     cc.addPoint(idx);
     visited[idx] = 1;
@@ -38,7 +38,7 @@ ConnectedComponent pg_find_cc(Int idx, int *semantic_label, Int *ball_query_idxs
         Int cur = Q.front(); Q.pop();
         int start = start_len[cur * 2];
         int len = start_len[cur * 2 + 1];
-        int label_cur = semantic_label[cur];
+        int16_t label_cur = semantic_label[cur];
         for(Int i = start; i < start + len; i++){
             Int idx_i = ball_query_idxs[i];
             if(semantic_label[idx_i] != label_cur) continue;
@@ -79,11 +79,11 @@ ConnectedComponent sg_find_cc(Int idx, Int *ball_query_idxs, int *start_len, int
   return cc;
 }
 
-//input: semantic_label, int, N
+//input: semantic_label, int16, N
 //input: ball_query_idxs, Int, (nActive)
 //input: start_len, int, (N, 2)
 //output: clusters, CCs
-int pg_get_clusters(int *semantic_label, Int *ball_query_idxs, int *start_len, const Int nPoint, int threshold, ConnectedComponents &clusters){
+int pg_get_clusters(int16_t *semantic_label, Int *ball_query_idxs, int *start_len, const Int nPoint, int threshold, ConnectedComponents &clusters){
     int visited[nPoint] = {0};
 
     int sumNPoint = 0;
@@ -146,7 +146,7 @@ void fill_cluster_idxs_(ConnectedComponents &CCs, int *cluster_idxs, int *cluste
 //output: cluster_offsets, int (nCluster + 1)
 void pg_bfs_cluster(at::Tensor semantic_label_tensor, at::Tensor ball_query_idxs_tensor, at::Tensor start_len_tensor,
 at::Tensor cluster_idxs_tensor, at::Tensor cluster_offsets_tensor, const int N, int threshold){
-    int *semantic_label = semantic_label_tensor.data_ptr<int>();
+    int16_t *semantic_label = semantic_label_tensor.data_ptr<int16_t>();
     Int *ball_query_idxs = ball_query_idxs_tensor.data_ptr<Int>();
     int *start_len = start_len_tensor.data_ptr<int>();
 

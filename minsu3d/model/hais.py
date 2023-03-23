@@ -28,6 +28,8 @@ class HAIS(GeneralModel):
     def forward(self, data_dict):
         output_dict = super().forward(data_dict)
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
+            batch_size = len(data_dict["scan_ids"])
+
             # get proposal clusters
             semantic_preds = output_dict["semantic_scores"].argmax(1)
             # set mask
@@ -37,22 +39,22 @@ class HAIS(GeneralModel):
             object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
             batch_idxs_ = data_dict["vert_batch_ids"][object_idxs]
-            batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.cfg.data.batch_size, self.device)
-            coords_ = data_dict["point_xyz"][object_idxs]
-            pt_offsets_ = output_dict["point_offsets"][object_idxs]
+            batch_offsets_ = get_batch_offsets(batch_idxs_, batch_size, self.device)
 
-            semantic_preds_cpu = semantic_preds[object_idxs].cpu().int()
+            offset_coords_ = data_dict["point_xyz"][object_idxs] + output_dict["point_offsets"][object_idxs]
 
-            idx_shift, start_len_shift = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_,
-                                                                      batch_offsets_,
-                                                                      self.hparams.cfg.model.network.point_aggr_radius,
-                                                                      self.hparams.cfg.model.network.cluster_shift_meanActive)
+            idx_shift, start_len_shift = common_ops.ballquery_batch_p(
+                offset_coords_, batch_idxs_, batch_offsets_,
+                self.hparams.cfg.model.network.point_aggr_radius,
+                self.hparams.cfg.model.network.cluster_shift_meanActive
+            )
 
             using_set_aggr = self.hparams.cfg.model.network.using_set_aggr_in_training if self.training else self.hparams.cfg.model.network.using_set_aggr_in_testing
             proposals_idx, proposals_offset = hais_ops.hierarchical_aggregation(
-                semantic_preds_cpu, (coords_ + pt_offsets_).cpu(), idx_shift.cpu(), start_len_shift.cpu(),
-                batch_idxs_.cpu(), using_set_aggr, self.hparams.cfg.data.point_num_avg, self.hparams.cfg.data.radius_avg,
-               -1)
+                semantic_preds[object_idxs].cpu(), offset_coords_.cpu(), idx_shift.cpu(), start_len_shift.cpu(),
+                batch_idxs_.cpu(), using_set_aggr, self.hparams.cfg.data.point_num_avg,
+                self.hparams.cfg.data.radius_avg, -1
+            )
 
             proposals_idx = proposals_idx.long().to(self.device)
             proposals_offset = proposals_offset.to(self.device)

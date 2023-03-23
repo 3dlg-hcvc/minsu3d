@@ -25,20 +25,20 @@ class HierarchicalAggregation(Function):
         assert ball_query_idxs.is_contiguous()
         assert start_len.is_contiguous()
 
-        fragment_idxs = semantic_label.new()
-        fragment_offsets = semantic_label.new()
+        fragment_idxs = torch.empty_like(semantic_label, dtype=torch.int32)
+        fragment_offsets = torch.empty_like(semantic_label, dtype=torch.int32)
         fragment_centers = coord_shift.new()  # float
 
-        cluster_idxs_kept = semantic_label.new()
-        cluster_offsets_kept = semantic_label.new()
+        cluster_idxs_kept = torch.empty_like(semantic_label, dtype=torch.int32)
+        cluster_offsets_kept = torch.empty_like(semantic_label, dtype=torch.int32)
         cluster_centers_kept = coord_shift.new()  # float
 
-        primary_idxs = semantic_label.new()
-        primary_offsets = semantic_label.new()
+        primary_idxs = torch.empty_like(semantic_label, dtype=torch.int32)
+        primary_offsets = torch.empty_like(semantic_label, dtype=torch.int32)
         primary_centers = coord_shift.new()  # float
 
-        primary_idxs_post = semantic_label.new()
-        primary_offsets_post = semantic_label.new()
+        primary_idxs_post = torch.empty_like(semantic_label, dtype=torch.int32)
+        primary_offsets_post = torch.empty_like(semantic_label, dtype=torch.int32)
 
         using_set_aggr_ = int(using_set_aggr)
 
@@ -67,8 +67,8 @@ class HierarchicalAggregation(Function):
             # add primary
             primary_idxs[:, 0] += (cluster_offsets.size(0) - 1)
             primary_offsets += cluster_offsets[-1]
-            cluster_idxs = torch.cat((cluster_idxs, primary_idxs), dim=0).cpu()
-            cluster_offsets = torch.cat((cluster_offsets, primary_offsets[1:])).cpu()
+            cluster_idxs = torch.cat((cluster_idxs, primary_idxs), dim=0)
+            cluster_offsets = torch.cat((cluster_offsets, primary_offsets[1:]))
 
         return cluster_idxs, cluster_offsets
 

@@ -14,7 +14,7 @@ class BallQueryBatchP(Function):
         '''
         :param ctx:
         :param coords: (n, 3) float
-        :param batch_idxs: (n) int
+        :param batch_idxs: (n) uint8
         :param batch_offsets: (B+1) int
         :param radius: float
         :param meanActive: int

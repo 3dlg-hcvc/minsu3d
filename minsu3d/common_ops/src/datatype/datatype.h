@@ -41,8 +41,8 @@ public:
     float accum_x = 0;
     float accum_y = 0;
     float accum_z = 0;
-    int batch_idx = -1;
-    int cls_label;
+    int16_t batch_idx = -1;
+    int16_t cls_label;
 
     ConnectedComponent();
     void addPoint(Int pt_idx);

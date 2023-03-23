@@ -23,9 +23,10 @@ class PointGroup(GeneralModel):
     def forward(self, data_dict):
         output_dict = super().forward(data_dict)
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
+            batch_size = len(data_dict["scan_ids"])
+
             # get proposal clusters
-            batch_idxs = data_dict["vert_batch_ids"]
-            semantic_preds = output_dict["semantic_scores"].argmax(1)
+            semantic_preds = output_dict["semantic_scores"].argmax(1).to(torch.int16)
 
             # set mask
             semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
@@ -33,32 +34,36 @@ class PointGroup(GeneralModel):
                 semantic_preds_mask = semantic_preds_mask & (semantic_preds != (class_label - 1))
             object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
-            batch_idxs_ = batch_idxs[object_idxs]
-            batch_offsets_ = get_batch_offsets(batch_idxs_, self.hparams.cfg.data.batch_size, self.device)
+            batch_idxs_ = data_dict["vert_batch_ids"][object_idxs]
+            batch_offsets_ = get_batch_offsets(batch_idxs_, batch_size, self.device)
             coords_ = data_dict["point_xyz"][object_idxs]
             pt_offsets_ = output_dict["point_offsets"][object_idxs]
 
-            semantic_preds_cpu = semantic_preds[object_idxs].cpu().int()
+            semantic_preds_cpu = semantic_preds[object_idxs].cpu()
 
-            idx_shift, start_len_shift = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_,
-                                                                      batch_offsets_,
-                                                                      self.hparams.cfg.model.network.cluster.cluster_radius,
-                                                                      self.hparams.cfg.model.network.cluster.cluster_shift_meanActive)
-            proposals_idx_shift, proposals_offset_shift = pointgroup_ops.pg_bfs_cluster(semantic_preds_cpu,
-                                                                                        idx_shift.cpu(),
-                                                                                        start_len_shift.cpu(),
-                                                                                        self.hparams.cfg.model.network.cluster.cluster_npoint_thre)
+            idx_shift, start_len_shift = common_ops.ballquery_batch_p(
+                coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
+                self.hparams.cfg.model.network.cluster.cluster_radius,
+                self.hparams.cfg.model.network.cluster.cluster_shift_meanActive
+            )
+
+            proposals_idx_shift, proposals_offset_shift = pointgroup_ops.pg_bfs_cluster(
+                semantic_preds_cpu, idx_shift.cpu(), start_len_shift.cpu(),
+                self.hparams.cfg.model.network.cluster.cluster_npoint_thre
+            )
 
             proposals_idx_shift = proposals_idx_shift.long().to(self.device)
             proposals_offset_shift = proposals_offset_shift.to(self.device)
             proposals_idx_shift[:, 1] = object_idxs[proposals_idx_shift[:, 1]]
 
-            idx, start_len = common_ops.ballquery_batch_p(coords_, batch_idxs_, batch_offsets_,
-                                                          self.hparams.cfg.model.network.cluster.cluster_radius,
-                                                          self.hparams.cfg.model.network.cluster.cluster_meanActive)
-            proposals_idx, proposals_offset = pointgroup_ops.pg_bfs_cluster(semantic_preds_cpu, idx.cpu(),
-                                                                            start_len.cpu(),
-                                                                            self.hparams.cfg.model.network.cluster.cluster_npoint_thre)
+            idx, start_len = common_ops.ballquery_batch_p(
+                coords_, batch_idxs_, batch_offsets_, self.hparams.cfg.model.network.cluster.cluster_radius,
+                self.hparams.cfg.model.network.cluster.cluster_meanActive
+            )
+            proposals_idx, proposals_offset = pointgroup_ops.pg_bfs_cluster(
+                semantic_preds_cpu, idx.cpu(), start_len.cpu(),
+                self.hparams.cfg.model.network.cluster.cluster_npoint_thre
+            )
             proposals_idx = proposals_idx.long().to(self.device)
             proposals_offset = proposals_offset.to(self.device)
             proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1]]
