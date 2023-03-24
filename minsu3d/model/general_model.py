@@ -65,7 +65,7 @@ class GeneralModel(pl.LightningModule):
         )
         return total_loss
 
-    def on_training_epoch_end(self):
+    def on_train_epoch_end(self):
         cosine_lr_decay(
             self.trainer.optimizers[0], self.hparams.cfg.model.optimizer.lr, self.current_epoch,
             self.hparams.cfg.model.lr_decay.decay_start_epoch, self.hparams.cfg.model.lr_decay.decay_stop_epoch, 1e-6
