@@ -100,7 +100,8 @@ class PointGroup(GeneralModel):
             scores, proposals_idx, proposals_offset = output_dict["proposal_scores"]
 
             ious = common_ops.get_iou(
-                proposals_idx[:, 1].int().contiguous(), proposals_offset, data_dict["instance_ids"], data_dict["instance_num_point"]
+                proposals_idx[:, 1].int().contiguous(), proposals_offset,
+                data_dict["instance_ids"], data_dict["instance_num_point"]
             )
             gt_scores = get_segmented_scores(
                 ious.max(1)[0], self.hparams.cfg.model.network.fg_thresh, self.hparams.cfg.model.network.bg_thresh
@@ -122,10 +123,12 @@ class PointGroup(GeneralModel):
 
         # log semantic prediction accuracy
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
-        semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                       ignore_label=-1)
-        semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                   ignore_label=-1)
+        semantic_accuracy = evaluate_semantic_accuracy(
+            semantic_predictions, data_dict["sem_labels"].cpu().numpy(), ignore_label=-1
+        )
+        semantic_mean_iou = evaluate_semantic_miou(
+            semantic_predictions, data_dict["sem_labels"].cpu().numpy(), ignore_label=-1
+        )
         self.log(
             "val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True, batch_size=1
         )
@@ -161,12 +164,12 @@ class PointGroup(GeneralModel):
         if self.hparams.cfg.model.inference.evaluate:
             semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
 
-            semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions,
-                                                           sem_labels_cpu.numpy(),
-                                                           ignore_label=-1)
-            semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, sem_labels_cpu.numpy(),
-                                                       ignore_label=-1)
-
+            semantic_accuracy = evaluate_semantic_accuracy(
+                semantic_predictions, sem_labels_cpu.numpy(), ignore_label=-1
+            )
+            semantic_mean_iou = evaluate_semantic_miou(
+                semantic_predictions, sem_labels_cpu.numpy(), ignore_label=-1
+            )
 
         pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
                                                   data_dict["point_xyz"].cpu().numpy(),
@@ -178,8 +181,9 @@ class PointGroup(GeneralModel):
         gt_instances = None
         gt_instances_bbox = None
         if self.hparams.cfg.model.inference.evaluate:
-            gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
-                                            self.hparams.cfg.data.ignore_classes)
+            gt_instances = get_gt_instances(
+                sem_labels_cpu, data_dict["instance_ids"].cpu(), self.hparams.cfg.data.ignore_classes
+            )
             gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
                                             data_dict["instance_ids"].cpu().numpy(),
                                             data_dict["sem_labels"].cpu().numpy(), -1,

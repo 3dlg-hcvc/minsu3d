@@ -51,9 +51,11 @@ class SoftGroup(GeneralModel):
                 batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0).int()
                 coords_ = data_dict["point_xyz"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
-                idx, start_len = common_ops.ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
-                                                              self.hparams.cfg.model.network.grouping_cfg.radius,
-                                                              self.hparams.cfg.model.network.grouping_cfg.mean_active)
+                idx, start_len = common_ops.ballquery_batch_p(
+                    coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
+                    self.hparams.cfg.model.network.grouping_cfg.radius,
+                    self.hparams.cfg.model.network.grouping_cfg.mean_active
+                )
 
                 proposals_idx, proposals_offset = softgroup_ops.sg_bfs_cluster(
                     self.hparams.cfg.data.point_num_avg, idx.cpu(),
@@ -125,9 +127,9 @@ class SoftGroup(GeneralModel):
             proposals_offset = output_dict["proposals_offset"]
 
             # calculate iou of clustered instance
-            ious_on_cluster = common_ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset,
-                                                                 data_dict["instance_ids"],
-                                                                 data_dict["instance_num_point"])
+            ious_on_cluster = common_ops.get_mask_iou_on_cluster(
+                proposals_idx, proposals_offset, data_dict["instance_ids"], data_dict["instance_num_point"]
+            )
 
             # filter out background instances
             fg_inds = (data_dict["instance_semantic_cls"] != -1)
@@ -156,21 +158,22 @@ class SoftGroup(GeneralModel):
             slice_inds = torch.arange(0, mask_cls_label.size(0), dtype=torch.long, device=mask_cls_label.device)
             mask_scores_sigmoid_slice = output_dict["mask_scores"].sigmoid()[slice_inds, mask_cls_label]
 
-            mask_label, mask_label_mask = common_ops.get_mask_label(proposals_idx, proposals_offset,
-                                                                    data_dict["instance_ids"],
-                                                                    data_dict["instance_semantic_cls"],
-                                                                    data_dict["instance_num_point"], ious_on_cluster,
-                                                                    -1,
-                                                                    self.hparams.cfg.model.network.train_cfg.pos_iou_thr)
+            mask_label, mask_label_mask = common_ops.get_mask_label(
+                proposals_idx, proposals_offset, data_dict["instance_ids"], data_dict["instance_semantic_cls"],
+                data_dict["instance_num_point"], ious_on_cluster,
+                -1, self.hparams.cfg.model.network.train_cfg.pos_iou_thr
+            )
 
-            mask_scoring_loss = nn.functional.binary_cross_entropy(mask_scores_sigmoid_slice, mask_label.float(),
-                                                                   weight=mask_label_mask, reduction="sum")
+            mask_scoring_loss = nn.functional.binary_cross_entropy(
+                mask_scores_sigmoid_slice, mask_label.float(), weight=mask_label_mask, reduction="sum"
+            )
             mask_scoring_loss /= (torch.count_nonzero(mask_label_mask) + 1)
             losses["mask_scoring_loss"] = mask_scoring_loss
             """iou scoring loss"""
-            ious = common_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
-                                                   data_dict["instance_num_point"],
-                                                   mask_scores_sigmoid_slice.detach())
+            ious = common_ops.get_mask_iou_on_pred(
+                proposals_idx, proposals_offset, data_dict["instance_ids"], data_dict["instance_num_point"],
+                mask_scores_sigmoid_slice.detach()
+            )
             slice_inds = torch.arange(0, labels.size(0), dtype=torch.long, device=labels.device)
             iou_score_weight = labels < self.instance_classes
             iou_score_slice = output_dict["iou_scores"][slice_inds, labels]
@@ -193,10 +196,12 @@ class SoftGroup(GeneralModel):
 
         # log semantic prediction accuracy
         semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
-        semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                       ignore_label=-1)
-        semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"].cpu().numpy(),
-                                                   ignore_label=-1)
+        semantic_accuracy = evaluate_semantic_accuracy(
+            semantic_predictions, data_dict["sem_labels"].cpu().numpy(), ignore_label=-1
+        )
+        semantic_mean_iou = evaluate_semantic_miou(
+            semantic_predictions, data_dict["sem_labels"].cpu().numpy(), ignore_label=-1
+        )
         self.log(
             "val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True, batch_size=1
         )
@@ -205,20 +210,19 @@ class SoftGroup(GeneralModel):
         )
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
-            pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
-                                                      data_dict["point_xyz"].cpu().numpy(),
-                                                      output_dict["proposals_idx"].cpu(),
-                                                      output_dict["semantic_scores"].size(0),
-                                                      output_dict["cls_scores"].cpu(),
-                                                      output_dict["iou_scores"].cpu(),
-                                                      output_dict["mask_scores"].cpu(),
-                                                      len(self.hparams.cfg.data.ignore_classes))
-            gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
-                                            self.hparams.cfg.data.ignore_classes)
-            gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
-                                            data_dict["instance_ids"].cpu().numpy(),
-                                            data_dict["sem_labels"].cpu().numpy(), -1,
-                                            self.hparams.cfg.data.ignore_classes)
+            pred_instances = self._get_pred_instances(
+                data_dict["scan_ids"][0], data_dict["point_xyz"].cpu().numpy(), output_dict["proposals_idx"].cpu(),
+                output_dict["semantic_scores"].size(0), output_dict["cls_scores"].cpu(),
+                output_dict["iou_scores"].cpu(), output_dict["mask_scores"].cpu(),
+                len(self.hparams.cfg.data.ignore_classes)
+            )
+            gt_instances = get_gt_instances(
+                data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(), self.hparams.cfg.data.ignore_classes
+            )
+            gt_instances_bbox = get_gt_bbox(
+                data_dict["point_xyz"].cpu().numpy(), data_dict["instance_ids"].cpu().numpy(),
+                data_dict["sem_labels"].cpu().numpy(), -1, self.hparams.cfg.data.ignore_classes
+            )
 
             self.val_test_step_outputs.append((pred_instances, gt_instances, gt_instances_bbox))
 
@@ -232,32 +236,29 @@ class SoftGroup(GeneralModel):
         semantic_mean_iou = None
         if self.hparams.cfg.model.inference.evaluate:
             semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
-            semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions,
-                                                           sem_labels_cpu.numpy(),
-                                                           ignore_label=-1)
-            semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, sem_labels_cpu.numpy(),
-                                                       ignore_label=-1)
+            semantic_accuracy = evaluate_semantic_accuracy(
+                semantic_predictions, sem_labels_cpu.numpy(), ignore_label=-1
+            )
+            semantic_mean_iou = evaluate_semantic_miou(
+                semantic_predictions, sem_labels_cpu.numpy(), ignore_label=-1
+            )
 
-
-        pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
-                                                  data_dict["point_xyz"].cpu().numpy(),
-                                                  output_dict["proposals_idx"].cpu(),
-                                                  output_dict["semantic_scores"].size(0),
-                                                  output_dict["cls_scores"].cpu(),
-                                                  output_dict["iou_scores"].cpu(),
-                                                  output_dict["mask_scores"].cpu(),
-                                                  len(self.hparams.cfg.data.ignore_classes))
+        pred_instances = self._get_pred_instances(
+            data_dict["scan_ids"][0], data_dict["point_xyz"].cpu().numpy(), output_dict["proposals_idx"].cpu(),
+            output_dict["semantic_scores"].size(0), output_dict["cls_scores"].cpu(), output_dict["iou_scores"].cpu(),
+            output_dict["mask_scores"].cpu(), len(self.hparams.cfg.data.ignore_classes)
+        )
         gt_instances = None
         gt_instances_bbox = None
         if self.hparams.cfg.model.inference.evaluate:
-            gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
-                                            self.hparams.cfg.data.ignore_classes)
+            gt_instances = get_gt_instances(
+                sem_labels_cpu, data_dict["instance_ids"].cpu(), self.hparams.cfg.data.ignore_classes
+            )
 
-            gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
-                                            data_dict["instance_ids"].cpu().numpy(),
-                                            data_dict["sem_labels"].cpu().numpy(),
-                                            -1,
-                                            self.hparams.cfg.data.ignore_classes)
+            gt_instances_bbox = get_gt_bbox(
+                data_dict["point_xyz"].cpu().numpy(), data_dict["instance_ids"].cpu().numpy(),
+                data_dict["sem_labels"].cpu().numpy(), -1, self.hparams.cfg.data.ignore_classes
+            )
 
         self.val_test_step_outputs.append(
             (semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox)

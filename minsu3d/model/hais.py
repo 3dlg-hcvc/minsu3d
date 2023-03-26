@@ -102,19 +102,20 @@ class HAIS(GeneralModel):
             proposals_idx = proposals_idx[:, 1].int().contiguous()
 
             if self.current_epoch > self.hparams.cfg.model.network.cal_iou_based_on_mask_start_epoch:
-                ious = common_ops.get_mask_iou_on_pred(proposals_idx, proposals_offset, data_dict["instance_ids"],
-                                                       data_dict["instance_num_point"],
-                                                       mask_scores_sigmoid.detach())
+                ious = common_ops.get_mask_iou_on_pred(
+                    proposals_idx, proposals_offset, data_dict["instance_ids"],
+                    data_dict["instance_num_point"],
+                    mask_scores_sigmoid.detach()
+                )
             else:
-                ious = common_ops.get_mask_iou_on_cluster(proposals_idx, proposals_offset,
-                                                          data_dict["instance_ids"],
-                                                          data_dict["instance_num_point"])
+                ious = common_ops.get_mask_iou_on_cluster(
+                    proposals_idx, proposals_offset, data_dict["instance_ids"], data_dict["instance_num_point"]
+                )
 
-            mask_label, mask_label_mask = common_ops.get_mask_label(proposals_idx, proposals_offset,
-                                                                    data_dict["instance_ids"],
-                                                                    data_dict["instance_semantic_cls"],
-                                                                    data_dict["instance_num_point"], ious,
-                                                                    -1, 0.5)
+            mask_label, mask_label_mask = common_ops.get_mask_label(
+                proposals_idx, proposals_offset, data_dict["instance_ids"],
+                data_dict["instance_semantic_cls"], data_dict["instance_num_point"], ious, -1, 0.5
+            )
             mask_label = mask_label.unsqueeze(1)
             mask_label_mask = mask_label_mask.unsqueeze(1)
             losses["mask_loss"] = nn.functional.binary_cross_entropy(
