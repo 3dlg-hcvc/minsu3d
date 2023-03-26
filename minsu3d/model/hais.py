@@ -30,7 +30,7 @@ class HAIS(GeneralModel):
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
 
             # get proposal clusters
-            semantic_preds = output_dict["semantic_scores"].argmax(1)
+            semantic_preds = output_dict["semantic_scores"].argmax(1).to(torch.int16)
             # set mask
             semantic_preds_mask = torch.ones_like(semantic_preds, dtype=torch.bool)
             for class_label in self.hparams.cfg.data.ignore_classes:
