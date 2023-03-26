@@ -19,6 +19,9 @@ We also provide bounding boxes predictions based on instance segmentation for 3D
 - Easy experiment configuration and management with [Hydra](https://github.com/facebookresearch/hydra).
 - Unified and optimized C++ and CUDA extensions.
 
+## Changelog
+1. MINSU3D v2.0 release, ~1.7 times faster, ~3.8GB less CPU memory usage and ~400MB less GPU memory usage
+
 ## Setup
 
 ### Conda (recommended)
@@ -193,34 +196,26 @@ If you find that many bounding boxes are overlapping, you can choose to do non m
 
 ## Performance
 
-We report the time it takes to train on Scannet v2 training set of 1201 scans with the following setup.
-
 **Test environment**
 - CPU: Intel Core i9-9900K @ 3.60GHz × 16
 - RAM: 64GB
 - GPU: NVIDIA GeForce RTX 2080 Ti 11GB
 - System: Ubuntu 20.04.2 LTS
 
-**Training time in total (without validation)**
+**Training time in total (train set only, without validation)**
 | Model      | Epochs | Batch Size | MINSU3D | Official Version |
 |:-----------|:--------|:--------|:--------|:-------|
-| [PointGroup](https://github.com/dvlab-research/PointGroup) | 450 | 4 | 55hr | 51hr |
-| [HAIS](https://github.com/hustvl/HAIS)| 450 | 4 | 68hr | 60hr |
-| [SoftGroup](https://github.com/thangvubk/SoftGroup) | 256 | 4 | 45hr | 30hr |
+| [PointGroup](https://github.com/dvlab-research/PointGroup) | 450 | 4 | 30hr | 51hr |
+| [HAIS](https://github.com/hustvl/HAIS)| 450 | 4 | (to be updated) | 60hr |
+| [SoftGroup](https://github.com/thangvubk/SoftGroup) | 256 | 4 | (to be updated) | 30hr |
 
-**Training time per scene (avg)**
-| Model      | MINSU3D | Official Version |
-|:-----------|:--------|:-------|
-| [PointGroup](https://github.com/dvlab-research/PointGroup) | 420ms | 383ms |
-| [HAIS](https://github.com/hustvl/HAIS)| 475ms | 432ms |
-| [SoftGroup](https://github.com/thangvubk/SoftGroup) | 511ms | 357ms |
 
 **Inference time per scene (avg)**
 | Model      | MINSU3D | Official Version |
 |:-----------|:--------|:-------|
-| [PointGroup](https://github.com/dvlab-research/PointGroup) | 179ms | 176ms |
-| [HAIS](https://github.com/hustvl/HAIS)| 160ms | 165ms |
-| [SoftGroup](https://github.com/thangvubk/SoftGroup) | 165ms | 204ms |
+| [PointGroup](https://github.com/dvlab-research/PointGroup) | (to be updated) | 176ms |
+| [HAIS](https://github.com/hustvl/HAIS)| (to be updated) | 165ms |
+| [SoftGroup](https://github.com/thangvubk/SoftGroup) | (to be updated) | 204ms |
 
 ## Customization
 MINSU3D allows for easy additions of custom datasets and models. All code under `minsu3d/data/dataset` and `minsu3d/model` are automatically registered and managed by [Hydra](https://github.com/facebookresearch/hydra) using configuration files under `config/data` and `config/model`, respectively. 
