@@ -1,9 +1,7 @@
 #include "hierarchical_aggregation.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <math.h>
-#include <assert.h>
 
 #define MAX_PRIMARY_NUM 1024
 #define MAX_PER_PRIMARY_ABSORB_FRAGMENT_NUM  1024
@@ -126,7 +124,7 @@ void hierarchical_aggregation_cuda(
     cudaMalloc((void**)&cuda_class_radius_mean, class_num * sizeof(float)); // prevent alloc 0 space
     cudaMemcpy(cuda_class_radius_mean, class_radius_mean, class_num * sizeof(float), cudaMemcpyHostToDevice);
 
-    cudaDeviceSynchronize();
+    // cudaDeviceSynchronize();
 
     // // for each fragment, find its primary
     int *cuda_primary_absorb_fragment_idx; // array for saving the fragment idxs
@@ -148,7 +146,7 @@ void hierarchical_aggregation_cuda(
     int *cuda_concat_point_num;
     cudaMalloc((void**)&cuda_concat_idxs, primary_num * MAX_PER_PRIMARY_ABSORB_POINT_NUM * 2 * sizeof(int));
     cudaMalloc((void**)&cuda_concat_point_num, primary_num * sizeof(int));
-    assert(primary_num <= MAX_PRIMARY_NUM);
+    // assert(primary_num <= MAX_PRIMARY_NUM);
     concat_fragments_<<<primary_num, (int)1>>>(
         cuda_fragment_idxs, cuda_fragment_offsets,
         cuda_primary_idxs, cuda_primary_offsets,
@@ -180,6 +178,22 @@ void hierarchical_aggregation_cuda(
         primary_offsets_post[i + 1] = _accu_offset;
     }
     cudaDeviceSynchronize();
+
+    cudaFree(cuda_fragment_idxs);
+    cudaFree(cuda_fragment_offsets);
+    cudaFree(cuda_fragment_centers);
+
+    cudaFree(cuda_primary_idxs);
+    cudaFree(cuda_primary_offsets);
+    cudaFree(cuda_primary_centers);
+    cudaFree(cuda_class_radius_mean);
+
+    cudaFree(cuda_primary_absorb_fragment_idx);
+    cudaFree(cuda_primary_absorb_fragment_cnt);
+
+    cudaFree(cuda_concat_idxs);
+    cudaFree(cuda_concat_point_num);
+
 
     cudaError_t err;
     err  = cudaGetLastError();
