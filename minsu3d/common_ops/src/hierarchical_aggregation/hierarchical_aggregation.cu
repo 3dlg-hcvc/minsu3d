@@ -104,9 +104,9 @@ void hierarchical_aggregation_cuda(
     int *cuda_fragment_idxs;
     int *cuda_fragment_offsets;
     float *cuda_fragment_centers;
-    cudaMalloc((void**)&cuda_fragment_idxs, fragment_total_point_num * 2 * sizeof(int) + sizeof(int)); // prevent alloc 0 space
+    cudaMalloc((void**)&cuda_fragment_idxs, fragment_total_point_num * 2 * sizeof(int)); // prevent alloc 0 space
     cudaMalloc((void**)&cuda_fragment_offsets, (fragment_num + 1) * sizeof(int));
-    cudaMalloc((void**)&cuda_fragment_centers, fragment_num * 5 * sizeof(float) + sizeof(float));  // prevent alloc 0 space
+    cudaMalloc((void**)&cuda_fragment_centers, fragment_num * 5 * sizeof(float));  // prevent alloc 0 space
     cudaMemcpy(cuda_fragment_idxs, fragment_idxs, fragment_total_point_num * 2 * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_fragment_offsets, fragment_offsets, (fragment_num + 1) * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_fragment_centers, fragment_centers, fragment_num * 5 * sizeof(float), cudaMemcpyHostToDevice);
@@ -115,9 +115,9 @@ void hierarchical_aggregation_cuda(
     int *cuda_primary_offsets;
     float *cuda_primary_centers;
 
-    cudaMalloc((void**)&cuda_primary_idxs, primary_total_point_num * 2 * sizeof(int) + sizeof(int)); // prevent alloc 0 space
+    cudaMalloc((void**)&cuda_primary_idxs, primary_total_point_num * 2 * sizeof(int)); // prevent alloc 0 space
     cudaMalloc((void**)&cuda_primary_offsets, (primary_num + 1) * sizeof(int));
-    cudaMalloc((void**)&cuda_primary_centers, primary_num * 5 * sizeof(float) + sizeof(float));  // prevent alloc 0 space
+    cudaMalloc((void**)&cuda_primary_centers, primary_num * 5 * sizeof(float));  // prevent alloc 0 space
     cudaMemcpy(cuda_primary_idxs, primary_idxs, primary_total_point_num * 2 * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_primary_offsets, primary_offsets, (primary_num + 1) * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_primary_centers, primary_centers, primary_num * 5 * sizeof(float), cudaMemcpyHostToDevice);
@@ -131,10 +131,10 @@ void hierarchical_aggregation_cuda(
     // // for each fragment, find its primary
     int *cuda_primary_absorb_fragment_idx; // array for saving the fragment idxs
     int *cuda_primary_absorb_fragment_cnt; // array for saving the fragment nums
-    cudaMalloc((void**)&cuda_primary_absorb_fragment_idx, primary_num * MAX_PER_PRIMARY_ABSORB_FRAGMENT_NUM * sizeof(int) + sizeof(int));
-    cudaMalloc((void**)&cuda_primary_absorb_fragment_cnt, primary_num * sizeof(int) + sizeof(int));
-    cudaMemset(cuda_primary_absorb_fragment_idx, 0, primary_num * MAX_PER_PRIMARY_ABSORB_FRAGMENT_NUM * sizeof(int) + sizeof(int));
-    cudaMemset(cuda_primary_absorb_fragment_cnt, 0, primary_num * sizeof(int) + sizeof(int));
+    cudaMalloc((void**)&cuda_primary_absorb_fragment_idx, primary_num * MAX_PER_PRIMARY_ABSORB_FRAGMENT_NUM * sizeof(int)); // prevent alloc 0 space
+    cudaMalloc((void**)&cuda_primary_absorb_fragment_cnt, primary_num * sizeof(int)); // prevent alloc 0 space
+    cudaMemset(cuda_primary_absorb_fragment_idx, 0, primary_num * MAX_PER_PRIMARY_ABSORB_FRAGMENT_NUM * sizeof(int));
+    cudaMemset(cuda_primary_absorb_fragment_cnt, 0, primary_num * sizeof(int));
 
     if (fragment_num != 0) {
         fragment_find_primary_<<<int(DIVUP(fragment_num, MAX_THREADS_PER_BLOCK)), (int)MAX_THREADS_PER_BLOCK>>>(
@@ -146,8 +146,8 @@ void hierarchical_aggregation_cuda(
     // concatenate fragments belonging to the same primary
     int *cuda_concat_idxs;
     int *cuda_concat_point_num;
-    cudaMalloc((void**)&cuda_concat_idxs, primary_num * MAX_PER_PRIMARY_ABSORB_POINT_NUM * 2 * sizeof(int) + sizeof(int));
-    cudaMalloc((void**)&cuda_concat_point_num, primary_num *  sizeof(int) + sizeof(int));
+    cudaMalloc((void**)&cuda_concat_idxs, primary_num * MAX_PER_PRIMARY_ABSORB_POINT_NUM * 2 * sizeof(int));
+    cudaMalloc((void**)&cuda_concat_point_num, primary_num * sizeof(int));
     assert(primary_num <= MAX_PRIMARY_NUM);
     concat_fragments_<<<primary_num, (int)1>>>(
         cuda_fragment_idxs, cuda_fragment_offsets,
