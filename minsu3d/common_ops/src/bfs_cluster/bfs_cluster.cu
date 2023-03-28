@@ -86,5 +86,6 @@ int ballquery_batch_p_cuda(int n, int meanActive, float radius, const float *xyz
     }
 
     cudaMemcpy(&cumsum, p_cumsum, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaFree(p_cumsum);
     return cumsum;
 }
