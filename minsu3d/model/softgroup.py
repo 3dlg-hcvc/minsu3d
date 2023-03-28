@@ -195,13 +195,9 @@ class SoftGroup(GeneralModel):
         self.log("val/total_loss", total_loss, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
 
         # log semantic prediction accuracy
-        semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
-        semantic_accuracy = evaluate_semantic_accuracy(
-            semantic_predictions, data_dict["sem_labels"].cpu().numpy(), ignore_label=-1
-        )
-        semantic_mean_iou = evaluate_semantic_miou(
-            semantic_predictions, data_dict["sem_labels"].cpu().numpy(), ignore_label=-1
-        )
+        semantic_predictions = output_dict["semantic_scores"].max(1)[1]
+        semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"], ignore_label=-1)
+        semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"], ignore_label=-1)
         self.log(
             "val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True, batch_size=1
         )
