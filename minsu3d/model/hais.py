@@ -1,4 +1,4 @@
-import torch
+import numpy as np
 import torch.nn as nn
 from minsu3d.evaluation.instance_segmentation import get_gt_instances, rle_encode
 from minsu3d.evaluation.object_detection import get_gt_bbox
@@ -140,8 +140,8 @@ class HAIS(GeneralModel):
         self.log("val/total_loss", total_loss, on_step=False, on_epoch=True, sync_dist=True, batch_size=1)
         # log semantic prediction accuracy
         semantic_predictions = output_dict["semantic_scores"].max(1)[1]
-        semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"],ignore_label=-1)
-        semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"],ignore_label=-1)
+        semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions, data_dict["sem_labels"], ignore_label=-1)
+        semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, data_dict["sem_labels"], ignore_label=-1)
         self.log(
             "val_eval/semantic_accuracy", semantic_accuracy, on_step=False, on_epoch=True, sync_dist=True, batch_size=1
         )
@@ -150,37 +150,38 @@ class HAIS(GeneralModel):
         )
         
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
-            pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
-                                                      data_dict["point_xyz"].cpu().numpy(),
-                                                      output_dict["proposal_scores"][0].cpu(),
-                                                      output_dict["proposal_scores"][1].cpu(),
-                                                      output_dict["proposal_scores"][2].size(0) - 1,
-                                                      output_dict["proposal_scores"][3].cpu(),
-                                                      output_dict["semantic_scores"].cpu(), len(self.hparams.cfg.data.ignore_classes))
-            gt_instances = get_gt_instances(data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
-                                            self.hparams.cfg.data.ignore_classes)
-            gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
-                                            data_dict["instance_ids"].cpu().numpy(),
-                                            data_dict["sem_labels"].cpu().numpy(),
-                                            -1,
-                                            self.hparams.cfg.data.ignore_classes)
+            point_xyz_cpu = data_dict["point_xyz"].cpu().numpy()
+            instance_ids_cpu = data_dict["instance_ids"].cpu()
+            sem_labels = data_dict["sem_labels"].cpu()
+            pred_instances = self._get_pred_instances(
+                data_dict["scan_ids"][0], point_xyz_cpu, output_dict["proposal_scores"][0].cpu(),
+                output_dict["proposal_scores"][1].cpu(), output_dict["proposal_scores"][2].size(0) - 1,
+                output_dict["proposal_scores"][3].cpu(), output_dict["semantic_scores"].cpu(),
+                len(self.hparams.cfg.data.ignore_classes)
+            )
+            gt_instances = get_gt_instances(
+                sem_labels, instance_ids_cpu, self.hparams.cfg.data.ignore_classes
+            )
+            gt_instances_bbox = get_gt_bbox(
+                point_xyz_cpu, instance_ids_cpu.numpy(), sem_labels.numpy(), -1, self.hparams.cfg.data.ignore_classes
+            )
 
             self.val_test_step_outputs.append((pred_instances, gt_instances, gt_instances_bbox))
 
     def test_step(self, data_dict, idx):
         # prepare input and forward
         output_dict = self(data_dict)
-        sem_labels_cpu = data_dict["sem_labels"].cpu()
 
         semantic_accuracy = None
         semantic_mean_iou = None
         if self.hparams.cfg.model.inference.evaluate:
-            semantic_predictions = output_dict["semantic_scores"].max(1)[1].cpu().numpy()
-            semantic_accuracy = evaluate_semantic_accuracy(semantic_predictions,
-                                                           sem_labels_cpu.numpy(),
-                                                           ignore_label=-1)
-            semantic_mean_iou = evaluate_semantic_miou(semantic_predictions, sem_labels_cpu.numpy(),
-                                                       ignore_label=-1)
+            semantic_predictions = output_dict["semantic_scores"].max(1)[1]
+            semantic_accuracy = evaluate_semantic_accuracy(
+                semantic_predictions, data_dict["sem_labels"], ignore_label=-1
+            )
+            semantic_mean_iou = evaluate_semantic_miou(
+                semantic_predictions, data_dict["sem_labels"], ignore_label=-1
+            )
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
@@ -193,8 +194,10 @@ class HAIS(GeneralModel):
             gt_instances = None
             gt_instances_bbox = None
             if self.hparams.cfg.model.inference.evaluate:
-                gt_instances = get_gt_instances(sem_labels_cpu, data_dict["instance_ids"].cpu(),
-                                                self.hparams.cfg.data.ignore_classes)
+                gt_instances = get_gt_instances(
+                    data_dict["sem_labels"].cpu(), data_dict["instance_ids"].cpu(),
+                    self.hparams.cfg.data.ignore_classes
+                )
                 gt_instances_bbox = get_gt_bbox(data_dict["point_xyz"].cpu().numpy(),
                                                 data_dict["instance_ids"].cpu().numpy(),
                                                 data_dict["sem_labels"].cpu().numpy(),

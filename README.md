@@ -145,13 +145,13 @@ We provide pretrained models for ScanNet v2. The pretrained model, corresponding
 ### ScanNet v2 val set
 | Model      | Code | mean AP | AP 50% | AP 25% | Bbox AP 50% | Bbox AP 25% | Download |
 |:-----------|:--------|:--------|:-------|:-------|:------------|:------------|:---------|
-| MINSU3D PointGroup | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/pointgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/pointgroup.py) | 36.1 | 57.9 | 71.9 | 50.1 | 61.6 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
-| [Official PointGroup](https://github.com/dvlab-research/PointGroup) | - | 35.2 | 57.1 | 71.4   | - | - | - |
-| MINSU3D HAIS | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/hais.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/hais.py)  | 41.8 | 61.5 | 73.1 | 53.2 | 62.7 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/HAIS_best.ckpt) |
-| [Official HAIS (retrained)](https://github.com/hustvl/HAIS)  | - | 42.2 | 61.0 | 72.9 | - | - | - |
-| [Official HAIS](https://github.com/hustvl/HAIS)  | - | 44.1 | 64.4 | 75.7   | - | - | - |
-| MINSU3D SoftGroup | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/softgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/softgroup.py)  | 42.3 | 65.1 | 77.8 | 55.8 | 69.3 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/SoftGroup_best.ckpt) |
-| [Official SoftGroup](https://github.com/thangvubk/SoftGroup<sup>1</sup>) | - | 46.0 | 67.6 | 78.9 | 59.4 | 71.6 | - |
+| MINSU3D PointGroup | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/pointgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/pointgroup.py) | 36.4 | 57.9 | 71.1 | 49.9 | 60.0 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/PointGroup_best.ckpt)|
+| [Official PointGroup](https://github.com/dvlab-research/PointGroup) | - | 35.2 | 57.1 | 71.4 | - | - | - |
+| MINSU3D HAIS | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/hais.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/hais.py)  | 41.8   | 61.5 | 73.1 | 53.2 | 62.7 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/HAIS_best.ckpt) |
+| [Official HAIS (retrained)](https://github.com/hustvl/HAIS)  | - | 42.2 | 61.0   | 72.9 | - | - | - |
+| [Official HAIS](https://github.com/hustvl/HAIS)  | - | 44.1 | 64.4   | 75.7   | - | - | - |
+| MINSU3D SoftGroup | [config](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/config/model/softgroup.yaml) \| [model](https://github.com/3dlg-hcvc/minsu3d-internal/blob/main/minsu3d/model/softgroup.py)  | 42.3   | 65.1 | 77.8 | 55.8 | 69.3 | [link](https://aspis.cmpt.sfu.ca/projects/minsu3d/pretrained_models/SoftGroup_best.ckpt) |
+| [Official SoftGroup](https://github.com/thangvubk/SoftGroup<sup>1</sup>) | - | 46.0 | 67.6   | 78.9 | 59.4 | 71.6 | - |
 
 <sup>1</sup> The official pretrained SoftGroup model was trained with HAIS checkpoint as pretrained backbone.
 
