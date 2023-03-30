@@ -113,15 +113,15 @@ void hierarchical_aggregation_cuda(
     int *cuda_primary_offsets;
     float *cuda_primary_centers;
 
-    cudaMalloc((void**)&cuda_primary_idxs, primary_total_point_num * 2 * sizeof(int)); // prevent alloc 0 space
+    cudaMalloc((void**)&cuda_primary_idxs, primary_total_point_num * 2 * sizeof(int));
     cudaMalloc((void**)&cuda_primary_offsets, (primary_num + 1) * sizeof(int));
-    cudaMalloc((void**)&cuda_primary_centers, primary_num * 5 * sizeof(float));  // prevent alloc 0 space
+    cudaMalloc((void**)&cuda_primary_centers, primary_num * 5 * sizeof(float));
     cudaMemcpy(cuda_primary_idxs, primary_idxs, primary_total_point_num * 2 * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_primary_offsets, primary_offsets, (primary_num + 1) * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_primary_centers, primary_centers, primary_num * 5 * sizeof(float), cudaMemcpyHostToDevice);
 
     float *cuda_class_radius_mean;
-    cudaMalloc((void**)&cuda_class_radius_mean, class_num * sizeof(float)); // prevent alloc 0 space
+    cudaMalloc((void**)&cuda_class_radius_mean, class_num * sizeof(float));
     cudaMemcpy(cuda_class_radius_mean, class_radius_mean, class_num * sizeof(float), cudaMemcpyHostToDevice);
 
     // cudaDeviceSynchronize();
@@ -129,7 +129,7 @@ void hierarchical_aggregation_cuda(
     // // for each fragment, find its primary
     int *cuda_primary_absorb_fragment_idx; // array for saving the fragment idxs
     int *cuda_primary_absorb_fragment_cnt; // array for saving the fragment nums
-    cudaMalloc((void**)&cuda_primary_absorb_fragment_idx, primary_num * MAX_PER_PRIMARY_ABSORB_FRAGMENT_NUM * sizeof(int)); // prevent alloc 0 space
+    cudaMalloc((void**)&cuda_primary_absorb_fragment_idx, primary_num * MAX_PER_PRIMARY_ABSORB_FRAGMENT_NUM * sizeof(int));
     cudaMalloc((void**)&cuda_primary_absorb_fragment_cnt, primary_num * sizeof(int)); // prevent alloc 0 space
     cudaMemset(cuda_primary_absorb_fragment_idx, 0, primary_num * MAX_PER_PRIMARY_ABSORB_FRAGMENT_NUM * sizeof(int));
     cudaMemset(cuda_primary_absorb_fragment_cnt, 0, primary_num * sizeof(int));
@@ -140,7 +140,7 @@ void hierarchical_aggregation_cuda(
             fragment_num, cuda_fragment_offsets, cuda_fragment_centers,
             cuda_primary_absorb_fragment_idx, cuda_primary_absorb_fragment_cnt, cuda_class_radius_mean);
     }
-    cudaDeviceSynchronize();
+    // cudaDeviceSynchronize();
     // concatenate fragments belonging to the same primary
     int *cuda_concat_idxs;
     int *cuda_concat_point_num;
