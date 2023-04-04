@@ -15,7 +15,6 @@ trainer:
 
 lr_decay:
   decay_start_epoch: 178
-  decay_stop_epoch: 256
 
 optimizer:
     _target_: torch.optim.Adam

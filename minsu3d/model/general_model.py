@@ -68,7 +68,7 @@ class GeneralModel(pl.LightningModule):
     def on_train_epoch_end(self):
         cosine_lr_decay(
             self.trainer.optimizers[0], self.hparams.cfg.model.optimizer.lr, self.current_epoch,
-            self.hparams.cfg.model.lr_decay.decay_start_epoch, self.hparams.cfg.model.lr_decay.decay_stop_epoch, 1e-6
+            self.hparams.cfg.model.lr_decay.decay_start_epoch, self.hparams.cfg.model.trainer.max_epochs, 1e-6
         )
 
     def validation_step(self, data_dict, idx):
