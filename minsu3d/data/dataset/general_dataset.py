@@ -27,7 +27,7 @@ class GeneralDataset(Dataset):
             self.scenes.append(scene)
 
     def _open_hdf5(self):
-        self.multiview_data = h5py.File(self.data_cfg.scene_metadata.scene_multiview_file, "r", libver="latest")
+        self.multiview_data = h5py.File(self.cfg.data.metadata.multiview_feature_file, "r", libver="latest")
 
     def __len__(self):
         return len(self.scenes)
