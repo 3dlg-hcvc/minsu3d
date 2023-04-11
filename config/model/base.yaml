@@ -14,7 +14,7 @@ trainer:
   devices: auto
   strategy: ddp_find_unused_parameters_true
   num_nodes: 1
-  max_epochs: 496
+  max_epochs: 560
   num_sanity_val_steps: 10
   check_val_every_n_epoch: 8
   profiler: simple
@@ -29,7 +29,7 @@ checkpoint_monitor:
 
 
 lr_decay:
-  decay_start_epoch: 200
+  decay_start_epoch: 330
 
 
 inference:
