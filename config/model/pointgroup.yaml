@@ -28,8 +28,9 @@ network:
   cluster_blocks: [1, 2]
   block_reps: 2
 
-  use_color: True
-  use_normal: False
+  use_color: False
+  use_normal: True
+  use_multiview: True
 
   fg_thresh: 0.75
   bg_thresh: 0.25

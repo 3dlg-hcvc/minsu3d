@@ -17,7 +17,7 @@ class GeneralModel(pl.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.save_hyperparameters()
-        input_channel = 3 + cfg.model.network.use_color * 3 + cfg.model.network.use_normal * 3
+        input_channel = 3 + cfg.model.network.use_color * 3 + cfg.model.network.use_normal * 3 + cfg.model.network.use_multiview * 128
         self.backbone = Backbone(
             input_channel=input_channel, output_channel=cfg.model.network.m, block_channels=cfg.model.network.blocks,
             block_reps=cfg.model.network.block_reps, sem_classes=cfg.data.classes

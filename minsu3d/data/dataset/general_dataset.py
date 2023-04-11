@@ -1,4 +1,5 @@
 import os
+import h5py
 import torch
 import numpy as np
 from tqdm import tqdm
@@ -24,6 +25,9 @@ class GeneralDataset(Dataset):
             scene["xyz"] -= scene["xyz"].mean(axis=0)
             scene["rgb"] = scene["rgb"].astype(np.float32) / 127.5 - 1
             self.scenes.append(scene)
+
+    def _open_hdf5(self):
+        self.multiview_data = h5py.File(self.data_cfg.scene_metadata.scene_multiview_file, "r", libver="latest")
 
     def __len__(self):
         return len(self.scenes)
@@ -108,12 +112,14 @@ class GeneralDataset(Dataset):
 
         point_xyz_elastic -= point_xyz_elastic.min(axis=0)
 
+        valid_idxs = np.ones(shape=point_xyz.shape[0], dtype=bool)
+
         # crop
         if self.split == "train":
             # HACK, in case there are few points left
             max_tries = 20
             valid_idxs_count = 0
-            valid_idxs = np.ones(shape=point_xyz.shape[0], dtype=bool)
+
             if valid_idxs.shape[0] > self.max_num_point:
                 while max_tries > 0:
                     points_tmp, valid_idxs = crop(point_xyz_elastic, self.max_num_point, self.cfg.data.full_scale[1])
@@ -145,8 +151,12 @@ class GeneralDataset(Dataset):
             point_features = np.concatenate((point_features, colors), axis=1)
         if self.cfg.model.network.use_normal:
             point_features = np.concatenate((point_features, normals), axis=1)
+        if self.cfg.model.network.use_multiview:
+            if not hasattr(self, 'multiview_data'):
+                self._open_hdf5()
+            point_features = np.concatenate((point_features, normals), axis=1)
 
-        point_features = np.concatenate((point_features, point_xyz), axis=1)  # add xyz to point features
+        point_features = np.concatenate((point_features, self.multiview_data[scene_id][()])[valid_idxs], axis=1)  # add xyz to point features
 
         data["point_xyz"] = point_xyz  # (N, 3)
         data["sem_labels"] = sem_labels  # (N, )
