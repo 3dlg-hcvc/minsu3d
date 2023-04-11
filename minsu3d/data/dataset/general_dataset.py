@@ -156,7 +156,7 @@ class GeneralDataset(Dataset):
                 self._open_hdf5()
             point_features = np.concatenate((point_features, normals), axis=1)
 
-        point_features = np.concatenate((point_features, self.multiview_data[scene_id][()])[valid_idxs], axis=1)  # add xyz to point features
+        point_features = np.concatenate((point_features, self.multiview_data[scene_id][()][valid_idxs]), axis=1)  # add xyz to point features
 
         data["point_xyz"] = point_xyz  # (N, 3)
         data["sem_labels"] = sem_labels  # (N, )
