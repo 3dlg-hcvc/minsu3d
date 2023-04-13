@@ -11,19 +11,19 @@ log:
     name: PointGroup
 
 trainer:
-  max_epochs: 496
+  max_epochs: 560
 
 optimizer:
     _target_: torch.optim.Adam
     lr: 0.002
 
 lr_decay:
-  decay_start_epoch: 250
+  decay_start_epoch: 330
 
 network:
   module: PointGroup
 
-  m: 16 # 16 or 32
+  m: 32 # 16 or 32
   blocks: [1, 2, 3, 4, 5, 6, 7]
   cluster_blocks: [1, 2]
   block_reps: 2
