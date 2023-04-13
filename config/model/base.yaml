@@ -29,7 +29,7 @@ checkpoint_monitor:
 
 
 lr_decay:
-  decay_start_epoch: 330
+  decay_start_epoch: 250
 
 
 inference:
