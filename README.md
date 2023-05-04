@@ -41,14 +41,14 @@ pip install .
 # install OpenBLAS and SparseHash via conda
 conda install libopenblas
 conda install -c bioconda google-sparsehash
-export CPATH=$CONDA_PREFIX/include:$CPATH
-export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 
 # install MinkowskiEngine
 pip install -U git+https://github.com/NVIDIA/MinkowskiEngine -v --no-deps \
 --install-option="--blas_include_dirs=${CONDA_PREFIX}/include" --install-option="--blas=openblas"
 
 # install C++ extensions
+export CPATH=$CONDA_PREFIX/include:$CPATH
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 cd minsu3d/common_ops
 python setup.py develop
 ```
