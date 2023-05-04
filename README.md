@@ -39,7 +39,7 @@ conda install pytorch==1.13.1 pytorch-cuda=11.6 -c pytorch -c nvidia
 pip install .
 
 # install OpenBLAS and SparseHash via conda
-conda install openblas-devel -c anaconda
+conda install libopenblas
 conda install -c bioconda google-sparsehash
 export CPATH=$CONDA_PREFIX/include:$CPATH
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
