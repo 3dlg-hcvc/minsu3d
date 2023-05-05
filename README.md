@@ -32,15 +32,14 @@ We recommend the use of [miniconda](https://docs.conda.io/en/latest/miniconda.ht
 conda create -n minsu3d python=3.10
 conda activate minsu3d
 
-# install PyTorch 1.13.1
-conda install pytorch==1.13.1 pytorch-cuda=11.6 -c pytorch -c nvidia
+# install PyTorch 2.0
+conda install pytorch pytorch-cuda=11.7 -c pytorch -c nvidia
 
 # install Python libraries
 pip install .
 
-# install OpenBLAS and SparseHash via conda
-conda install libopenblas
-conda install -c bioconda google-sparsehash
+# install OpenBLAS
+conda install openblas-devel --no-deps -c anaconda
 
 # install MinkowskiEngine
 pip install -U git+https://github.com/NVIDIA/MinkowskiEngine -v --no-deps \
@@ -61,8 +60,8 @@ Note: Setting up with pip (no conda) requires [OpenBLAS](https://github.com/xian
 virtualenv --no-download env
 source env/bin/activate
 
-# install PyTorch 1.13.1
-pip install torch==1.13.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
+# install PyTorch 2.0
+pip3 install torch
 
 # install Python libraries
 pip install .
