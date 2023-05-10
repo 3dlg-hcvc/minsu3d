@@ -34,7 +34,7 @@ class PointGroup(GeneralModel):
             object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
             batch_idxs_ = data_dict["vert_batch_ids"][object_idxs]
-            batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0).int()
+            batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0, dtype=torch.int32)
             coords_ = data_dict["point_xyz"][object_idxs]
             pt_offsets_ = output_dict["point_offsets"][object_idxs]
 
@@ -106,7 +106,7 @@ class PointGroup(GeneralModel):
             scores, cluster_obj_idxs, cluster_point_idxs, proposals_offset = output_dict["proposal_scores"]
 
             ious = common_ops.get_iou(
-                cluster_point_idxs.int().contiguous(), proposals_offset,
+                cluster_point_idxs, proposals_offset,
                 data_dict["instance_ids"], data_dict["instance_num_point"]
             )
             gt_scores = get_segmented_scores(

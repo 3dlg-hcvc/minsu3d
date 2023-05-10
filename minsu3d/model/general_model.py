@@ -179,7 +179,7 @@ def clusters_voxelization(cluster_obj_idxs, cluster_point_idxs, clusters_offset,
     offset = torch.index_select(offset, 0, batch_idx)
     clusters_coords += offset
 
-    batched_xyz = torch.cat((cluster_obj_idxs.unsqueeze(-1), clusters_coords.int()), dim=1)
+    batched_xyz = torch.cat((cluster_obj_idxs.unsqueeze(-1), clusters_coords.round().int()), dim=1)
 
     voxel_xyz, voxel_features, _, voxel_point_map = ME.utils.sparse_quantize(
         batched_xyz, feats, return_index=True, return_inverse=True, device=device.type

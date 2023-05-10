@@ -49,7 +49,7 @@ class SoftGroup(GeneralModel):
                 if object_idxs.size(0) < self.hparams.cfg.model.network.test_cfg.min_npoint:
                     continue
                 batch_idxs_ = data_dict["vert_batch_ids"][object_idxs]
-                batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0).int()
+                batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0, dtype=torch.int32)
                 coords_ = data_dict["point_xyz"][object_idxs]
                 pt_offsets_ = output_dict["point_offsets"][object_idxs]
                 idx, start_len = common_ops.ballquery_batch_p(
@@ -118,7 +118,7 @@ class SoftGroup(GeneralModel):
 
     def global_pool(self, x, expand=False):
         indices = x.coordinates[:, 0]
-        batch_offset = torch.cumsum(torch.bincount(indices + 1), dim=0).int()
+        batch_offset = torch.cumsum(torch.bincount(indices + 1), dim=0, dtype=torch.int32)
         x_pool = softgroup_ops.global_avg_pool(x.features, batch_offset)
         if not expand:
             return x_pool

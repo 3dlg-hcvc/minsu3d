@@ -38,7 +38,7 @@ class HAIS(GeneralModel):
             object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
             batch_idxs_ = data_dict["vert_batch_ids"][object_idxs]
-            batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0).int()
+            batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0, dtype=torch.int32)
 
             offset_coords_ = data_dict["point_xyz"][object_idxs] + output_dict["point_offsets"][object_idxs]
 
