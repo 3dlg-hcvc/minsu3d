@@ -28,10 +28,6 @@ checkpoint_monitor:
   dirpath: ${exp_output_root_path}/training
 
 
-lr_decay:
-  decay_start_epoch: 200
-
-
 inference:
   split: val
   evaluate: True

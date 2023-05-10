@@ -11,10 +11,10 @@ log:
     name: SoftGroup
 
 trainer:
-  max_epochs: 288
+  max_epochs: 300
 
 lr_decay:
-  decay_start_epoch: 178
+  decay_start_epoch: 180
 
 optimizer:
     _target_: torch.optim.Adam

@@ -17,6 +17,9 @@ optimizer:
     _target_: torch.optim.Adam
     lr: 0.0015
 
+lr_decay:
+  decay_start_epoch: 280
+
 network:
   module: HAIS
 
