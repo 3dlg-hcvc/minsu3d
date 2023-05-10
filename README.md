@@ -49,7 +49,7 @@ pip install -U git+https://github.com/NVIDIA/MinkowskiEngine -v --no-deps \
 export CPATH=$CONDA_PREFIX/include:$CPATH
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 cd minsu3d/common_ops
-python setup.py develop
+pip install .
 ```
 
 ### Pip (without conda)
@@ -74,7 +74,7 @@ pip install MinkowskiEngine
 
 # install C++ extensions
 cd minsu3d/common_ops
-python setup.py develop
+pip install .
 ```
 
 ## Data Preparation

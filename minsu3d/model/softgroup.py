@@ -38,7 +38,8 @@ class SoftGroup(GeneralModel):
             semantic_scores = output_dict["semantic_scores"].softmax(dim=-1)
 
             proposals_offset_list = []
-            proposals_idx_list = []
+            cluster_obj_idxs_list = []
+            cluster_point_idxs_list = []
 
             for class_id in range(self.hparams.cfg.data.classes):
                 if class_id + 1 in self.hparams.cfg.data.ignore_classes:
@@ -57,37 +58,43 @@ class SoftGroup(GeneralModel):
                     self.hparams.cfg.model.network.grouping_cfg.mean_active
                 )
 
-                proposals_idx, proposals_offset = softgroup_ops.sg_bfs_cluster(
+                cluster_obj_idxs, cluster_point_idxs, proposals_offset = softgroup_ops.sg_bfs_cluster(
                     self.hparams.cfg.data.point_num_avg, idx.cpu(),
                     start_len.cpu(),
                     self.hparams.cfg.model.network.grouping_cfg.npoint_thr, class_id)
 
-                proposals_idx = proposals_idx.long().to(self.device)
+                cluster_obj_idxs = cluster_obj_idxs.to(self.device)
+                cluster_point_idxs = cluster_point_idxs.to(self.device)
                 proposals_offset = proposals_offset.to(self.device)
-                proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1]]
+                cluster_point_idxs = object_idxs[cluster_point_idxs]
 
                 # merge proposals
                 if len(proposals_offset_list) > 0:
-                    proposals_idx[:, 0] += sum([x.size(0) for x in proposals_offset_list]) - 1
+                    cluster_obj_idxs += sum([x.size(0) for x in proposals_offset_list]) - 1
                     proposals_offset += proposals_offset_list[-1][-1]
                     proposals_offset = proposals_offset[1:]
-                if proposals_idx.size(0) > 0:
-                    proposals_idx_list.append(proposals_idx)
+                if cluster_obj_idxs.size(0) > 0:
+                    cluster_obj_idxs_list.append(cluster_obj_idxs)
+                    cluster_point_idxs_list.append(cluster_point_idxs)
                     proposals_offset_list.append(proposals_offset)
-            proposals_idx = torch.cat(proposals_idx_list, dim=0)
+
+            cluster_obj_idxs = torch.cat(cluster_obj_idxs_list, dim=0)
+            cluster_point_idxs = torch.cat(cluster_point_idxs_list, dim=0)
+
             proposals_offset = torch.cat(proposals_offset_list)
 
             if proposals_offset.shape[0] > self.hparams.cfg.model.network.train_cfg.max_proposal_num:
                 proposals_offset = proposals_offset[:self.hparams.cfg.model.network.train_cfg.max_proposal_num + 1]
-                proposals_idx = proposals_idx[:proposals_offset[-1]]
-                assert proposals_idx.shape[0] == proposals_offset[-1]
+                cluster_obj_idxs = cluster_obj_idxs[:proposals_offset[-1]]
+                cluster_point_idxs = cluster_point_idxs[:proposals_offset[-1]]
 
 
-            output_dict["proposals_idx"] = proposals_idx
+            output_dict["proposals_idx"] = (cluster_obj_idxs, cluster_point_idxs)
             output_dict["proposals_offset"] = proposals_offset
 
             inst_feats, inst_map = clusters_voxelization(
-                clusters_idx=proposals_idx,
+                cluster_obj_idxs=cluster_obj_idxs,
+                cluster_point_idxs=cluster_point_idxs,
                 clusters_offset=proposals_offset,
                 feats=output_dict["point_features"],
                 coords=data_dict["point_xyz"],
@@ -123,7 +130,7 @@ class SoftGroup(GeneralModel):
         losses = super()._loss(data_dict, output_dict)
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
-            proposals_idx = output_dict["proposals_idx"][:, 1].int().contiguous()
+            proposals_idx = output_dict["proposals_idx"][1].int().contiguous()
             proposals_offset = output_dict["proposals_offset"]
 
             # calculate iou of clustered instance
@@ -211,7 +218,7 @@ class SoftGroup(GeneralModel):
             sem_labels = data_dict["sem_labels"].cpu()
 
             pred_instances = self._get_pred_instances(
-                data_dict["scan_ids"][0], point_xyz_cpu, output_dict["proposals_idx"].cpu(),
+                data_dict["scan_ids"][0], point_xyz_cpu, output_dict["proposals_idx"][0].cpu(), output_dict["proposals_idx"][1].cpu(),
                 output_dict["semantic_scores"].size(0), output_dict["cls_scores"].cpu(),
                 output_dict["iou_scores"].cpu(), output_dict["mask_scores"].cpu(),
                 len(self.hparams.cfg.data.ignore_classes)
@@ -246,7 +253,7 @@ class SoftGroup(GeneralModel):
             sem_labels = data_dict["sem_labels"].cpu()
 
             pred_instances = self._get_pred_instances(
-                data_dict["scan_ids"][0], point_xyz_cpu, output_dict["proposals_idx"].cpu(),
+                data_dict["scan_ids"][0], point_xyz_cpu, output_dict["proposals_idx"][0].cpu(), output_dict["proposals_idx"][1].cpu(),
                 output_dict["semantic_scores"].size(0), output_dict["cls_scores"].cpu(), output_dict["iou_scores"].cpu(),
                 output_dict["mask_scores"].cpu(), len(self.hparams.cfg.data.ignore_classes)
             )
@@ -266,7 +273,7 @@ class SoftGroup(GeneralModel):
                 (semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox)
             )
 
-    def _get_pred_instances(self, scan_id, gt_xyz, proposals_idx, num_points, cls_scores, iou_scores, mask_scores,
+    def _get_pred_instances(self, scan_id, gt_xyz, cluster_obj_idxs, cluster_point_idxs, num_points, cls_scores, iou_scores, mask_scores,
                             num_ignored_classes):
         num_instances = cls_scores.size(0)
         cls_scores = cls_scores.softmax(1)
@@ -279,8 +286,9 @@ class SoftGroup(GeneralModel):
             score_pred = cur_cls_scores * cur_iou_scores.clamp(0, 1)
             mask_pred = torch.zeros((num_instances, num_points), dtype=torch.bool, device="cpu")
             mask_inds = cur_mask_scores > self.hparams.cfg.model.network.test_cfg.mask_score_thr
-            cur_proposals_idx = proposals_idx[mask_inds]
-            mask_pred[cur_proposals_idx[:, 0], cur_proposals_idx[:, 1]] = True
+            cur_proposals_idx = cluster_obj_idxs[mask_inds]
+            cur_proposals_points_idx = cluster_point_idxs[mask_inds]
+            mask_pred[cur_proposals_idx.long(), cur_proposals_points_idx] = True
 
             # filter low score instance
             inds = cur_cls_scores > self.hparams.cfg.model.network.test_cfg.cls_score_thr

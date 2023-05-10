@@ -49,20 +49,23 @@ class HAIS(GeneralModel):
             )
 
             using_set_aggr = self.hparams.cfg.model.network.using_set_aggr_in_training if self.training else self.hparams.cfg.model.network.using_set_aggr_in_testing
-            proposals_idx, proposals_offset = hais_ops.hierarchical_aggregation(
+            cluster_idxs_kept, cluster_points_idxs_kept, proposals_offset = hais_ops.hierarchical_aggregation(
                 semantic_preds[object_idxs].cpu(), offset_coords_.cpu(), idx_shift.cpu(), start_len_shift.cpu(),
                 batch_idxs_.cpu(), using_set_aggr, self.hparams.cfg.data.point_num_avg,
                 self.hparams.cfg.data.radius_avg, -1
             )
 
-            proposals_idx = proposals_idx.long().to(self.device)
+            cluster_idxs_kept = cluster_idxs_kept.to(self.device)
+            cluster_points_idxs_kept = cluster_points_idxs_kept.to(self.device)
+
             proposals_offset = proposals_offset.to(self.device)
-            proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1]]
+            cluster_points_idxs_kept = object_idxs[cluster_points_idxs_kept]
 
 
             # proposals voxelization again
             proposals_voxel_feats, proposals_p2v_map = clusters_voxelization(
-                clusters_idx=proposals_idx,
+                cluster_obj_idxs=cluster_idxs_kept,
+                cluster_point_idxs=cluster_points_idxs_kept,
                 clusters_offset=proposals_offset,
                 feats=output_dict["point_features"],
                 coords=data_dict["point_xyz"],
@@ -86,7 +89,7 @@ class HAIS(GeneralModel):
                 score_feats = score_feats * mask_index_select
             score_feats = common_ops.roipool(score_feats, proposals_offset)  # (nProposal, C)
             scores = self.score_branch(score_feats)  # (nProposal, 1)
-            output_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset, mask_scores)
+            output_dict["proposal_scores"] = (scores, cluster_idxs_kept, cluster_points_idxs_kept, proposals_offset, mask_scores)
         return output_dict
 
     def _loss(self, data_dict, output_dict):
@@ -94,26 +97,26 @@ class HAIS(GeneralModel):
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
             """score and mask loss"""
-            scores, proposals_idx, proposals_offset, mask_scores = output_dict['proposal_scores']
+            scores, cluster_idxs_kept, cluster_points_idxs_kept, proposals_offset, mask_scores = output_dict['proposal_scores']
 
             # get iou and calculate mask label and mask loss
             mask_scores_sigmoid = torch.sigmoid(mask_scores)
 
-            proposals_idx = proposals_idx[:, 1].int().contiguous()
+            cluster_points_idxs_kept = cluster_points_idxs_kept.int().contiguous()
 
             if self.current_epoch > self.hparams.cfg.model.network.cal_iou_based_on_mask_start_epoch:
                 ious = common_ops.get_mask_iou_on_pred(
-                    proposals_idx, proposals_offset, data_dict["instance_ids"],
+                    cluster_points_idxs_kept, proposals_offset, data_dict["instance_ids"],
                     data_dict["instance_num_point"],
                     mask_scores_sigmoid.detach()
                 )
             else:
                 ious = common_ops.get_mask_iou_on_cluster(
-                    proposals_idx, proposals_offset, data_dict["instance_ids"], data_dict["instance_num_point"]
+                    cluster_points_idxs_kept, proposals_offset, data_dict["instance_ids"], data_dict["instance_num_point"]
                 )
 
             mask_label, mask_label_mask = common_ops.get_mask_label(
-                proposals_idx, proposals_offset, data_dict["instance_ids"],
+                cluster_points_idxs_kept, proposals_offset, data_dict["instance_ids"],
                 data_dict["instance_semantic_cls"], data_dict["instance_num_point"], ious, -1, 0.5
             )
             mask_label = mask_label.unsqueeze(1)
@@ -155,8 +158,9 @@ class HAIS(GeneralModel):
             sem_labels = data_dict["sem_labels"].cpu()
             pred_instances = self._get_pred_instances(
                 data_dict["scan_ids"][0], point_xyz_cpu, output_dict["proposal_scores"][0].cpu(),
-                output_dict["proposal_scores"][1].cpu(), output_dict["proposal_scores"][2].size(0) - 1,
-                output_dict["proposal_scores"][3].cpu(), output_dict["semantic_scores"].cpu(),
+                output_dict["proposal_scores"][1].cpu(), output_dict["proposal_scores"][1].cpu(),
+                output_dict["proposal_scores"][3].size(0) - 1,
+                output_dict["proposal_scores"][4].cpu(), output_dict["semantic_scores"].cpu(),
                 len(self.hparams.cfg.data.ignore_classes)
             )
             gt_instances = get_gt_instances(
@@ -188,8 +192,9 @@ class HAIS(GeneralModel):
                                                       data_dict["point_xyz"].cpu().numpy(),
                                                       output_dict["proposal_scores"][0].cpu(),
                                                       output_dict["proposal_scores"][1].cpu(),
-                                                      output_dict["proposal_scores"][2].size(0) - 1,
-                                                      output_dict["proposal_scores"][3].cpu(),
+                                                      output_dict["proposal_scores"][2].cpu(),
+                                                      output_dict["proposal_scores"][3].size(0) - 1,
+                                                      output_dict["proposal_scores"][4].cpu(),
                                                       output_dict["semantic_scores"].cpu(), len(self.hparams.cfg.data.ignore_classes))
             gt_instances = None
             gt_instances_bbox = None
@@ -207,7 +212,7 @@ class HAIS(GeneralModel):
                 (semantic_accuracy, semantic_mean_iou, pred_instances, gt_instances, gt_instances_bbox)
             )
 
-    def _get_pred_instances(self, scan_id, gt_xyz, scores, proposals_idx, num_proposals, mask_scores, semantic_scores, num_ignored_classes):
+    def _get_pred_instances(self, scan_id, gt_xyz, scores, proposals_idx, proposals_points_idx, num_proposals, mask_scores, semantic_scores, num_ignored_classes):
         semantic_pred_labels = semantic_scores.max(1)[1]
         scores_pred = torch.sigmoid(scores.view(-1))
 
@@ -218,7 +223,9 @@ class HAIS(GeneralModel):
 
         # outlier filtering
         _mask = mask_scores.squeeze(1) > self.hparams.cfg.model.network.test.test_mask_score_thre
-        proposals_pred[proposals_idx[_mask][:, 0], proposals_idx[_mask][:, 1]] = True
+
+
+        proposals_pred[proposals_idx[_mask].long(), proposals_points_idx[_mask]] = True
 
         # score threshold
         score_mask = (scores_pred > self.hparams.cfg.model.network.test.TEST_SCORE_THRESH)

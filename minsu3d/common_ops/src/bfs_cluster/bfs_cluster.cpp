@@ -128,60 +128,65 @@ int sg_get_clusters(float *class_numpoint_mean, int *ball_query_idxs,
   return sumNPoint;
 }
 
-void fill_cluster_idxs_(ConnectedComponents &CCs, int *cluster_idxs, int *cluster_offsets){
-    for(int i = 0; i < (int)CCs.size(); i++){
+void fill_cluster_idxs_(ConnectedComponents &CCs, int *cluster_obj_idxs, long *cluster_point_idxs, int *cluster_offsets){
+    for(int i = 0; i < (int)CCs.size(); i++) {
         cluster_offsets[i + 1] = cluster_offsets[i] + (int)CCs[i].pt_idxs.size();
-        for(int j = 0; j < (int)CCs[i].pt_idxs.size(); j++){
-            int idx = CCs[i].pt_idxs[j];
-            cluster_idxs[(cluster_offsets[i] + j) * 2 + 0] = i;
-            cluster_idxs[(cluster_offsets[i] + j) * 2 + 1] = idx;
+        for(int j = 0; j < (int)CCs[i].pt_idxs.size(); j++) {
+            long idx = (long)CCs[i].pt_idxs[j];
+            int tmp_index = cluster_offsets[i] + j;
+            cluster_obj_idxs[tmp_index] = i;
+            cluster_point_idxs[tmp_index] = idx;
         }
     }
 }
 
-//input: semantic_label, int, N
-//input: ball_query_idxs, int, (nActive)
-//input: start_len, int, (N, 2)
-//output: cluster_idxs, int (sumNPoint, 2), dim 0 for cluster_id, dim 1 for corresponding point idxs in N
-//output: cluster_offsets, int (nCluster + 1)
-void pg_bfs_cluster(at::Tensor semantic_label_tensor, at::Tensor ball_query_idxs_tensor, at::Tensor start_len_tensor,
-at::Tensor cluster_idxs_tensor, at::Tensor cluster_offsets_tensor, const int N, int threshold){
+std::tuple<at::Tensor, at::Tensor, at::Tensor> pg_bfs_cluster(at::Tensor semantic_label_tensor, at::Tensor ball_query_idxs_tensor, at::Tensor start_len_tensor, const int N, int threshold){
     int16_t *semantic_label = semantic_label_tensor.data_ptr<int16_t>();
     Int *ball_query_idxs = ball_query_idxs_tensor.data_ptr<Int>();
     int *start_len = start_len_tensor.data_ptr<int>();
-
     ConnectedComponents CCs;
     int sumNPoint = pg_get_clusters(semantic_label, ball_query_idxs, start_len, N, threshold, CCs);
-
     int nCluster = (int)CCs.size();
-    cluster_idxs_tensor.resize_({sumNPoint, 2});
-    cluster_offsets_tensor.resize_({nCluster + 1});
-    cluster_idxs_tensor.zero_();
-    cluster_offsets_tensor.zero_();
 
-    int *cluster_idxs = cluster_idxs_tensor.data_ptr<int>();
+    at::Tensor cluster_obj_idxs_tensor = torch::zeros({sumNPoint}, torch::kInt32);
+    at::Tensor cluster_point_idxs_tensor = torch::zeros({sumNPoint}, torch::kInt64);
+    at::Tensor cluster_offsets_tensor = torch::zeros({nCluster + 1}, torch::kInt32);
+
+//    cluster_idxs_tensor.resize_({sumNPoint, 2});
+
+    // cluster_offsets_tensor.resize_({nCluster + 1});
+
+    int *cluster_obj_idxs = cluster_obj_idxs_tensor.data_ptr<int>();
+    long *cluster_point_idxs = cluster_point_idxs_tensor.data_ptr<long>();
     int *cluster_offsets = cluster_offsets_tensor.data_ptr<int>();
 
-    fill_cluster_idxs_(CCs, cluster_idxs, cluster_offsets);
+    fill_cluster_idxs_(CCs, cluster_obj_idxs, cluster_point_idxs, cluster_offsets);
+
+    return std::make_tuple(cluster_obj_idxs_tensor, cluster_point_idxs_tensor, cluster_offsets_tensor);
 }
 
-void sg_bfs_cluster(at::Tensor class_numpoint_mean_tensor,
+std::tuple<at::Tensor, at::Tensor, at::Tensor> sg_bfs_cluster(at::Tensor class_numpoint_mean_tensor,
                  at::Tensor ball_query_idxs_tensor, at::Tensor start_len_tensor,
-                 at::Tensor cluster_idxs_tensor,
-                 at::Tensor cluster_offsets_tensor, const int N,
+                 const int N,
                  float threshold, const int class_id) {
-  float *class_numpoint_mean = class_numpoint_mean_tensor.data_ptr<float>();
-  Int *ball_query_idxs = ball_query_idxs_tensor.data_ptr<Int>();
-  int *start_len = start_len_tensor.data_ptr<int>();
-  ConnectedComponents CCs;
-  int sumNPoint = sg_get_clusters(class_numpoint_mean, ball_query_idxs, start_len,
+    float *class_numpoint_mean = class_numpoint_mean_tensor.data_ptr<float>();
+    Int *ball_query_idxs = ball_query_idxs_tensor.data_ptr<Int>();
+    int *start_len = start_len_tensor.data_ptr<int>();
+    ConnectedComponents CCs;
+    int sumNPoint = sg_get_clusters(class_numpoint_mean, ball_query_idxs, start_len,
                                N, threshold, CCs, class_id);
-  int nCluster = (int)CCs.size();
-  cluster_idxs_tensor.resize_({sumNPoint, 2});
-  cluster_offsets_tensor.resize_({nCluster + 1});
-  cluster_idxs_tensor.zero_();
-  cluster_offsets_tensor.zero_();
-  int *cluster_idxs = cluster_idxs_tensor.data_ptr<int>();
-  int *cluster_offsets = cluster_offsets_tensor.data_ptr<int>();
-  fill_cluster_idxs_(CCs, cluster_idxs, cluster_offsets);
+    int nCluster = (int)CCs.size();
+
+    at::Tensor cluster_obj_idxs_tensor = torch::zeros({sumNPoint}, torch::kInt32);
+    at::Tensor cluster_point_idxs_tensor = torch::zeros({sumNPoint}, torch::kInt64);
+    at::Tensor cluster_offsets_tensor = torch::zeros({nCluster + 1}, torch::kInt32);
+
+
+    int *cluster_obj_idxs = cluster_obj_idxs_tensor.data_ptr<int>();
+    long *cluster_point_idxs = cluster_point_idxs_tensor.data_ptr<long>();
+    int *cluster_offsets = cluster_offsets_tensor.data_ptr<int>();
+
+    fill_cluster_idxs_(CCs, cluster_obj_idxs, cluster_point_idxs, cluster_offsets);
+
+    return std::make_tuple(cluster_obj_idxs_tensor, cluster_point_idxs_tensor, cluster_offsets_tensor);
 }

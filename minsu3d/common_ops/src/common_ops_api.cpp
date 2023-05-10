@@ -18,13 +18,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
     m.def("roipool_fp", &roipool_fp, "roipool_fp");
     m.def("roipool_bp", &roipool_bp, "roipool_bp");
     m.def("get_iou", &get_iou, "get_iou");
-    m.def("get_mask_iou_on_cluster", &get_mask_iou_on_cluster, "get_mask_iou_on_cluster");
-    m.def("get_mask_iou_on_pred", &get_mask_iou_on_pred, "get_mask_iou_on_pred");
+
     m.def("get_mask_label", &get_mask_label, "get_mask_label");
 
     // PointGroup
     m.def("pg_bfs_cluster", &pg_bfs_cluster, "pg_bfs_cluster");
 
     // HAIS
+    m.def("get_mask_iou_on_cluster", &get_mask_iou_on_cluster, "get_mask_iou_on_cluster");
+    m.def("get_mask_iou_on_pred", &get_mask_iou_on_pred, "get_mask_iou_on_pred");
     m.def("hierarchical_aggregation", &hierarchical_aggregation, "hierarchical_aggregation");
 }
