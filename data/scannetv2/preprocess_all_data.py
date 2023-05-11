@@ -133,7 +133,7 @@ def main(cfg):
         with open(getattr(cfg.data.metadata, f"{split}_list")) as f:
             id_list = [line.strip() for line in f]
         print(f"==> Processing {split} split ...")
-        process_map(partial(process_one_scan, cfg=cfg, split=split, label_map=label_map), id_list, chunksize=1, max_workers=1)
+        process_map(partial(process_one_scan, cfg=cfg, split=split, label_map=label_map), id_list, chunksize=1)
 
 
 if __name__ == '__main__':
