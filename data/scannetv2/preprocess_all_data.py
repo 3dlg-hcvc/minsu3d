@@ -37,7 +37,10 @@ def get_semantic_labels(obj_name_to_segs, seg_to_verts, num_verts, label_map, fi
         for seg in segs:
             verts = seg_to_verts[seg]
             if label not in label_map or label_map[label] not in filtered_label_map:
-                semantic_label = -1
+                if label == "ceiling":
+                    semantic_label = -1
+                else:
+                    semantic_label = 19
             else:
                 semantic_label = filtered_label_map[label_map[label]]
             semantic_labels[verts] = semantic_label
@@ -130,7 +133,7 @@ def main(cfg):
         with open(getattr(cfg.data.metadata, f"{split}_list")) as f:
             id_list = [line.strip() for line in f]
         print(f"==> Processing {split} split ...")
-        process_map(partial(process_one_scan, cfg=cfg, split=split, label_map=label_map), id_list, chunksize=1)
+        process_map(partial(process_one_scan, cfg=cfg, split=split, label_map=label_map), id_list, chunksize=1, max_workers=1)
 
 
 if __name__ == '__main__':
