@@ -130,7 +130,7 @@ class SoftGroup(GeneralModel):
         losses = super()._loss(data_dict, output_dict)
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
-            proposals_idx = output_dict["proposals_idx"][1].int().contiguous()
+            proposals_idx = output_dict["proposals_idx"][1].contiguous()
             proposals_offset = output_dict["proposals_offset"]
 
             # calculate iou of clustered instance

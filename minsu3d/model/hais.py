@@ -102,7 +102,7 @@ class HAIS(GeneralModel):
             # get iou and calculate mask label and mask loss
             mask_scores_sigmoid = torch.sigmoid(mask_scores)
 
-            cluster_points_idxs_kept = cluster_points_idxs_kept.int().contiguous()
+            cluster_points_idxs_kept = cluster_points_idxs_kept.contiguous()
 
             if self.current_epoch > self.hparams.cfg.model.network.cal_iou_based_on_mask_start_epoch:
                 ious = common_ops.get_mask_iou_on_pred(
