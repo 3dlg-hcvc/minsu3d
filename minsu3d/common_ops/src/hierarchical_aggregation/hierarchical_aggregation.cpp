@@ -126,7 +126,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tenso
     at::Tensor cluster_obj_idxs_tensor = torch::zeros({sumNPoint_kept}, torch::kInt32);
     at::Tensor cluster_point_idxs_tensor = torch::zeros({sumNPoint_kept}, torch::kInt64);
 
-
     cluster_offsets_kept_tensor.resize_({(int)CCs_kept.size() + 1});
     cluster_centers_kept_tensor.resize_({(int)CCs_kept.size(), 5});
 
@@ -136,14 +135,12 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tenso
     int *cluster_obj_idxs = cluster_obj_idxs_tensor.data_ptr<int>();
     long *cluster_point_idxs = cluster_point_idxs_tensor.data_ptr<long>();
 
-
     int *cluster_offsets_kept = cluster_offsets_kept_tensor.data_ptr<int>();
     float *cluster_centers_kept = cluster_centers_kept_tensor.data_ptr<float>();
     fill_cluster_idxs_(CCs_kept, cluster_obj_idxs, cluster_point_idxs, cluster_offsets_kept, cluster_centers_kept);
 
     at::Tensor primary_idxs_tensor = torch::zeros({sumNPoint_primary}, torch::kInt32);
     at::Tensor primary_points_idxs_tensor = torch::zeros({sumNPoint_primary}, torch::kInt64);
-
 
     primary_offsets_tensor.resize_({(int)CCs_primary.size() + 1});
     primary_centers_tensor.resize_({(int)CCs_primary.size(), 5});
@@ -153,14 +150,12 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tenso
     int *primary_idxs = primary_idxs_tensor.data_ptr<int>();
     long *primary_points_idxs = primary_points_idxs_tensor.data_ptr<long>();
 
-
     int *primary_offsets = primary_offsets_tensor.data_ptr<int>();
     float *primary_centers = primary_centers_tensor.data_ptr<float>();
     fill_cluster_idxs_(CCs_primary, primary_idxs, primary_points_idxs, primary_offsets, primary_centers);
 
     at::Tensor fragment_idxs_tensor = torch::zeros({sumNPoint_fragment}, torch::kInt32);
     at::Tensor fragment_points_idxs_tensor = torch::zeros({sumNPoint_fragment}, torch::kInt64);
-
 
     at::Tensor primary_idxs_post_tensor = torch::zeros({sumNPoint_fragment + sumNPoint_primary}, torch::kInt32);
     at::Tensor primary_points_idxs_post_tensor = torch::zeros({sumNPoint_fragment + sumNPoint_primary}, torch::kInt64);
@@ -171,7 +166,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tenso
         primary_points_idxs_post_tensor);
 
     }
-
 
     fragment_offsets_tensor.resize_({(int)CCs_fragment.size() + 1});
     fragment_centers_tensor.resize_({(int)CCs_fragment.size(), 5}); //[:, -2] for cls_label, [:, -1] for batch_idx
@@ -184,17 +178,9 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tenso
     int *fragment_offsets = fragment_offsets_tensor.data_ptr<int>();
     float *fragment_centers = fragment_centers_tensor.data_ptr<float>();
 
-
     fill_cluster_idxs_(CCs_fragment, fragment_idxs, fragment_points_idxs, fragment_offsets, fragment_centers);
 
-
-    // prerare tensor for storing post-primary
-    //primary_idxs_post_tensor.resize_({sumNPoint_fragment + sumNPoint_primary, 2});  //never overflow, but need to cut off tails
-
-
-
     primary_offsets_post_tensor.resize_({(int)CCs_primary.size() + 1});
-    // primary_idxs_post_tensor.zero_();
 
     primary_offsets_post_tensor.zero_();
     int *primary_idxs_post = primary_idxs_post_tensor.data_ptr<int>();
