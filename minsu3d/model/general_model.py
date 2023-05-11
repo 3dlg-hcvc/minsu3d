@@ -149,10 +149,9 @@ class GeneralModel(pl.LightningModule):
                 self.print(f"\nPredictions saved at {os.path.abspath(save_dir)}")
 
 
-def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, spatial_shape, device):
-
-    batch_idx = clusters_idx[:, 0]
-    c_idxs = clusters_idx[:, 1]
+def clusters_voxelization(cluster_obj_idxs, cluster_point_idxs, clusters_offset, feats, coords, scale, spatial_shape, device):
+    batch_idx = cluster_obj_idxs
+    c_idxs = cluster_point_idxs
     feats = feats[c_idxs]
     clusters_coords = coords[c_idxs]
 
@@ -180,9 +179,7 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
     offset = torch.index_select(offset, 0, batch_idx)
     clusters_coords += offset
 
-    clusters_coords = clusters_coords.int()
-
-    batched_xyz = torch.cat((clusters_idx[:, 0].unsqueeze(-1), clusters_coords), dim=1)
+    batched_xyz = torch.cat((cluster_obj_idxs.unsqueeze(-1), clusters_coords.round().int()), dim=1)
 
     voxel_xyz, voxel_features, _, voxel_point_map = ME.utils.sparse_quantize(
         batched_xyz, feats, return_index=True, return_inverse=True, device=device.type

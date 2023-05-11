@@ -11,16 +11,6 @@ import COMMON_OPS
 class BallQueryBatchP(Function):
     @staticmethod
     def forward(ctx, coords, batch_idxs, batch_offsets, radius, meanActive):
-        '''
-        :param ctx:
-        :param coords: (n, 3) float
-        :param batch_idxs: (n) uint8
-        :param batch_offsets: (B+1) int
-        :param radius: float
-        :param meanActive: int
-        :return: idx (nActive), int
-        :return: start_len (n, 2), int
-        '''
 
         n = coords.size(0)
 
@@ -50,12 +40,7 @@ ballquery_batch_p = BallQueryBatchP.apply
 class SecMean(Function):
     @staticmethod
     def forward(ctx, inp, offsets):
-        '''
-        :param ctx:
-        :param inp: (N, C) float
-        :param offsets: (nProposal + 1) int
-        :return: out (nProposal, C) float
-        '''
+
         nProposal = offsets.size(0) - 1
         C = inp.size(1)
 
@@ -79,12 +64,7 @@ sec_mean = SecMean.apply
 class SecMin(Function):
     @staticmethod
     def forward(ctx, inp, offsets):
-        '''
-        :param ctx:
-        :param inp: (N, C) float
-        :param offsets: (nProposal + 1) int
-        :return: out (nProposal, C) float
-        '''
+
         nProposal = offsets.size(0) - 1
         C = inp.size(1)
 
@@ -108,12 +88,7 @@ sec_min = SecMin.apply
 class SecMax(Function):
     @staticmethod
     def forward(ctx, inp, offsets):
-        '''
-        :param ctx:
-        :param inp: (N, C) float
-        :param offsets: (nProposal + 1) int
-        :return: out (nProposal, C) float
-        '''
+
         nProposal = offsets.size(0) - 1
         C = inp.size(1)
 
@@ -136,12 +111,7 @@ sec_max = SecMax.apply
 class RoiPool(Function):
     @staticmethod
     def forward(ctx, feats, proposals_offset):
-        '''
-        :param ctx:
-        :param feats: (sumNPoint, C) float
-        :param proposals_offset: (nProposal + 1) int
-        :return: output_feats (nProposal, C) float
-        '''
+
         nProposal = proposals_offset.size(0) - 1
         sumNPoint, C = feats.size()
 
@@ -176,14 +146,7 @@ roipool = RoiPool.apply
 class GetIoU(Function):
     @staticmethod
     def forward(ctx, proposals_idx, proposals_offset, instance_ids, instance_pointnum):
-        '''
-        :param ctx:
-        :param proposals_idx: (sumNPoint), int
-        :param proposals_offset: (nProposal + 1), int
-        :param instance_ids: (N), int16, 0~total_nInst-1, -1
-        :param instance_pointnum: (total_nInst), int
-        :return: proposals_iou: (nProposal, total_nInst), float
-        '''
+
         nInstance = instance_pointnum.size(0)
         nProposal = proposals_offset.size(0) - 1
 
@@ -211,18 +174,6 @@ class GetMaskIoUOnCluster(Function):
 
     @staticmethod
     def forward(ctx, proposals_idx, proposals_offset, instance_labels, instance_pointnum):
-        '''
-        :param ctx:
-        :param proposals_idx: (sumNPoint), int
-        :param proposals_offset: (nProposal + 1), int
-        :param instance_labels: (N), long, 0~total_nInst-1, -1
-        :param instance_pointnum: (total_nInst), int
-        :param mask_scores_sigmoid: (sumNPoint), float
-        :param mode: int, mode = 1 if cal IoU based on mask else mode = 0
-
-        :return: proposals_iou: (nProposal, total_nInst), float
-        :return mask_label:
-        '''
 
         nInstance = instance_pointnum.size(0)
         nProposal = proposals_offset.size(0) - 1
@@ -249,33 +200,19 @@ get_mask_iou_on_cluster = GetMaskIoUOnCluster.apply
 class GetMaskIoUOnPred(Function):
 
     @staticmethod
-    def forward(ctx, proposals_idx, proposals_offset, instance_labels, instance_pointnum,
-                mask_scores_sigmoid):
-        '''
-        :param ctx:
-        :param proposals_idx: (sumNPoint), int
-        :param proposals_offset: (nProposal + 1), int
-        :param instance_labels: (N), long, 0~total_nInst-1, -1
-        :param instance_pointnum: (total_nInst), int
-        :param mask_scores_sigmoid: (sumNPoint), float
-        :param mode: int, mode = 1 if cal IoU based on mask else mode = 0
-
-        :return: proposals_iou: (nProposal, total_nInst), float
-        :return mask_label:
-        '''
+    def forward(ctx, cluster_idxs_kept, cluster_points_idxs_kept, proposals_offset, instance_labels, instance_pointnum, mask_scores_sigmoid):
 
         nInstance = instance_pointnum.size(0)
         nProposal = proposals_offset.size(0) - 1
         proposals_iou = torch.zeros((nProposal, nInstance), dtype=torch.float32, device="cuda")
 
-        assert proposals_idx.is_contiguous() and proposals_idx.is_cuda
         assert proposals_offset.is_contiguous() and proposals_offset.is_cuda
         assert instance_labels.is_contiguous() and instance_labels.is_cuda
         assert instance_pointnum.is_contiguous() and instance_pointnum.is_cuda
         assert mask_scores_sigmoid.is_contiguous() and mask_scores_sigmoid.is_cuda
 
         COMMON_OPS.get_mask_iou_on_pred(
-            proposals_idx, proposals_offset, instance_labels, instance_pointnum,
+            cluster_idxs_kept, cluster_points_idxs_kept, proposals_offset, instance_labels, instance_pointnum,
             proposals_iou, nInstance, nProposal, mask_scores_sigmoid
         )
 

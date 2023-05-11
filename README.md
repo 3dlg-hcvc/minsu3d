@@ -32,50 +32,49 @@ We recommend the use of [miniconda](https://docs.conda.io/en/latest/miniconda.ht
 conda create -n minsu3d python=3.10
 conda activate minsu3d
 
-# install PyTorch 1.13.1
-conda install pytorch==1.13.1 pytorch-cuda=11.6 -c pytorch -c nvidia
+# install PyTorch 2.0
+conda install pytorch pytorch-cuda=11.7 -c pytorch -c nvidia
 
 # install Python libraries
 pip install .
 
-# install OpenBLAS and SparseHash via conda
-conda install openblas-devel -c anaconda
-conda install -c bioconda google-sparsehash
-export CPATH=$CONDA_PREFIX/include:$CPATH
-export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+# install OpenBLAS
+conda install openblas-devel --no-deps -c anaconda
 
 # install MinkowskiEngine
 pip install -U git+https://github.com/NVIDIA/MinkowskiEngine -v --no-deps \
 --install-option="--blas_include_dirs=${CONDA_PREFIX}/include" --install-option="--blas=openblas"
 
 # install C++ extensions
+export CPATH=$CONDA_PREFIX/include:$CPATH
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 cd minsu3d/common_ops
-python setup.py develop
+pip install .
 ```
 
 ### Pip (without conda)
-Note: Setting up with pip (no conda) requires [OpenBLAS](https://github.com/xianyi/OpenBLAS) and [SparseHash](https://github.com/sparsehash/sparsehash) to be pre-installed in your system.
+Note: Setting up with pip (no conda) requires [OpenBLAS](https://github.com/xianyi/OpenBLAS) to be pre-installed in your system.
 
 ```shell
 # create and activate the virtual environment
 virtualenv --no-download env
 source env/bin/activate
 
-# install PyTorch 1.13.1
-pip install torch==1.13.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
+# install PyTorch 2.0
+pip3 install torch
 
 # install Python libraries
 pip install .
 
 # install OpenBLAS and SparseHash via APT
-sudo apt install libopenblas-dev libsparsehash-dev
+sudo apt install libopenblas-dev
 
 # install MinkowskiEngine
 pip install MinkowskiEngine
 
 # install C++ extensions
 cd minsu3d/common_ops
-python setup.py develop
+pip install .
 ```
 
 ## Data Preparation

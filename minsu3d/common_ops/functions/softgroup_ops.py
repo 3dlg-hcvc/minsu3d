@@ -8,26 +8,18 @@ class SGBFSCluster(Function):
 
     @staticmethod
     def forward(ctx, class_numpoint_mean, ball_query_idxs, start_len, threshold, class_id):
-        """
-        :param ctx:
-        :param ball_query_idxs: (nActive), int
-        :param start_len: (N, 2), int
-        :return: cluster_idxs:  int (sumNPoint, 2), dim 0 for cluster_id, dim 1 for point idxs in N
-        :return: cluster_offsets: int (nCluster + 1)
-        """
 
         N = start_len.size(0)
         assert ball_query_idxs.is_contiguous()
         assert start_len.is_contiguous()
 
-        cluster_idxs = ball_query_idxs.new()
-        cluster_offsets = ball_query_idxs.new()
         cluster_numpoint_mean = torch.tensor(class_numpoint_mean, dtype=torch.float32)
 
-        COMMON_OPS.sg_bfs_cluster(cluster_numpoint_mean, ball_query_idxs, start_len, cluster_idxs,
-                        cluster_offsets, N, threshold, class_id)
+        cluster_obj_idxs, cluster_point_idxs, cluster_offsets = COMMON_OPS.sg_bfs_cluster(
+            cluster_numpoint_mean, ball_query_idxs, start_len, N, threshold, class_id
+        )
 
-        return cluster_idxs, cluster_offsets
+        return cluster_obj_idxs, cluster_point_idxs, cluster_offsets
 
     @staticmethod
     def backward(ctx, a=None):

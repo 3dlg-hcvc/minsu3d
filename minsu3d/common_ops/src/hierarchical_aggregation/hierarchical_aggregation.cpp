@@ -78,7 +78,7 @@ void split_clusters(int16_t *semantic_label, float *coord_shift, uint8_t *batch_
 }
 
 // convert from ConnectedComponents to (idxs, offsets) representation
-void fill_cluster_idxs_(ConnectedComponents &CCs, int *cluster_idxs, int *cluster_offsets, float *cluster_centers){
+void fill_cluster_idxs_(ConnectedComponents &CCs, int *cluster_obj_idxs, long *cluster_point_idxs, int *cluster_offsets, float *cluster_centers){
     for(int i = 0; i < (int)CCs.size(); i++){
         cluster_offsets[i + 1] = cluster_offsets[i] + (int)CCs[i].pt_idxs.size();
 
@@ -89,28 +89,21 @@ void fill_cluster_idxs_(ConnectedComponents &CCs, int *cluster_idxs, int *cluste
         cluster_centers[i * 5 + 4] = (float)CCs[i].batch_idx;
 
         for(int j = 0; j < (int)CCs[i].pt_idxs.size(); j++){
-            int idx = CCs[i].pt_idxs[j];
-            cluster_idxs[(cluster_offsets[i] + j) * 2 + 0] = i;
-            cluster_idxs[(cluster_offsets[i] + j) * 2 + 1] = idx;
+            long idx = (long)CCs[i].pt_idxs[j];
+            int tmp_index = cluster_offsets[i] + j;
+            cluster_obj_idxs[tmp_index] = i;
+            cluster_point_idxs[tmp_index] = idx;
         }
     }
 }
 
-//input: semantic_label, int16, (N)
-//input: coord_shift, float, (N, 3)
-//input: batch_idxs, uint8, (N)
-//input: ball_query_idxs, int, (nActive)
-//input: start_len, int, (N, 2)
-//(fragment_idxs, fragment_offsets, fragment_centers) for fragment clusters
-//(cluster_idxs_kept_tensor, cluster_offsets_kept_tensor, cluster_centers_kept_tensor) for keeping some fragments
-//(primary_idxs_tensor, primary_offsets, primary_centers) for primary clusters
-//(primary_idxs_post_tensor, primary_offsets_post_tensor) for aggregated clusters
-void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord_shift_tensor, at::Tensor batch_idxs_tensor,
+
+std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tensor, at::Tensor> hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord_shift_tensor, at::Tensor batch_idxs_tensor,
         at::Tensor ball_query_idxs_tensor, at::Tensor start_len_tensor,
-        at::Tensor fragment_idxs_tensor, at::Tensor fragment_offsets_tensor, at::Tensor fragment_centers_tensor,
-        at::Tensor cluster_idxs_kept_tensor, at::Tensor cluster_offsets_kept_tensor, at::Tensor cluster_centers_kept_tensor,
-        at::Tensor primary_idxs_tensor, at::Tensor primary_offsets_tensor, at::Tensor primary_centers_tensor,
-        at::Tensor primary_idxs_post_tensor, at::Tensor primary_offsets_post_tensor,
+        at::Tensor fragment_offsets_tensor, at::Tensor fragment_centers_tensor,
+        at::Tensor cluster_offsets_kept_tensor, at::Tensor cluster_centers_kept_tensor,
+        at::Tensor primary_offsets_tensor, at::Tensor primary_centers_tensor,
+        at::Tensor primary_offsets_post_tensor,
         at::Tensor point_num_avg_tensor, at::Tensor radius_avg_tensor,
         const int N, const int using_set_aggr_, const int ignored_label){
     int16_t *semantic_label = semantic_label_tensor.data_ptr<int16_t>();
@@ -130,55 +123,78 @@ void hierarchical_aggregation(at::Tensor semantic_label_tensor, at::Tensor coord
         CCs_fragment, CCs_kept, CCs_primary,
         & sumNPoint_fragment, & sumNPoint_kept, & sumNPoint_primary, point_num_avg, ignored_label);
 
-    cluster_idxs_kept_tensor.resize_({sumNPoint_kept, 2});
+    at::Tensor cluster_obj_idxs_tensor = torch::zeros({sumNPoint_kept}, torch::kInt32);
+    at::Tensor cluster_point_idxs_tensor = torch::zeros({sumNPoint_kept}, torch::kInt64);
+
     cluster_offsets_kept_tensor.resize_({(int)CCs_kept.size() + 1});
     cluster_centers_kept_tensor.resize_({(int)CCs_kept.size(), 5});
-    cluster_idxs_kept_tensor.zero_();
+
     cluster_offsets_kept_tensor.zero_();
     cluster_centers_kept_tensor.zero_();
-    int *cluster_idxs_kept = cluster_idxs_kept_tensor.data_ptr<int>();
+
+    int *cluster_obj_idxs = cluster_obj_idxs_tensor.data_ptr<int>();
+    long *cluster_point_idxs = cluster_point_idxs_tensor.data_ptr<long>();
+
     int *cluster_offsets_kept = cluster_offsets_kept_tensor.data_ptr<int>();
     float *cluster_centers_kept = cluster_centers_kept_tensor.data_ptr<float>();
-    fill_cluster_idxs_(CCs_kept, cluster_idxs_kept, cluster_offsets_kept, cluster_centers_kept);
+    fill_cluster_idxs_(CCs_kept, cluster_obj_idxs, cluster_point_idxs, cluster_offsets_kept, cluster_centers_kept);
 
-    primary_idxs_tensor.resize_({sumNPoint_primary, 2});
+    at::Tensor primary_idxs_tensor = torch::zeros({sumNPoint_primary}, torch::kInt32);
+    at::Tensor primary_points_idxs_tensor = torch::zeros({sumNPoint_primary}, torch::kInt64);
+
     primary_offsets_tensor.resize_({(int)CCs_primary.size() + 1});
     primary_centers_tensor.resize_({(int)CCs_primary.size(), 5});
-    primary_idxs_tensor.zero_();
     primary_offsets_tensor.zero_();
     primary_centers_tensor.zero_();
+
     int *primary_idxs = primary_idxs_tensor.data_ptr<int>();
+    long *primary_points_idxs = primary_points_idxs_tensor.data_ptr<long>();
+
     int *primary_offsets = primary_offsets_tensor.data_ptr<int>();
     float *primary_centers = primary_centers_tensor.data_ptr<float>();
-    fill_cluster_idxs_(CCs_primary, primary_idxs, primary_offsets, primary_centers);
+    fill_cluster_idxs_(CCs_primary, primary_idxs, primary_points_idxs, primary_offsets, primary_centers);
+
+    at::Tensor fragment_idxs_tensor = torch::zeros({sumNPoint_fragment}, torch::kInt32);
+    at::Tensor fragment_points_idxs_tensor = torch::zeros({sumNPoint_fragment}, torch::kInt64);
+
+    at::Tensor primary_idxs_post_tensor = torch::zeros({sumNPoint_fragment + sumNPoint_primary}, torch::kInt32);
+    at::Tensor primary_points_idxs_post_tensor = torch::zeros({sumNPoint_fragment + sumNPoint_primary}, torch::kInt64);
 
     if (using_set_aggr_ == 0) { // only point aggr
-        return;
+        return std::make_tuple(cluster_obj_idxs_tensor, cluster_point_idxs_tensor, primary_idxs_tensor,
+        primary_points_idxs_tensor, fragment_idxs_tensor, fragment_points_idxs_tensor, primary_idxs_post_tensor,
+        primary_points_idxs_post_tensor);
+
     }
 
-    fragment_idxs_tensor.resize_({sumNPoint_fragment, 2});
     fragment_offsets_tensor.resize_({(int)CCs_fragment.size() + 1});
     fragment_centers_tensor.resize_({(int)CCs_fragment.size(), 5}); //[:, -2] for cls_label, [:, -1] for batch_idx
-    fragment_idxs_tensor.zero_();
     fragment_offsets_tensor.zero_();
     fragment_centers_tensor.zero_();
+
     int *fragment_idxs = fragment_idxs_tensor.data_ptr<int>();
+    long *fragment_points_idxs = fragment_points_idxs_tensor.data_ptr<long>();
+
     int *fragment_offsets = fragment_offsets_tensor.data_ptr<int>();
     float *fragment_centers = fragment_centers_tensor.data_ptr<float>();
-    fill_cluster_idxs_(CCs_fragment, fragment_idxs, fragment_offsets, fragment_centers);
 
+    fill_cluster_idxs_(CCs_fragment, fragment_idxs, fragment_points_idxs, fragment_offsets, fragment_centers);
 
-    // prerare tensor for storing post-primary
-    primary_idxs_post_tensor.resize_({sumNPoint_fragment + sumNPoint_primary, 2});  //never overflow, but need to cut off tails
     primary_offsets_post_tensor.resize_({(int)CCs_primary.size() + 1});
-    primary_idxs_post_tensor.zero_();
+
     primary_offsets_post_tensor.zero_();
     int *primary_idxs_post = primary_idxs_post_tensor.data_ptr<int>();
+    long *primary_points_idxs_post = primary_points_idxs_post_tensor.data_ptr<long>();
+
     int *primary_offsets_post = primary_offsets_post_tensor.data_ptr<int>();
 
     // set aggr
-    hierarchical_aggregation_cuda(sumNPoint_fragment, (int)CCs_fragment.size(), fragment_idxs, fragment_offsets, fragment_centers,
-        sumNPoint_primary, (int)CCs_primary.size(), primary_idxs, primary_offsets, primary_centers,
-        primary_idxs_post, primary_offsets_post, radius_avg, radius_avg_tensor.sizes()[0]);
+    hierarchical_aggregation_cuda(sumNPoint_fragment, (int)CCs_fragment.size(), fragment_points_idxs, fragment_offsets, fragment_centers,
+        sumNPoint_primary, (int)CCs_primary.size(), primary_idxs, primary_points_idxs, primary_offsets, primary_centers,
+        primary_idxs_post, primary_points_idxs_post, primary_offsets_post, radius_avg, radius_avg_tensor.sizes()[0]);
+
+    return std::make_tuple(cluster_obj_idxs_tensor, cluster_point_idxs_tensor, primary_idxs_tensor,
+    primary_points_idxs_tensor, fragment_idxs_tensor, fragment_points_idxs_tensor, primary_idxs_post_tensor,
+    primary_points_idxs_post_tensor);
 
 }

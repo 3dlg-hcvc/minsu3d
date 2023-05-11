@@ -18,7 +18,7 @@ optimizer:
     lr: 0.002
 
 lr_decay:
-  decay_start_epoch: 250
+  decay_start_epoch: 280
 
 network:
   module: PointGroup

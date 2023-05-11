@@ -34,7 +34,7 @@ class PointGroup(GeneralModel):
             object_idxs = torch.nonzero(semantic_preds_mask).view(-1)
 
             batch_idxs_ = data_dict["vert_batch_ids"][object_idxs]
-            batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0).int()
+            batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0, dtype=torch.int32)
             coords_ = data_dict["point_xyz"][object_idxs]
             pt_offsets_ = output_dict["point_offsets"][object_idxs]
 
@@ -46,35 +46,41 @@ class PointGroup(GeneralModel):
                 self.hparams.cfg.model.network.cluster.cluster_shift_meanActive
             )
 
-            proposals_idx_shift, proposals_offset_shift = pointgroup_ops.pg_bfs_cluster(
+            cluster_obj_idxs_shift, cluster_point_idxs_shift, proposals_offset_shift = pointgroup_ops.pg_bfs_cluster(
                 semantic_preds_cpu, idx_shift.cpu(), start_len_shift.cpu(),
                 self.hparams.cfg.model.network.cluster.cluster_npoint_thre
             )
 
-            proposals_idx_shift = proposals_idx_shift.long().to(self.device)
+            cluster_obj_idxs_shift = cluster_obj_idxs_shift.to(self.device)
+            cluster_point_idxs_shift = cluster_point_idxs_shift.to(self.device)
             proposals_offset_shift = proposals_offset_shift.to(self.device)
-            proposals_idx_shift[:, 1] = object_idxs[proposals_idx_shift[:, 1]]
+
+            cluster_point_idxs_shift = object_idxs[cluster_point_idxs_shift]
 
             idx, start_len = common_ops.ballquery_batch_p(
                 coords_, batch_idxs_, batch_offsets_, self.hparams.cfg.model.network.cluster.cluster_radius,
                 self.hparams.cfg.model.network.cluster.cluster_meanActive
             )
-            proposals_idx, proposals_offset = pointgroup_ops.pg_bfs_cluster(
+            cluster_obj_idxs, cluster_point_idxs, proposals_offset = pointgroup_ops.pg_bfs_cluster(
                 semantic_preds_cpu, idx.cpu(), start_len.cpu(),
                 self.hparams.cfg.model.network.cluster.cluster_npoint_thre
             )
-            proposals_idx = proposals_idx.long().to(self.device)
+            cluster_obj_idxs = cluster_obj_idxs.to(self.device)
+            cluster_point_idxs = cluster_point_idxs.to(self.device)
             proposals_offset = proposals_offset.to(self.device)
-            proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1]]
 
-            proposals_idx_shift[:, 0] += (proposals_offset.size(0) - 1)
+            cluster_point_idxs = object_idxs[cluster_point_idxs]
+
+            cluster_obj_idxs_shift += (proposals_offset.size(0) - 1)
             proposals_offset_shift += proposals_offset[-1]
-            proposals_idx = torch.cat((proposals_idx, proposals_idx_shift), dim=0)
+            cluster_obj_idxs = torch.cat((cluster_obj_idxs, cluster_obj_idxs_shift), dim=0)
+            cluster_point_idxs = torch.cat((cluster_point_idxs, cluster_point_idxs_shift), dim=0)
             proposals_offset = torch.cat((proposals_offset, proposals_offset_shift[1:]))
 
             # proposals voxelization again
             proposals_voxel_feats, proposals_p2v_map = clusters_voxelization(
-                clusters_idx=proposals_idx,
+                cluster_obj_idxs=cluster_obj_idxs,
+                cluster_point_idxs=cluster_point_idxs,
                 clusters_offset=proposals_offset,
                 feats=output_dict["point_features"],
                 coords=data_dict["point_xyz"],
@@ -88,7 +94,7 @@ class PointGroup(GeneralModel):
             pt_score_feats = score_feats.features[proposals_p2v_map]  # (sumNPoint, C)
             proposals_score_feats = common_ops.roipool(pt_score_feats, proposals_offset)  # (nProposal, C)
             scores = self.score_branch(proposals_score_feats)  # (nProposal, 1)
-            output_dict["proposal_scores"] = (scores, proposals_idx, proposals_offset)
+            output_dict["proposal_scores"] = (scores, cluster_obj_idxs, cluster_point_idxs, proposals_offset)
 
         return output_dict
 
@@ -97,10 +103,10 @@ class PointGroup(GeneralModel):
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
             """score loss"""
-            scores, proposals_idx, proposals_offset = output_dict["proposal_scores"]
+            scores, cluster_obj_idxs, cluster_point_idxs, proposals_offset = output_dict["proposal_scores"]
 
             ious = common_ops.get_iou(
-                proposals_idx[:, 1].int().contiguous(), proposals_offset,
+                cluster_point_idxs, proposals_offset,
                 data_dict["instance_ids"], data_dict["instance_num_point"]
             )
             gt_scores = get_segmented_scores(
@@ -140,7 +146,8 @@ class PointGroup(GeneralModel):
                                                       point_xyz_cpu,
                                                       output_dict["proposal_scores"][0].cpu(),
                                                       output_dict["proposal_scores"][1].cpu(),
-                                                      output_dict["proposal_scores"][2].size(0) - 1,
+                                                      output_dict["proposal_scores"][2].cpu(),
+                                                      output_dict["proposal_scores"][3].size(0) - 1,
                                                       output_dict["semantic_scores"].cpu(),
                                                       len(self.hparams.cfg.data.ignore_classes))
             gt_instances = get_gt_instances(sem_labels, instance_ids_cpu,
@@ -177,7 +184,8 @@ class PointGroup(GeneralModel):
                                                       point_xyz_cpu,
                                                       output_dict["proposal_scores"][0].cpu(),
                                                       output_dict["proposal_scores"][1].cpu(),
-                                                      output_dict["proposal_scores"][2].size(0) - 1,
+                                                      output_dict["proposal_scores"][2].cpu(),
+                                                      output_dict["proposal_scores"][3].size(0) - 1,
                                                       output_dict["semantic_scores"].cpu(),
                                                       len(self.hparams.cfg.data.ignore_classes))
             gt_instances = None
@@ -217,7 +225,7 @@ class PointGroup(GeneralModel):
 
         return np.array(pick, dtype=np.int32)
 
-    def _get_pred_instances(self, scan_id, gt_xyz, proposals_scores, proposals_idx, num_proposals, semantic_scores,
+    def _get_pred_instances(self, scan_id, gt_xyz, proposals_scores, cluster_obj_idxs, cluster_point_idxs, num_proposals, semantic_scores,
                             num_ignored_classes):
         semantic_pred_labels = semantic_scores.max(1)[1]
         proposals_score = torch.sigmoid(proposals_scores.view(-1))
@@ -225,7 +233,7 @@ class PointGroup(GeneralModel):
         N = semantic_scores.shape[0]
 
         proposals_mask = torch.zeros((num_proposals, N), dtype=torch.bool, device="cpu")
-        proposals_mask[proposals_idx[:, 0], proposals_idx[:, 1]] = True
+        proposals_mask[cluster_obj_idxs.long(), cluster_point_idxs] = True
 
         # score threshold & min_npoint mask
         proposals_npoint = torch.count_nonzero(proposals_mask, dim=1)
