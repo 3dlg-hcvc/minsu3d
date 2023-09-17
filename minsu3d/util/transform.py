@@ -25,6 +25,31 @@ def flip(axis=0, random=False):
     m[axis][axis] *= -1 if not random else np.random.randint(0, 2) * 2 - 1
     return m
 
+def roty(t):
+    """
+    Rotation about the y-axis. clockwise
+    """
+    c = np.cos(t)
+    s = np.sin(t)
+    return np.array([[c,  0,  s],
+                    [0,  1,  0],
+                    [-s, 0,  c]])
+
+def roty_batch(t):
+    """Get batch rotation matrix about the y-axis.
+    t: (x1,x2,...xn)
+    return: (x1,x2,...,xn,3,3)
+    """
+    input_shape = t.shape
+    output = np.zeros(tuple(list(input_shape)+[3,3]))
+    c = np.cos(t)
+    s = np.sin(t)
+    output[...,0,0] = c
+    output[...,0,2] = s
+    output[...,1,1] = 1
+    output[...,2,0] = -s
+    output[...,2,2] = c
+    return output
 
 def rotz(t):
     """
