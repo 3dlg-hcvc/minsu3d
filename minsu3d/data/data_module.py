@@ -40,31 +40,21 @@ class DataModule(pl.LightningDataModule):
 
 
 def _sparse_collate_fn(batch):
-    data = {}
-    point_xyz = []
+
     vert_batch_ids = []
-    sem_labels = []
-    instance_ids = []
+
     instance_center_xyz = []
     instance_num_point = []
-    instance_offsets = [0]
+    sem_labels = []
+    instance_ids = []
     total_num_inst = 0
-    instance_cls = []
-    voxel_xyz_list = []
-    voxel_features_list = []
-    voxel_point_map_list = []
-    num_voxel_batch = 0
-    scan_ids = []
+    batch_data = []
+
+    default_collate_items = ("scan_id", "point_xyz", "point_rgb", "point_normal",)
 
     for i, b in enumerate(batch):
-        scan_ids.append(b["scan_id"])
-        point_xyz.append(torch.from_numpy(b["point_xyz"]))
-
-        voxel_xyz_list.append(b["voxel_xyz"])
-        voxel_features_list.append(b["voxel_features"])
-        voxel_point_map_list.append(b["voxel_point_map"] + num_voxel_batch)
-        num_voxel_batch += b["voxel_xyz"].shape[0]
-
+        batch_data.append({k: b[k] for k in default_collate_items})
+        sem_labels.append(torch.from_numpy(b["sem_labels"]))
         vert_batch_ids.append(torch.full((b["point_xyz"].shape[0],), fill_value=i, dtype=torch.uint8))
 
         instance_ids_i = b["instance_ids"]
@@ -72,27 +62,15 @@ def _sparse_collate_fn(batch):
         total_num_inst += b["num_instance"].item()
         instance_ids.append(torch.from_numpy(instance_ids_i))
 
-        sem_labels.append(torch.from_numpy(b["sem_labels"]))
-
         instance_center_xyz.append(torch.from_numpy(b["instance_center_xyz"]))
         instance_num_point.append(torch.from_numpy(b["instance_num_point"]))
-        instance_offsets.append(instance_offsets[-1] + b["num_instance"].item())
 
-        instance_cls.extend(b["instance_semantic_cls"])
+    data = default_collate(batch_data)  # default collate_fn
 
-    data['scan_ids'] = scan_ids
-    data["point_xyz"] = torch.cat(point_xyz, dim=0)
     data["vert_batch_ids"] = torch.cat(vert_batch_ids, dim=0)
-
     data["sem_labels"] = torch.cat(sem_labels, dim=0)
     data["instance_ids"] = torch.cat(instance_ids, dim=0)
     data["instance_center_xyz"] = torch.cat(instance_center_xyz, dim=0)
     data["instance_num_point"] = torch.cat(instance_num_point, dim=0)
-    data["instance_offsets"] = torch.tensor(instance_offsets, dtype=torch.int32)
-    data["instance_semantic_cls"] = torch.tensor(instance_cls, dtype=torch.int16)
 
-    data["voxel_xyz"], data["voxel_features"] = ME.utils.sparse_collate(
-        coords=voxel_xyz_list, feats=voxel_features_list
-    )
-    data["voxel_point_map"] = torch.cat(voxel_point_map_list, dim=0)
     return data

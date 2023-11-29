@@ -28,9 +28,7 @@ class GeneralModel(pl.LightningModule):
         return hydra.utils.instantiate(self.hparams.cfg.model.optimizer, params=self.parameters())
 
     def forward(self, data_dict):
-        backbone_output_dict = self.backbone(
-            data_dict["voxel_features"], data_dict["voxel_xyz"], data_dict["voxel_point_map"]
-        )
+        backbone_output_dict = self.backbone(data_dict["point_xyz"], data_dict["point_rgb"], data_dict["point_normal"])
         return backbone_output_dict
 
     def _loss(self, data_dict, output_dict):
