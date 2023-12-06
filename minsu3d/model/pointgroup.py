@@ -35,8 +35,10 @@ class PointGroup(GeneralModel):
 
             batch_idxs_ = data_dict["vert_batch_ids"][object_idxs]
             batch_offsets_ = torch.cumsum(torch.bincount(batch_idxs_ + 1), dim=0).int()
-            coords_ = data_dict["point_xyz"][object_idxs]
+            coords_ = data_dict["point_xyz"].flatten(end_dim=1)[object_idxs]
             pt_offsets_ = output_dict["point_offsets"][object_idxs]
+
+            
 
             semantic_preds_cpu = semantic_preds[object_idxs].cpu()
 
@@ -77,7 +79,7 @@ class PointGroup(GeneralModel):
                 clusters_idx=proposals_idx,
                 clusters_offset=proposals_offset,
                 feats=output_dict["point_features"],
-                coords=data_dict["point_xyz"],
+                coords=data_dict["point_xyz"].flatten(end_dim=1),
                 scale=self.hparams.cfg.model.network.score_scale,
                 spatial_shape=self.hparams.cfg.model.network.score_fullscale,
                 device=self.device
@@ -133,7 +135,7 @@ class PointGroup(GeneralModel):
         )
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
-            point_xyz_cpu = data_dict["point_xyz"].cpu().numpy()
+            point_xyz_cpu = data_dict["point_xyz"].flatten(end_dim=1).cpu().numpy()
             instance_ids_cpu = data_dict["instance_ids"].cpu()
             sem_labels = data_dict["sem_labels"].cpu()
             pred_instances = self._get_pred_instances(data_dict["scan_ids"][0],
@@ -169,7 +171,7 @@ class PointGroup(GeneralModel):
             )
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
-            point_xyz_cpu = data_dict["point_xyz"].cpu().numpy()
+            point_xyz_cpu = data_dict["point_xyz"].flatten(end_dim=1).cpu().numpy()
             instance_ids_cpu = data_dict["instance_ids"].cpu()
             sem_labels = data_dict["sem_labels"].cpu()
 
@@ -263,3 +265,4 @@ class PointGroup(GeneralModel):
             pred['pred_bbox'] = np.concatenate((pred_inst.min(0), pred_inst.max(0)))
             instances.append(pred)
         return instances
+

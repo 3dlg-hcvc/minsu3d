@@ -3,6 +3,7 @@ import MinkowskiEngine as ME
 import pytorch_lightning as pl
 from importlib import import_module
 from torch.utils.data import DataLoader
+from torch.utils.data._utils.collate import default_collate
 
 
 class DataModule(pl.LightningDataModule):
@@ -51,8 +52,10 @@ def _sparse_collate_fn(batch):
     batch_data = []
 
     default_collate_items = ("scan_id", "point_xyz", "point_rgb", "point_normal",)
+    scan_ids = []
 
     for i, b in enumerate(batch):
+        scan_ids.append(b["scan_id"])
         batch_data.append({k: b[k] for k in default_collate_items})
         sem_labels.append(torch.from_numpy(b["sem_labels"]))
         vert_batch_ids.append(torch.full((b["point_xyz"].shape[0],), fill_value=i, dtype=torch.uint8))
@@ -72,5 +75,7 @@ def _sparse_collate_fn(batch):
     data["instance_ids"] = torch.cat(instance_ids, dim=0)
     data["instance_center_xyz"] = torch.cat(instance_center_xyz, dim=0)
     data["instance_num_point"] = torch.cat(instance_num_point, dim=0)
+
+    data['scan_ids'] = scan_ids
 
     return data

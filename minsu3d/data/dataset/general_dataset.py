@@ -144,6 +144,7 @@ class GeneralDataset(Dataset):
         data["point_rgb"] = colors  # (N, 3)
         data["point_normal"] = normals  # (N, 3)
         data["sem_labels"] = sem_labels  # (N, 1)
+        data["num_instance"] = np.array(num_instance, dtype=np.int32)
         data["instance_ids"] = instance_ids  # (N, 1)
         data["instance_center_xyz"] = instance_center_xyz
         data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)

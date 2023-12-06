@@ -3,6 +3,7 @@ data/*/train
 data/*/val
 data/*/test
 data/*/scans
+data/*
 
 # log
 log/

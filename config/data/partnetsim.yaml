@@ -1,0 +1,20 @@
+# Managed by Hydra
+
+defaults:
+  - base
+
+dataset: PartNetSim
+dataset_path: ${data.dataset_root_path}/partnetsim/
+raw_scene_path: ${data.dataset_path}/dataset
+
+metadata:
+  metadata_path: ${data.dataset_path}/metadata
+  train_list: ${data.metadata.metadata_path}/partnetsim_train.txt
+  val_list: ${data.metadata.metadata_path}/partnetsim_val.txt
+  test_list: ${data.metadata.metadata_path}/partnetsim_test.txt
+
+classes: 4
+ignore_classes: []
+class_names: ["drawer", "door", "lid", "base"]
+
+mapping_classes_ids: [0, 1, 2, 3]

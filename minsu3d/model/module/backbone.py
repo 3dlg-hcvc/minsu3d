@@ -3,6 +3,9 @@ import torch.nn as nn
 import pytorch_lightning as pl
 import MinkowskiEngine as ME
 from minsu3d.model.module.common import ResidualBlock, UBlock
+from .pointnext import PointNeXt
+import numpy as np
+import torch
 
 
 class Backbone(pl.LightningModule):
@@ -18,7 +21,7 @@ class Backbone(pl.LightningModule):
         # )
 
         # 1. PointNeXt
-        self.pointnext = None  # add your pointnext module here
+        self.pointnext = PointNeXt()  # add your pointnext module here
 
         # 2.1 semantic prediction branch
         self.semantic_branch = nn.Sequential(
@@ -38,8 +41,13 @@ class Backbone(pl.LightningModule):
 
     def forward(self, point_xyz, point_rgb, point_normal):
         output_dict = {}
-        point_features_dense = self.pointnext(point_xyz, point_rgb, point_normal)  # here the input size is [batch_size, point_num, feature_dims]
-        output_dict["point_features"] = point_features_dense.flatten()  # convert the dense tensor to a sparse one, now the shape is [batch_sizexpoint_num, feature_dims]
+        data_dict = {"coord": point_xyz, "feat": torch.cat((point_xyz, point_normal), dim=2)}
+        #print(f"Point xyz shape {np.shape(point_xyz)}")
+        point_features_dense = self.pointnext(data_dict)  # here the input size is [batch_size, point_num, feature_dims]
+        #print(f"Dense features shape: {np.shape(point_features_dense)}")
+        point_features_flattened = torch.transpose(torch.flatten(torch.transpose(point_features_dense, 0, 1), start_dim=1), 0, 1)
+        #print(f"Flattened features shape: {np.shape(point_features_flattened)}")
+        output_dict["point_features"] = point_features_flattened  # convert the dense tensor to a sparse one, now the shape is [batch_sizexpoint_num, feature_dims]
         output_dict["semantic_scores"] = self.semantic_branch(output_dict["point_features"])
         output_dict["point_offsets"] = self.offset_branch(output_dict["point_features"])
         return output_dict

@@ -16,7 +16,7 @@ trainer:
   num_nodes: 1
   max_epochs: 496
   num_sanity_val_steps: 10
-  check_val_every_n_epoch: 8
+  check_val_every_n_epoch: 5
   profiler: simple
 
 # https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.callbacks.ModelCheckpoint.html

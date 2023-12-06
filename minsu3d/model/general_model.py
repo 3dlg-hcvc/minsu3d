@@ -39,7 +39,8 @@ class GeneralModel(pl.LightningModule):
         )
 
         """offset loss"""
-        gt_offsets = data_dict["instance_center_xyz"] - data_dict["point_xyz"]
+        
+        gt_offsets = data_dict["instance_center_xyz"] - torch.flatten(data_dict["point_xyz"], end_dim=1)
         valid = data_dict["instance_ids"] != -1
         pt_offset_criterion = PTOffsetLoss()
         losses["offset_norm_loss"], losses["offset_dir_loss"] = pt_offset_criterion(
@@ -183,7 +184,7 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
     batched_xyz = torch.cat((clusters_idx[:, 0].unsqueeze(-1), clusters_coords), dim=1)
 
     voxel_xyz, voxel_features, _, voxel_point_map = ME.utils.sparse_quantize(
-        batched_xyz, feats, return_index=True, return_inverse=True, device=device.type
+        batched_xyz.float(), feats, return_index=True, return_inverse=True, device=device.type
     )
 
     clusters_voxel_feats = ME.SparseTensor(features=voxel_features, coordinates=voxel_xyz, device=device)

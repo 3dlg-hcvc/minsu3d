@@ -1,0 +1,80 @@
+# data augmentation
+dataset:
+  common:
+    NAME: PartNetSim
+    data_root: data/partnetsim
+    #voxel_size: 0.03
+    #num_points: 2048
+  train:
+    split: train
+    #voxel_max: 64000  # using 32000 points can make training faster but achieves ~0.5 miou lower for PointNeXt-XL 
+    loop: 6
+  val:
+    split: val
+    #voxel_max: null 
+    presample: True
+  test:
+    split: val 
+    #voxel_max: null
+
+no_label: False
+feature_keys: pos,x # appending heights has insiginificant effects on ScanNet
+
+
+num_classes: 4 
+shape_classes: 4
+batch_size: 2
+val_batch_size: 1
+
+dataloader:
+  num_workers: 10
+
+datatransforms:
+  train: [PointsToTensor, PointCloudScaling,PointCloudCenterAndNormalize,PointCloudJitter,ChromaticDropGPU]
+  val: [PointsToTensor, PointCloudCenterAndNormalize]
+  vote: [PointCloudScaling]
+  kwargs:
+    jitter_sigma: 0.001
+    jitter_clip: 0.005
+    scale: [0.8, 1.2]
+    gravity_dim: 1
+    angle: [0, 1.0, 0]
+
+# ---------------------------------------------------------------------------- #
+# Training cfgs
+# ---------------------------------------------------------------------------- #
+val_fn: validate
+ignore_index: -100
+
+
+# lr_scheduler:
+lr: 0.00001
+min_lr: null
+optimizer:
+  NAME: adamw
+  weight_decay: 1.0e-4  # the best 
+
+
+# scheduler
+epochs: 200
+sched: multistep
+decay_epochs: [150, 170]
+decay_rate: 0.1
+warmup_epochs: 0
+
+sched_on_epoch: True
+
+grad_norm_clip: 1
+use_voting: False
+# ---------------------------------------------------------------------------- #
+# io and misc
+# ---------------------------------------------------------------------------- #
+save_freq: 10 # save epoch every xxx epochs, -1 only save last and best. 
+val_freq: 1
+
+save_pred: True
+
+#distributed: True
+
+wandb:
+  project: PointNeXt-PartNetSim
