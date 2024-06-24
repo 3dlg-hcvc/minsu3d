@@ -3,8 +3,8 @@
 dataset_root_path: ${project_root_path}/data
 
 voxel_size: 0.02
-batch_size: 8
-num_workers: 8
+batch_size: 4
+num_workers: 4
 full_scale: [128, 512]
 max_num_point: 250000
 
@@ -12,5 +12,5 @@ augmentation:
   jitter_xyz: True
   flip: True
   rotation: True
-  elastic: False
+  elastic: True
   jitter_rgb: True

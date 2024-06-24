@@ -1,1 +1,0 @@
-from .partnetsim import PartNetSim
