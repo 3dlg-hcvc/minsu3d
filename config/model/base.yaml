@@ -12,7 +12,7 @@ logger:
 trainer:
   accelerator: gpu
   devices: auto
-  strategy: ddp_find_unused_parameters_true
+  strategy: ddp
   num_nodes: 1
   max_epochs: 496
   num_sanity_val_steps: 10

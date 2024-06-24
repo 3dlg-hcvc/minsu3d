@@ -4,7 +4,8 @@ defaults:
   - base
 
 dataset: PartNetSim
-dataset_path: ${data.dataset_root_path}/partnetsim/
+# dataset_path: ${data.dataset_root_path}/hssd_openable
+dataset_path: ${data.dataset_root_path}/pygltk_sampled_partnetsim_1M
 raw_scene_path: ${data.dataset_path}/dataset
 
 metadata:

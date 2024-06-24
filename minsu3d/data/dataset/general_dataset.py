@@ -1,10 +1,12 @@
 import os
-import torch
+
 import numpy as np
-from tqdm import tqdm
-import MinkowskiEngine as ME
+import torch
+from minsu3d.util.transform import crop, elastic, flip, jitter, rotz
 from torch.utils.data import Dataset
-from minsu3d.util.transform import jitter, flip, rotz, elastic, crop
+from tqdm import tqdm
+
+import MinkowskiEngine as ME
 
 
 class GeneralDataset(Dataset):
@@ -23,6 +25,7 @@ class GeneralDataset(Dataset):
             scene = torch.load(scene_path)
             scene["xyz"] -= scene["xyz"].mean(axis=0)
             scene["rgb"] = scene["rgb"].astype(np.float32) / 127.5 - 1
+            scene["scene_name"] = scene_name
             self.scenes.append(scene)
 
     def __len__(self):

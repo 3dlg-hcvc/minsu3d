@@ -1,13 +1,15 @@
-from .openpoints.models import build_model_from_cfg
-from .openpoints.utils import EasyConfig
 import copy
+
 import hydra
 import torch
 import torch.nn as nn
 
+from .openpoints.models import build_model_from_cfg
+from .openpoints.utils import EasyConfig
+
 
 class PointNeXt(nn.Module):
-    def __init__(self, 
+    def __init__(self,
                  cfg="./minsu3d/model/module/pointnext/cfgs/partnetsim/pointnext-s.yaml"):
         super().__init__()
         self.cfg = EasyConfig()
@@ -27,8 +29,6 @@ class PointNeXt(nn.Module):
             self.decoder = None
 
     def forward(self, data):
-        data_pos = data['coord']
-        data_x = data.get('feat', None)
         p, f = self.encoder.forward_seg_feat(data)
         if self.decoder is not None:
             f = self.decoder(p, f).squeeze(-1)

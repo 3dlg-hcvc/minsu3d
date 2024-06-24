@@ -1,12 +1,15 @@
 import numpy as np
 import torch.nn as nn
+from minsu3d.common_ops.functions import common_ops, pointgroup_ops
 from minsu3d.evaluation.instance_segmentation import get_gt_instances, rle_encode
 from minsu3d.evaluation.object_detection import get_gt_bbox
-from minsu3d.common_ops.functions import pointgroup_ops, common_ops
-from minsu3d.model.general_model import get_segmented_scores
-from minsu3d.model.module import TinyUnet
 from minsu3d.evaluation.semantic_segmentation import *
-from minsu3d.model.general_model import GeneralModel, clusters_voxelization
+from minsu3d.model.general_model import (
+    GeneralModel,
+    clusters_voxelization,
+    get_segmented_scores,
+)
+from minsu3d.model.module import TinyUnet
 
 
 class PointGroup(GeneralModel):
@@ -38,7 +41,6 @@ class PointGroup(GeneralModel):
             coords_ = data_dict["point_xyz"].flatten(end_dim=1)[object_idxs]
             pt_offsets_ = output_dict["point_offsets"][object_idxs]
 
-            
 
             semantic_preds_cpu = semantic_preds[object_idxs].cpu()
 
@@ -172,6 +174,7 @@ class PointGroup(GeneralModel):
 
         if self.current_epoch > self.hparams.cfg.model.network.prepare_epochs:
             point_xyz_cpu = data_dict["point_xyz"].flatten(end_dim=1).cpu().numpy()
+            #print(point_xyz_cpu.shape)
             instance_ids_cpu = data_dict["instance_ids"].cpu()
             sem_labels = data_dict["sem_labels"].cpu()
 
@@ -182,6 +185,7 @@ class PointGroup(GeneralModel):
                                                       output_dict["proposal_scores"][2].size(0) - 1,
                                                       output_dict["semantic_scores"].cpu(),
                                                       len(self.hparams.cfg.data.ignore_classes))
+            #print(np.shape(pred_instances))
             gt_instances = None
             gt_instances_bbox = None
             if self.hparams.cfg.model.inference.evaluate:
@@ -265,4 +269,3 @@ class PointGroup(GeneralModel):
             pred['pred_bbox'] = np.concatenate((pred_inst.min(0), pred_inst.max(0)))
             instances.append(pred)
         return instances
-

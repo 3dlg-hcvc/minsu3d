@@ -12,7 +12,7 @@ defaults:
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
-experiment_name: testing-pointnext-bsize4
+experiment_name: pygltk-sampled-1M-bsize8
 project_root_path: ${hydra:runtime.cwd}
 exp_output_root_path: ${project_root_path}/output/${data.dataset}/${model.network.module}/${experiment_name}
 

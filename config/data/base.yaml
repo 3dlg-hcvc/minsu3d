@@ -3,8 +3,8 @@
 dataset_root_path: ${project_root_path}/data
 
 voxel_size: 0.02
-batch_size: 2
-num_workers: 2
+batch_size: 8
+num_workers: 8
 full_scale: [128, 512]
 max_num_point: 250000
 
