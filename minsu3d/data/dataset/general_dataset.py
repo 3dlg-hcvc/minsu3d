@@ -1,12 +1,10 @@
 import os
-
-import numpy as np
 import torch
-from minsu3d.util.transform import crop, elastic, flip, jitter, rotz
-from torch.utils.data import Dataset
+import numpy as np
 from tqdm import tqdm
-
 import MinkowskiEngine as ME
+from torch.utils.data import Dataset
+from minsu3d.util.transform import jitter, flip, rotz, elastic, crop
 
 
 class GeneralDataset(Dataset):
@@ -25,7 +23,6 @@ class GeneralDataset(Dataset):
             scene = torch.load(scene_path)
             scene["xyz"] -= scene["xyz"].mean(axis=0)
             scene["rgb"] = scene["rgb"].astype(np.float32) / 127.5 - 1
-            scene["scene_name"] = scene_name
             self.scenes.append(scene)
 
     def __len__(self):
@@ -143,13 +140,26 @@ class GeneralDataset(Dataset):
             point_xyz, instance_ids, sem_labels
         )
 
+        point_features = np.zeros(shape=(len(point_xyz), 0), dtype=np.float32)
+        if self.cfg.model.network.use_color:
+            point_features = np.concatenate((point_features, colors), axis=1)
+        if self.cfg.model.network.use_normal:
+            point_features = np.concatenate((point_features, normals), axis=1)
+
+        point_features = np.concatenate((point_features, point_xyz), axis=1)  # add xyz to point features
+
         data["point_xyz"] = point_xyz  # (N, 3)
-        data["point_rgb"] = colors  # (N, 3)
-        data["point_normal"] = normals  # (N, 3)
-        data["sem_labels"] = sem_labels  # (N, 1)
+        data["sem_labels"] = sem_labels  # (N, )
+        data["instance_ids"] = instance_ids  # (N, )
         data["num_instance"] = np.array(num_instance, dtype=np.int32)
-        data["instance_ids"] = instance_ids  # (N, 1)
         data["instance_center_xyz"] = instance_center_xyz
         data["instance_num_point"] = np.array(instance_num_point, dtype=np.int32)
+        data["instance_semantic_cls"] = instance_semantic_cls
+
+        data["voxel_xyz"], data["voxel_features"], _, data["voxel_point_map"] = ME.utils.sparse_quantize(
+            coordinates=point_xyz_elastic, features=point_features,
+            return_index=True,
+            return_inverse=True, quantization_size=self.cfg.data.voxel_size
+        )
 
         return data
