@@ -1,0 +1,1 @@
+from .pointnext import PointNeXt

@@ -1,16 +1,18 @@
+import os
+
+import hydra
+import numpy as np
+import pytorch_lightning as pl
+import torch
+from minsu3d.common_ops.functions import common_ops
 from minsu3d.evaluation.instance_segmentation import GeneralDatasetEvaluator
 from minsu3d.evaluation.object_detection import evaluate_bbox_acc
-from minsu3d.util.lr_decay import cosine_lr_decay
-from minsu3d.common_ops.functions import common_ops
 from minsu3d.loss.pt_offset_loss import PTOffsetLoss
 from minsu3d.model.module import Backbone
 from minsu3d.util.io import save_prediction
-import pytorch_lightning as pl
+from minsu3d.util.lr_decay import cosine_lr_decay
+
 import MinkowskiEngine as ME
-import numpy as np
-import hydra
-import torch
-import os
 
 
 class GeneralModel(pl.LightningModule):
@@ -23,14 +25,19 @@ class GeneralModel(pl.LightningModule):
             block_reps=cfg.model.network.block_reps, sem_classes=cfg.data.classes
         )
         self.val_test_step_outputs = []
+        self.cfg = cfg
 
     def configure_optimizers(self):
         return hydra.utils.instantiate(self.hparams.cfg.model.optimizer, params=self.parameters())
 
     def forward(self, data_dict):
-        backbone_output_dict = self.backbone(
-            data_dict["voxel_features"], data_dict["voxel_xyz"], data_dict["voxel_point_map"]
-        )
+        input_dict = {"coord": data_dict["point_xyz"]}
+        input_dict["feat"] = data_dict["point_xyz"]
+        if self.cfg.model.network.use_color:
+            input_dict["feat"] = torch.cat((input_dict["feat"], data_dict["point_color"]), dim=2)
+        if self.cfg.model.network.use_normal:
+            input_dict["feat"] = torch.cat((input_dict["feat"], data_dict["point_normal"]), dim=2)
+        backbone_output_dict = self.backbone(input_dict)
         return backbone_output_dict
 
     def _loss(self, data_dict, output_dict):
@@ -41,7 +48,8 @@ class GeneralModel(pl.LightningModule):
         )
 
         """offset loss"""
-        gt_offsets = data_dict["instance_center_xyz"] - data_dict["point_xyz"]
+
+        gt_offsets = data_dict["instance_center_xyz"] - torch.flatten(data_dict["point_xyz"], end_dim=1)
         valid = data_dict["instance_ids"] != -1
         pt_offset_criterion = PTOffsetLoss()
         losses["offset_norm_loss"], losses["offset_dir_loss"] = pt_offset_criterion(
@@ -119,8 +127,6 @@ class GeneralModel(pl.LightningModule):
                 all_gt_insts.append(gt_instances)
                 all_pred_insts.append(pred_instances)
 
-            self.val_test_step_outputs.clear()
-
             if self.hparams.cfg.model.inference.evaluate:
                 inst_seg_evaluator = GeneralDatasetEvaluator(
                     self.hparams.cfg.data.class_names, -1, self.hparams.cfg.data.ignore_classes
@@ -136,6 +142,8 @@ class GeneralModel(pl.LightningModule):
                 sem_acc_avg = np.mean(np.array(all_sem_acc))
                 self.print(f"Semantic Accuracy: {sem_acc_avg}")
                 self.print(f"Semantic mean IoU: {sem_miou_avg}")
+
+                self.val_test_step_outputs.clear()
 
             if self.hparams.cfg.model.inference.save_predictions:
                 save_dir = os.path.join(
@@ -185,7 +193,7 @@ def clusters_voxelization(clusters_idx, clusters_offset, feats, coords, scale, s
     batched_xyz = torch.cat((clusters_idx[:, 0].unsqueeze(-1), clusters_coords), dim=1)
 
     voxel_xyz, voxel_features, _, voxel_point_map = ME.utils.sparse_quantize(
-        batched_xyz, feats, return_index=True, return_inverse=True, device=device.type
+        batched_xyz.float(), feats, return_index=True, return_inverse=True, device=device.type
     )
 
     clusters_voxel_feats = ME.SparseTensor(features=voxel_features, coordinates=voxel_xyz, device=device)
